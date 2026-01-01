@@ -1,0 +1,34 @@
+Here, we're building a python repo for the purpose of building calibrated distribution predictions 
+by combining many component predictions. 
+It will cover the process of updating a joint distribution over query answers based on question results
+(accounting for potentially inaccurate predictions), selection of potentially useful new questions
+(likely simply by asking an llm what might be relevant), and evaluation through a dataset of metaculus questions. 
+It should be assumed that question answers could come from a variety of sources, but that for the purposes of 
+development they will be sourced from the google gemini api. 
+
+For instance, let's say we're asked the question "how many people will take the train to work in San Francisco tomorrow?" 
+
+An inital query would simply be the question given above. An LLM could take this query and generate a list of potentially relevant variables. 
+For instance, what will the weather be like tomorrow, what day of the week will it be, how many people live in san francisco, 
+what are the chances the train system is broken, etc. For any set of one or more variables, it may then generate a conditional 
+distribution prediction, such as "if it is rainy tomorrow, how many people will take the train to work" or "what are the odds it's rainy tomorrow?" 
+There would be a fixed budget for the number of queries, and queries could be selected greedily, with some heuristic 
+(potentially just asking the LLM) for which query to select next. 
+
+A maxentropy model will be used to reconstruct the maximum entropy model which best reproduces the query answer distributions. Because 
+there's no guarantee constraints won't overfit, it will be important to have a reasonable way of producing a best fit model which
+best meets constraints, even when they're mostly exclusive. Because it's a maxentropy model, there's no limit on the ordering or direction
+of queries, they can be made arbitrarely. 
+
+While I can imagine a model where we iteratively go back and forth on selecting variables, selecting queries, and updating the model, 
+it seems better for now to just pick variables and queries in a single shot, and train the model based on that. We can complicate the framework later. 
+
+We're building a dataset by scraping metaculus, so keep that in mind while developing eval. 
+
+
+
+
+
+
+
+
