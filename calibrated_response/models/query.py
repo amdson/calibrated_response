@@ -162,6 +162,24 @@ class ExpectationQuery(Query):
         return f"What is the expected value of {self.target_variable}?"
 
 
+class QueryData(BaseModel):
+    """Raw query data from LLM generation."""
+    id: str = Field(..., description="Unique identifier for the query")
+    text: str = Field(..., description="Natural language query text")
+    target_variable: str = Field(..., description="Name of the variable being queried")
+    query_type: str = Field(..., description="Type: threshold, conditional, marginal, quantile, expectation")
+    threshold: Optional[float] = Field(None, description="Threshold value if applicable")
+    threshold_direction: Optional[str] = Field(None, description="Direction: greater or less")
+    condition_variable: Optional[str] = Field(None, description="Variable being conditioned on")
+    condition_text: Optional[str] = Field(None, description="Natural language condition")
+    informativeness: float = Field(0.5, description="Estimated information gain")
+
+
+class QueryList(BaseModel):
+    """List of queries from LLM generation."""
+    queries: list[QueryData] = Field(..., description="List of generated queries")
+
+
 class QueryResult(BaseModel):
     """Result of a distributional query."""
     

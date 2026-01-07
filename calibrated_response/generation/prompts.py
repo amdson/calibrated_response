@@ -16,7 +16,6 @@ Identify {n_variables} relevant variables that could help predict the answer to 
 For each variable, provide:
 - A short name (2-4 words)
 - A description of what it represents
-- Why it's relevant to the question
 - Whether it's binary (yes/no), continuous (numeric), or discrete (categories)
 - An estimated importance from 0 to 1
 
@@ -52,7 +51,7 @@ Generate {n_queries} specific queries to help estimate the answer to the main qu
 Each query should ask about one of the variables or relationships between them.
 Include a mix of:
 - Direct probability questions (P(X > threshold))
-- Conditional questions (P(X | Y))
+- Conditional questions (P(X | Y > threshold))
 - Expectation/median questions
 
 Respond in JSON format:

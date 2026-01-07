@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any, Optional, Type, TypeVar
 
 from pydantic import BaseModel, Field
+
+
+T = TypeVar('T', bound=BaseModel)
 
 
 class LLMResponse(BaseModel):
@@ -51,20 +54,22 @@ class LLMClient(ABC):
     def query_structured(
         self,
         prompt: str,
-        response_schema: dict[str, Any],
+        response_model: Type[T],
         system_prompt: Optional[str] = None,
         temperature: float = 0.3,
-    ) -> dict[str, Any]:
+        max_tokens: int = 2048,
+    ) -> T:
         """Query the LLM and parse response as structured JSON.
         
         Args:
             prompt: The user prompt
-            response_schema: JSON schema for expected response
+            response_model: Pydantic model for expected response
             system_prompt: Optional system prompt
             temperature: Sampling temperature
+            max_tokens: Maximum tokens to generate
             
         Returns:
-            Parsed JSON response matching the schema
+            Parsed response as the response_model type
         """
         pass
     

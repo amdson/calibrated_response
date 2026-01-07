@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Callable, Optional
+from typing import Any, Callable, List, Optional
 
 import numpy as np
 from pydantic import BaseModel, Field
@@ -16,7 +16,7 @@ class ConstraintType(str, Enum):
     MEAN = "mean"                # E[X] = mu
     VARIANCE = "variance"        # Var(X) = sigma^2
     QUANTILE = "quantile"        # Q(p) = x
-    CONDITIONAL = "conditional"  # P(X | Y) constraints
+    CONDITIONALQUANTILE = "conditional_quantile"  # Conditional quantile constraints
 
 
 class Constraint(BaseModel, ABC):
@@ -27,6 +27,7 @@ class Constraint(BaseModel, ABC):
     
     id: str = Field(..., description="Unique identifier for this constraint")
     constraint_type: ConstraintType = Field(..., description="Type of constraint")
+    target_variable: Variable = Field(..., description="The variable for which the mean is defined")
     
     # Confidence/weight for soft constraint handling
     confidence: float = Field(
@@ -41,38 +42,6 @@ class Constraint(BaseModel, ABC):
         None,
         description="ID of the query that produced this constraint"
     )
-    
-    @abstractmethod
-    def evaluate(self, distribution: np.ndarray, bin_edges: np.ndarray) -> float:
-        """Evaluate how well a distribution satisfies this constraint.
-        
-        Args:
-            distribution: Probability mass in each bin
-            bin_edges: Bin edges (n+1 values for n bins)
-            
-        Returns:
-            The value of the constraint function for this distribution
-        """
-        pass
-    
-    @abstractmethod
-    def target_value(self) -> float:
-        """Get the target value for this constraint."""
-        pass
-    
-    def violation(self, distribution: np.ndarray, bin_edges: np.ndarray) -> float:
-        """Compute how much the constraint is violated.
-        
-        Returns:
-            Absolute difference between actual and target value
-        """
-        actual = self.evaluate(distribution, bin_edges)
-        target = self.target_value()
-        return abs(actual - target)
-    
-    def weighted_violation(self, distribution: np.ndarray, bin_edges: np.ndarray) -> float:
-        """Compute confidence-weighted violation."""
-        return self.confidence * self.violation(distribution, bin_edges)
 
 
 class ProbabilityConstraint(Constraint):
@@ -196,123 +165,150 @@ class QuantileConstraint(Constraint):
     )
     value: float = Field(..., description="Target quantile value")
     
-    def evaluate(self, distribution: np.ndarray, bin_edges: np.ndarray) -> float:
-        """Compute the actual quantile value for this distribution."""
-        # This returns P(X <= value), which should equal quantile
-        cumsum = 0.0
-        for p, left, right in zip(distribution, bin_edges[:-1], bin_edges[1:]):
-            if self.value <= left:
-                return cumsum
-            elif self.value >= right:
-                cumsum += p
-            else:
-                # Linear interpolation
-                frac = (self.value - left) / (right - left)
-                cumsum += frac * p
-                return cumsum
-        return 1.0
+    def target_value(self) -> float:
+        return self.quantile
+    
+
+class ConditionalQuantileConstraint(Constraint):
+    """Constraint on quantile: Q(p) = x, meaning P(X <= x) = p, subject to arbitrary conditions on quantiles of variables."""
+    
+    constraint_type: ConstraintType = Field(default=ConstraintType.CONDITIONALQUANTILE, frozen=True)
+    
+    quantile: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Quantile level (0.5 = median)"
+    )
+    value: float = Field(..., description="Target quantile value")
+
+    condition_variables : List[Variable] = Field(default_factory=list, description="List of condition variables")
+    condition_values : List[float] = Field(default_factory=list, description="List of quantiles for condition variables")
     
     def target_value(self) -> float:
         return self.quantile
+    
+from calibrated_response.models.variable import (Variable, 
+                                                 BinaryVariable, ContinuousVariable, DiscreteVariable)
 
+def to_bins(var: Variable, max_bins=5) -> np.ndarray:
+    if isinstance(var, BinaryVariable):
+        return np.array([-1, 0, 1])
+    if isinstance(var, ContinuousVariable):
+        # For continuous variables, create bins based on domain and max_bins
+        lower, upper = var.get_domain()
+        return np.linspace(lower, upper, max_bins+1)
+    if isinstance(var, DiscreteVariable):
+        # For discrete variables, bins correspond to categories
+        return np.arange(len(var.categories)+1)
+    else:
+        raise ValueError(f"Unsupported variable type: {type(var)}")
 
 class ConstraintSet(BaseModel):
-    """Collection of constraints for a maximum entropy problem."""
-    
     class Config:
         arbitrary_types_allowed = True
-    
+
+    variables: list[Variable] = Field(default_factory=list)
+    constraint_variables: list[Variable] = Field(default_factory=list)
     constraints: list[Constraint] = Field(default_factory=list)
+
+# class ConstraintSet(BaseModel):
+#     """Collection of constraints for a maximum entropy problem."""
     
-    # Domain specification
-    domain_min: float = Field(0.0, description="Minimum of the domain")
-    domain_max: float = Field(100.0, description="Maximum of the domain")
-    n_bins: int = Field(50, description="Number of bins for discretization")
+#     class Config:
+#         arbitrary_types_allowed = True
     
-    def add(self, constraint: Constraint) -> None:
-        """Add a constraint to the set."""
-        self.constraints.append(constraint)
+#     constraints: list[Constraint] = Field(default_factory=list)
     
-    def add_probability_constraint(
-        self,
-        lower: float,
-        upper: float,
-        probability: float,
-        confidence: float = 1.0,
-        source_query_id: Optional[str] = None,
-    ) -> None:
-        """Add a probability constraint."""
-        self.add(ProbabilityConstraint(
-            id=f"prob_{len(self.constraints)}",
-            lower_bound=lower,
-            upper_bound=upper,
-            probability=probability,
-            confidence=confidence,
-            source_query_id=source_query_id,
-        ))
+#     # Domain specification
+#     domain_min: float = Field(0.0, description="Minimum of the domain")
+#     domain_max: float = Field(100.0, description="Maximum of the domain")
+#     n_bins: int = Field(50, description="Number of bins for discretization")
     
-    def add_threshold_constraint(
-        self,
-        threshold: float,
-        probability: float,
-        direction: str = "greater",
-        confidence: float = 1.0,
-        source_query_id: Optional[str] = None,
-    ) -> None:
-        """Add a threshold constraint."""
-        constraint = ProbabilityConstraint.from_threshold(
-            threshold=threshold,
-            probability=probability,
-            direction=direction,
-            domain_min=self.domain_min,
-            domain_max=self.domain_max,
-            id=f"thresh_{len(self.constraints)}",
-            confidence=confidence,
-            source_query_id=source_query_id,
-        )
-        self.add(constraint)
+#     def add(self, constraint: Constraint) -> None:
+#         """Add a constraint to the set."""
+#         self.constraints.append(constraint)
     
-    def add_mean_constraint(
-        self,
-        mean: float,
-        confidence: float = 1.0,
-        source_query_id: Optional[str] = None,
-    ) -> None:
-        """Add a mean constraint."""
-        self.add(MeanConstraint(
-            id=f"mean_{len(self.constraints)}",
-            mean=mean,
-            confidence=confidence,
-            source_query_id=source_query_id,
-        ))
+#     def add_probability_constraint(
+#         self,
+#         lower: float,
+#         upper: float,
+#         probability: float,
+#         confidence: float = 1.0,
+#         source_query_id: Optional[str] = None,
+#     ) -> None:
+#         """Add a probability constraint."""
+#         self.add(ProbabilityConstraint(
+#             id=f"prob_{len(self.constraints)}",
+#             lower_bound=lower,
+#             upper_bound=upper,
+#             probability=probability,
+#             confidence=confidence,
+#             source_query_id=source_query_id,
+#         ))
     
-    def add_quantile_constraint(
-        self,
-        quantile: float,
-        value: float,
-        confidence: float = 1.0,
-        source_query_id: Optional[str] = None,
-    ) -> None:
-        """Add a quantile constraint."""
-        self.add(QuantileConstraint(
-            id=f"quantile_{len(self.constraints)}",
-            quantile=quantile,
-            value=value,
-            confidence=confidence,
-            source_query_id=source_query_id,
-        ))
+#     def add_threshold_constraint(
+#         self,
+#         threshold: float,
+#         probability: float,
+#         direction: str = "greater",
+#         confidence: float = 1.0,
+#         source_query_id: Optional[str] = None,
+#     ) -> None:
+#         """Add a threshold constraint."""
+#         constraint = ProbabilityConstraint.from_threshold(
+#             threshold=threshold,
+#             probability=probability,
+#             direction=direction,
+#             domain_min=self.domain_min,
+#             domain_max=self.domain_max,
+#             id=f"thresh_{len(self.constraints)}",
+#             confidence=confidence,
+#             source_query_id=source_query_id,
+#         )
+#         self.add(constraint)
     
-    @property
-    def bin_edges(self) -> np.ndarray:
-        """Get bin edges for the domain."""
-        return np.linspace(self.domain_min, self.domain_max, self.n_bins + 1)
+#     def add_mean_constraint(
+#         self,
+#         mean: float,
+#         confidence: float = 1.0,
+#         source_query_id: Optional[str] = None,
+#     ) -> None:
+#         """Add a mean constraint."""
+#         self.add(MeanConstraint(
+#             id=f"mean_{len(self.constraints)}",
+#             mean=mean,
+#             confidence=confidence,
+#             source_query_id=source_query_id,
+#         ))
     
-    def total_violation(self, distribution: np.ndarray) -> float:
-        """Compute total weighted violation across all constraints."""
-        edges = self.bin_edges
-        return sum(c.weighted_violation(distribution, edges) for c in self.constraints)
+#     def add_quantile_constraint(
+#         self,
+#         quantile: float,
+#         value: float,
+#         confidence: float = 1.0,
+#         source_query_id: Optional[str] = None,
+#     ) -> None:
+#         """Add a quantile constraint."""
+#         self.add(QuantileConstraint(
+#             id=f"quantile_{len(self.constraints)}",
+#             quantile=quantile,
+#             value=value,
+#             confidence=confidence,
+#             source_query_id=source_query_id,
+#         ))
     
-    def constraint_violations(self, distribution: np.ndarray) -> dict[str, float]:
-        """Get individual constraint violations."""
-        edges = self.bin_edges
-        return {c.id: c.violation(distribution, edges) for c in self.constraints}
+#     @property
+#     def bin_edges(self) -> np.ndarray:
+#         """Get bin edges for the domain."""
+#         return np.linspace(self.domain_min, self.domain_max, self.n_bins + 1)
+    
+#     def total_violation(self, distribution: np.ndarray) -> float:
+#         """Compute total weighted violation across all constraints."""
+#         edges = self.bin_edges
+#         return sum(c.weighted_violation(distribution, edges) for c in self.constraints)
+    
+#     def constraint_violations(self, distribution: np.ndarray) -> dict[str, float]:
+#         """Get individual constraint violations."""
+#         edges = self.bin_edges
+#         return {c.id: c.violation(distribution, edges) for c in self.constraints}

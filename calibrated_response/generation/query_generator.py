@@ -10,6 +10,7 @@ from calibrated_response.models.variable import Variable, VariableType
 from calibrated_response.models.query import (
     Query,
     QueryType,
+    QueryList,
     MarginalQuery,
     ThresholdQuery,
     ConditionalQuery,
@@ -61,35 +62,6 @@ class QueryGenerator:
         ]
         variables_text = format_variables_for_prompt(var_list)
         
-        # Query the LLM
-        response_schema = {
-            "type": "object",
-            "properties": {
-                "queries": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "id": {"type": "string"},
-                            "text": {"type": "string"},
-                            "target_variable": {"type": "string"},
-                            "query_type": {
-                                "type": "string",
-                                "enum": ["threshold", "conditional", "marginal", "quantile", "expectation"],
-                            },
-                            "threshold": {"type": ["number", "null"]},
-                            "threshold_direction": {"type": "string"},
-                            "condition_variable": {"type": ["string", "null"]},
-                            "condition_text": {"type": ["string", "null"]},
-                            "informativeness": {"type": "number"},
-                        },
-                        "required": ["id", "text", "target_variable", "query_type"],
-                    },
-                },
-            },
-            "required": ["queries"],
-        }
-        
         user_prompt = prompts["user"].format(
             question=question,
             variables=variables_text,
@@ -99,20 +71,21 @@ class QueryGenerator:
         try:
             result = self.llm.query_structured(
                 prompt=user_prompt,
-                response_schema=response_schema,
+                response_model=QueryList,
                 system_prompt=prompts["system"],
                 temperature=0.7,
+                max_tokens=1500+800*n_queries,
             )
+            
+            # Convert to Query objects
+            queries = []
+            for q_data in result.queries:
+                query = self._create_query(q_data.model_dump(), question)
+                if query:
+                    queries.append(query)
         except Exception as e:
             # Fallback to basic queries
-            return self._generate_basic_queries(question, variables, n_queries)
-        
-        # Convert to Query objects
-        queries = []
-        for q_data in result.get("queries", []):
-            query = self._create_query(q_data, question)
-            if query:
-                queries.append(query)
+            queries = self._generate_basic_queries(question, variables, n_queries)
         
         # Ensure we have enough queries
         if len(queries) < n_queries:
