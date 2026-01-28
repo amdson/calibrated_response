@@ -110,9 +110,7 @@ class Pipeline:
         
         # Step 4: Build distribution
         builder = DistributionBuilder(
-            domain_min=domain_min,
-            domain_max=domain_max,
-            n_bins=self.n_bins,
+            variables, 
             solver_config=self.solver_config,
         )
         

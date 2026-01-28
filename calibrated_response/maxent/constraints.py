@@ -16,7 +16,9 @@ class ConstraintType(str, Enum):
     MEAN = "mean"                # E[X] = mu
     VARIANCE = "variance"        # Var(X) = sigma^2
     QUANTILE = "quantile"        # Q(p) = x
+    CONDITIONALMEAN = "conditional_mean"  # Conditional mean constraints
     CONDITIONALQUANTILE = "conditional_quantile"  # Conditional quantile constraints
+
 
 
 class Constraint(BaseModel, ABC):
@@ -168,8 +170,13 @@ class QuantileConstraint(Constraint):
     def target_value(self) -> float:
         return self.quantile
     
+class ConditionalConstraint(Constraint):
 
-class ConditionalQuantileConstraint(Constraint):
+    condition_variables : List[Variable] = Field(default_factory=list, description="List of condition variables")
+    condition_values : List[float] = Field(default_factory=list, description="List of quantiles for condition variables")
+    is_lower_bound: List[bool] = Field(default_factory=list, description="List of flags to indicate if condition is flipped (i.e., P(X > x) instead of P(X <= x))")
+
+class ConditionalQuantileConstraint(ConditionalConstraint):
     """Constraint on quantile: Q(p) = x, meaning P(X <= x) = p, subject to arbitrary conditions on quantiles of variables."""
     
     constraint_type: ConstraintType = Field(default=ConstraintType.CONDITIONALQUANTILE, frozen=True)
@@ -182,18 +189,24 @@ class ConditionalQuantileConstraint(Constraint):
     )
     value: float = Field(..., description="Target quantile value")
 
-    condition_variables : List[Variable] = Field(default_factory=list, description="List of condition variables")
-    condition_values : List[float] = Field(default_factory=list, description="List of quantiles for condition variables")
-    
     def target_value(self) -> float:
         return self.quantile
+    
+class ConditionalMeanConstraint(ConditionalConstraint):
+    """Constraint on quantile: Q(p) = x, meaning P(X <= x) = p, subject to arbitrary conditions on quantiles of variables."""
+    
+    constraint_type: ConstraintType = Field(default=ConstraintType.CONDITIONALMEAN, frozen=True)
+    value: float = Field(..., description="Target mean value")
+
+    def target_value(self) -> float:
+        return self.value
     
 from calibrated_response.models.variable import (Variable, 
                                                  BinaryVariable, ContinuousVariable, DiscreteVariable)
 
 def to_bins(var: Variable, max_bins=5) -> np.ndarray:
     if isinstance(var, BinaryVariable):
-        return np.array([-1, 0, 1])
+        return np.array([0, 0.5, 1])
     if isinstance(var, ContinuousVariable):
         # For continuous variables, create bins based on domain and max_bins
         lower, upper = var.get_domain()

@@ -67,19 +67,9 @@ class BinaryVariable(Variable):
     
     type: str = Field(default="binary", frozen=True)
     
-    # Prior probability estimate
-    prior_probability: Optional[float] = Field(
-        None,
-        ge=0.0,
-        le=1.0,
-        description="Prior probability of the 'yes' outcome"
-    )
-     
     # Labels for the outcomes
     yes_label: str = Field("yes", description="Label for positive outcome")
     no_label: str = Field("no", description="Label for negative outcome")
-
-
 
 class ContinuousVariable(Variable):
     """A continuous (real-valued) variable."""
@@ -93,51 +83,12 @@ class ContinuousVariable(Variable):
     # Unit of measurement
     unit: Optional[str] = Field(None, description="Unit of measurement (e.g., 'people', 'USD')")
     
-    # Prior estimates
-    prior_median: Optional[float] = Field(None, description="Prior median estimate")
-    prior_mean: Optional[float] = Field(None, description="Prior mean estimate")
-    
-    # Scale hint for discretization
-    log_scale: bool = Field(
-        False, 
-        description="Whether variable is better represented on log scale"
-    )
-    
     def get_domain(self) -> tuple[float, float]:
         """Get the domain bounds."""
         return (
             self.lower_bound if self.lower_bound is not None else float('-inf'),
             self.upper_bound if self.upper_bound is not None else float('inf')
         )
-    
-    def suggested_thresholds(self, n: int = 5) -> list[float]:
-        """Suggest threshold values for converting to binary queries.
-        
-        Args:
-            n: Number of thresholds to suggest
-            
-        Returns:
-            List of threshold values
-        """
-        lower = self.lower_bound or 0
-        upper = self.upper_bound
-        
-        if upper is None:
-            # Use prior estimates if available
-            if self.prior_median is not None:
-                upper = self.prior_median * 3
-            elif self.prior_mean is not None:
-                upper = self.prior_mean * 3
-            else:
-                upper = lower + 100  # Fallback
-        
-        if self.log_scale and lower > 0:
-            import numpy as np
-            return list(np.geomspace(lower, upper, n + 2)[1:-1])
-        else:
-            import numpy as np
-            return list(np.linspace(lower, upper, n + 2)[1:-1])
-
 
 class DiscreteVariable(Variable):
     """A discrete variable with a finite set of possible values."""

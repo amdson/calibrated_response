@@ -180,6 +180,85 @@ class QueryList(BaseModel):
     queries: list[QueryData] = Field(..., description="List of generated queries")
 
 
+# ============================================================================
+# Constrained Query Models for Gemini Structured Output
+# These models ensure target_variable and condition_variables match input variables
+# ============================================================================
+
+class ConstraintQueryType(str, Enum):
+    """Query types that map directly to constraint types."""
+    PROBABILITY = "probability"                     # P(X > threshold) - maps to ProbabilityConstraint
+    EXPECTATION = "expectation"                     # E[X] - maps to MeanConstraint  
+    CONDITIONAL_PROBABILITY = "conditional_probability"   # P(X > t | Y > t_y) - maps to ConditionalQuantileConstraint
+    CONDITIONAL_EXPECTATION = "conditional_expectation"   # E[X | Y > t_y] - maps to ConditionalMeanConstraint
+
+
+class ConditionSpec(BaseModel):
+    """A single threshold condition on a variable."""
+    variable: str = Field(..., description="Name of the condition variable (must match a variable name)")
+    threshold: float = Field(..., description="Threshold value for the condition (must be within variable's range)")
+    is_upper_bound: bool = Field(..., description="True if condition is 'variable <= threshold', False if 'variable > threshold'")
+
+
+class ProbabilityQuerySpec(BaseModel):
+    """Query for the probability of exceeding/being below a threshold."""
+    query_type: ConstraintQueryType = Field(default=ConstraintQueryType.PROBABILITY, frozen=True)
+    text: str = Field(..., description="Natural language query text")
+    target_variable: str = Field(..., description="Name of the variable being queried (must match a variable name)")
+    threshold: float = Field(..., description="Threshold value (must be within variable's range)")
+    exceeds: bool = Field(..., description="True for P(X > threshold), False for P(X <= threshold)")
+    informativeness: float = Field(0.5, ge=0.0, le=1.0, description="Estimated information gain")
+
+
+class ExpectationQuerySpec(BaseModel):
+    """Query for the expected value of a variable."""
+    query_type: ConstraintQueryType = Field(default=ConstraintQueryType.EXPECTATION, frozen=True)
+    text: str = Field(..., description="Natural language query text")
+    target_variable: str = Field(..., description="Name of the variable being queried (must match a variable name)")
+    informativeness: float = Field(0.5, ge=0.0, le=1.0, description="Estimated information gain")
+
+
+class ConditionalProbabilityQuerySpec(BaseModel):
+    """Query for probability of exceeding a threshold, conditional on other variables."""
+    query_type: ConstraintQueryType = Field(default=ConstraintQueryType.CONDITIONAL_PROBABILITY, frozen=True)
+    text: str = Field(..., description="Natural language query text")
+    target_variable: str = Field(..., description="Name of the variable being queried (must match a variable name)")
+    threshold: float = Field(..., description="Threshold value for target variable")
+    exceeds: bool = Field(..., description="True for P(X > threshold | ...), False for P(X <= threshold | ...)")
+    conditions: list[ConditionSpec] = Field(..., min_length=1, description="Conditions that must hold")
+    informativeness: float = Field(0.5, ge=0.0, le=1.0, description="Estimated information gain")
+
+
+class ConditionalExpectationQuerySpec(BaseModel):
+    """Query for expected value conditional on other variables."""
+    query_type: ConstraintQueryType = Field(default=ConstraintQueryType.CONDITIONAL_EXPECTATION, frozen=True)
+    text: str = Field(..., description="Natural language query text")
+    target_variable: str = Field(..., description="Name of the variable being queried (must match a variable name)")
+    conditions: list[ConditionSpec] = Field(..., min_length=1, description="Conditions that must hold")
+    informativeness: float = Field(0.5, ge=0.0, le=1.0, description="Estimated information gain")
+
+
+class ConstrainedQueryList(BaseModel):
+    """List of queries with constrained types that map to MaxEnt constraints.
+    
+    Each query must be one of: probability, expectation, conditional_probability, or conditional_expectation.
+    All variable references must match the provided variable names exactly.
+    """
+    probability_queries: list[ProbabilityQuerySpec] = Field(default_factory=list, description="Probability threshold queries")
+    expectation_queries: list[ExpectationQuerySpec] = Field(default_factory=list, description="Expectation queries")
+    conditional_probability_queries: list[ConditionalProbabilityQuerySpec] = Field(default_factory=list, description="Conditional probability queries")
+    conditional_expectation_queries: list[ConditionalExpectationQuerySpec] = Field(default_factory=list, description="Conditional expectation queries")
+    
+    def all_queries(self) -> list:
+        """Return all queries as a flat list."""
+        return (
+            list(self.probability_queries) +
+            list(self.expectation_queries) +
+            list(self.conditional_probability_queries) +
+            list(self.conditional_expectation_queries)
+        )
+
+
 class QueryResult(BaseModel):
     """Result of a distributional query."""
     
@@ -207,6 +286,7 @@ class QueryResult(BaseModel):
     
     # Raw response for debugging
     raw_response: Optional[str] = Field(None, description="Raw LLM response text")
+    raw_query: Optional[str] = Field(None, description="Raw LLM query text")
     
     def get_answer(self) -> float:
         """Get the numeric answer."""

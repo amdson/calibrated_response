@@ -12,11 +12,9 @@ from calibrated_response.models.query import (
     QueryResult,
     ThresholdQuery,
     ConditionalQuery,
-    QuantileQuery,
     ExpectationQuery,
 )
 from calibrated_response.generation.prompts import PROMPTS
-
 
 class QueryAnswerer:
     """Answer distributional queries using an LLM."""
@@ -49,7 +47,7 @@ class QueryAnswerer:
             return self._answer_threshold(query, context)
         elif query.query_type == QueryType.CONDITIONAL:
             return self._answer_conditional(query, context)
-        elif query.query_type in (QueryType.QUANTILE, QueryType.EXPECTATION):
+        elif query.query_type in (QueryType.EXPECTATION,):
             return self._answer_numeric(query, context)
         else:
             return self._answer_probability(query, context)
@@ -104,6 +102,7 @@ class QueryAnswerer:
             probability=prob,
             confidence=confidence,
             raw_response=response.text,
+            raw_query=user_prompt,
         )
     
     def _answer_conditional(

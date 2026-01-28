@@ -16,6 +16,13 @@ from calibrated_response.models.query import (
     ConditionalQuery,
     QuantileQuery,
     ExpectationQuery,
+    # Constrained models for structured output
+    ConstrainedQueryList,
+    ConstraintQueryType,
+    ProbabilityQuerySpec,
+    ExpectationQuerySpec,
+    ConditionalProbabilityQuerySpec,
+    ConditionalExpectationQuerySpec,
 )
 from calibrated_response.generation.prompts import PROMPTS, format_variables_for_prompt
 
@@ -51,15 +58,9 @@ class QueryGenerator:
         """
         prompts = PROMPTS["query_generation"]
         
-        # Format variables for prompt
-        var_list = [
-            {
-                "name": v.name,
-                "description": v.description,
-                "type": v.variable_type.value,
-            }
-            for v in variables
-        ]
+        # Format variables for prompt - include names, types, and ranges
+        var_names = [v.name for v in variables]
+        var_list = self._format_variable_info(variables)
         variables_text = format_variables_for_prompt(var_list)
         
         user_prompt = prompts["user"].format(
@@ -71,19 +72,17 @@ class QueryGenerator:
         try:
             result = self.llm.query_structured(
                 prompt=user_prompt,
-                response_model=QueryList,
+                response_model=ConstrainedQueryList,
                 system_prompt=prompts["system"],
                 temperature=0.7,
                 max_tokens=1500+800*n_queries,
             )
             
-            # Convert to Query objects
-            queries = []
-            for q_data in result.queries:
-                query = self._create_query(q_data.model_dump(), question)
-                if query:
-                    queries.append(query)
+            # Validate and convert to Query objects
+            queries = self._convert_constrained_queries(result, var_names, question)
+            
         except Exception as e:
+            print(f"LLM query generation failed: {e}")
             # Fallback to basic queries
             queries = self._generate_basic_queries(question, variables, n_queries)
         
@@ -95,6 +94,157 @@ class QueryGenerator:
             queries.extend(basic_queries)
         
         return queries[:n_queries]
+    
+    def _format_variable_info(self, variables: list[Variable]) -> list[dict]:
+        """Extract variable info including ranges for prompt formatting."""
+        var_list = []
+        for v in variables:
+            info = {
+                "name": v.name,
+                "description": v.description,
+                "type": v.variable_type.value,
+            }
+            # Add range info if available (for ContinuousVariable)
+            lower = getattr(v, 'lower_bound', None)
+            upper = getattr(v, 'upper_bound', None)
+            unit = getattr(v, 'unit', None)
+            if lower is not None:
+                info['lower_bound'] = lower
+            if upper is not None:
+                info['upper_bound'] = upper
+            if unit:
+                info['unit'] = unit
+            var_list.append(info)
+        return var_list
+    
+    def _convert_constrained_queries(
+        self,
+        result: ConstrainedQueryList,
+        valid_var_names: list[str],
+        main_question: str,
+    ) -> list[Query]:
+        """Convert ConstrainedQueryList to Query objects, validating variable names."""
+        queries = []
+        query_idx = 0
+        
+        # Process probability queries (threshold queries)
+        for q in result.probability_queries:
+            if q.target_variable not in valid_var_names:
+                continue  # Skip invalid variable references
+            direction = "greater" if q.exceeds else "less"
+            queries.append(ThresholdQuery(
+                id=f"q{query_idx}",
+                text=q.text,
+                target_variable=q.target_variable,
+                threshold=q.threshold,
+                direction=direction,
+                estimated_informativeness=q.informativeness,
+            ))
+            query_idx += 1
+        
+        # Process expectation queries
+        for q in result.expectation_queries:
+            if q.target_variable not in valid_var_names:
+                continue
+            queries.append(ExpectationQuery(
+                id=f"q{query_idx}",
+                text=q.text,
+                target_variable=q.target_variable,
+                estimated_informativeness=q.informativeness,
+            ))
+            query_idx += 1
+        
+        # Process conditional probability queries
+        for q in result.conditional_probability_queries:
+            if q.target_variable not in valid_var_names:
+                continue
+            # Validate condition variables
+            valid_conditions = all(c.variable in valid_var_names for c in q.conditions)
+            if not valid_conditions:
+                continue
+            # Build condition text from threshold conditions
+            condition_parts = []
+            for c in q.conditions:
+                direction = "at most" if c.is_upper_bound else "above"
+                condition_parts.append(f"{c.variable} is {direction} {c.threshold}")
+            condition_text = " and ".join(condition_parts)
+            
+            # Use ConditionalQuery for conditional probability
+            queries.append(ConditionalQuery(
+                id=f"q{query_idx}",
+                text=q.text,
+                target_variable=q.target_variable,
+                condition_variable=q.conditions[0].variable,  # Primary condition
+                condition_value=q.conditions[0].threshold,
+                condition_text=condition_text,
+                threshold=q.threshold,
+                threshold_direction="greater" if q.exceeds else "less",
+                estimated_informativeness=q.informativeness,
+            ))
+            query_idx += 1
+        
+        # Process conditional expectation queries
+        for q in result.conditional_expectation_queries:
+            if q.target_variable not in valid_var_names:
+                continue
+            valid_conditions = all(c.variable in valid_var_names for c in q.conditions)
+            if not valid_conditions:
+                continue
+            condition_parts = []
+            for c in q.conditions:
+                direction = "at most" if c.is_upper_bound else "above"
+                condition_parts.append(f"{c.variable} is {direction} {c.threshold}")
+            condition_text = " and ".join(condition_parts)
+            
+            queries.append(ExpectationQuery(
+                id=f"q{query_idx}",
+                text=q.text,
+                target_variable=q.target_variable,
+                condition_text=condition_text,
+                estimated_informativeness=q.informativeness,
+            ))
+            query_idx += 1
+        
+        return queries
+    
+    def get_raw_constrained_queries(
+        self,
+        question: str,
+        variables: list[Variable],
+        n_queries: int = 10,
+    ) -> ConstrainedQueryList:
+        """Get raw constrained query specs without conversion to Query objects.
+        
+        This is useful for directly mapping to constraint types.
+        
+        Args:
+            question: The main forecasting question
+            variables: List of relevant variables
+            n_queries: Number of queries to generate
+            
+        Returns:
+            ConstrainedQueryList with raw query specifications
+        """
+        prompts = PROMPTS["query_generation"]
+        
+        var_list = self._format_variable_info(variables)
+        variables_text = format_variables_for_prompt(var_list)
+        
+        user_prompt = prompts["user"].format(
+            question=question,
+            variables=variables_text,
+            n_queries=n_queries,
+        )
+        
+        result = self.llm.query_structured(
+            prompt=user_prompt,
+            response_model=ConstrainedQueryList,
+            system_prompt=prompts["system"],
+            temperature=0.7,
+            max_tokens=1500+800*n_queries,
+        )
+        
+        return result
     
     def _create_query(self, data: dict, main_question: str) -> Optional[Query]:
         """Create a Query object from parsed data."""
