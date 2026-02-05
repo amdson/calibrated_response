@@ -20,7 +20,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
-
 BASE_URL = "https://www.metaculus.com"
 QUESTIONS_ENDPOINT = f"{BASE_URL}/api2/questions/"
 PRED_HISTORY_ENDPOINT = f"{BASE_URL}/api2/questions/{{id}}/prediction-history/"

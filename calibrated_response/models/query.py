@@ -5,19 +5,80 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from calibrated_response.models.variable import Variable
+from calibrated_response.models.variable import Variable, BinaryVariable, ContinuousVariable, VariableType
 
+#A proposition is a statement about a variable. 
+class PropositionType(str, Enum):
+    """Type of condition in a conditional query."""
+    EQUALITY = "equality"       # X = value
+    INEQUALITY = "inequality"   # X > value or X < value
+
+class Proposition(BaseModel):
+    """A condition applied to a variable in a conditional query."""
+    model_config = ConfigDict(frozen=True)
+    proposition_type: PropositionType = Field(..., description="Type of proposition")
+    variable: str = Field(..., description="Name of the variable")
+    variable_type: VariableType = Field(..., description="Type of the variable")
+
+class EqualityProposition(Proposition):
+    """Equality condition: X = value."""
+    proposition_type: PropositionType = Field(default=PropositionType.EQUALITY, frozen=True, description="Equality proposition for binary variables")
+    variable_type: VariableType = VariableType.BINARY
+    value: bool | str = Field(..., description="Value for equality condition")
+
+class InequalityProposition(Proposition):
+    """Inequality condition: X > value or X < value."""
+    proposition_type: PropositionType = Field(default=PropositionType.INEQUALITY, frozen=True, description="Inequality proposition for continuous or discrete variables")
+    variable_type: VariableType = Field(..., description="Type of the variable (continuous or discrete)")
+    threshold: float = Field(..., description="Threshold value for inequality")
+    greater: bool = Field(..., description="True for X > threshold, False for X < threshold")
+
+class EstimateType(str, Enum):
+    """Type of likelihood estimate."""
+    PROBABILITY = "probability"     # P(X)
+    EXPECTATION = "expectation"     # E[X]
+    CONDITIONAL_PROBABILITY = "conditional_probability"   # P(X | condition)
+    CONDITIONAL_EXPECTATION = "conditional_expectation"   # E[X | condition]
+    
+class Estimate(BaseModel):
+    """Base class for likelihood estimates."""
+    id: str = Field(..., description="Unique identifier for the estimate")
+    estimate_type: EstimateType = Field(..., description="Type of likelihood estimate")
+
+class ProbabilityEstimate(Estimate):
+    """Estimate for probability P(X)."""
+    estimate_type: EstimateType = Field(default=EstimateType.PROBABILITY, frozen=True)
+    proposition: Proposition = Field(..., description="Proposition defining the event")
+    probability: float = Field(..., description="Estimated probability value")
+
+class ExpectationEstimate(Estimate):
+    """Estimate for expectation E[X]."""
+    estimate_type: EstimateType = Field(default=EstimateType.EXPECTATION, frozen=True)
+    variable: str = Field(..., description="Name of the variable")
+    expected_value: float = Field(..., description="Estimated expected value")
+
+class ConditionalProbabilityEstimate(Estimate):
+    """Estimate for conditional probability P(X | condition)."""
+    estimate_type: EstimateType = Field(default=EstimateType.CONDITIONAL_PROBABILITY, frozen=True)
+    proposition: Proposition = Field(..., description="Proposition defining the event")
+    conditions: list[Proposition] = Field(default=[], description="Condition propositions")
+    probability: float = Field(..., description="Estimated conditional probability value")
+
+class ConditionalExpectationEstimate(Estimate):
+    """Estimate for conditional expectation E[X | condition]."""
+    estimate_type: EstimateType = Field(default=EstimateType.CONDITIONAL_EXPECTATION, frozen=True)
+    variable: str = Field(..., description="Name of the variable")
+    conditions: list[Proposition] = Field(default=[], description="Condition propositions")
+    expected_value: float = Field(..., description="Estimated conditional expected value")
 
 class QueryType(str, Enum):
     """Type of distributional query."""
-    MARGINAL = "marginal"           # P(X)
-    CONDITIONAL = "conditional"     # P(X | Y)
-    THRESHOLD = "threshold"         # P(X > t) or P(X < t)
+    BOOLEAN = "boolean"         # P(X) for binary variables
+    THRESHOLD = "threshold"         # P(X >= t) or P(X <= t)
     EXPECTATION = "expectation"     # E[X] or E[X | Y]
-    QUANTILE = "quantile"           # Median, quartiles, etc.
-
+    CONDITIONAL = "conditional"     # P(X | condition)
 
 class Query(BaseModel):
     """Base class for distributional queries.
@@ -34,29 +95,20 @@ class Query(BaseModel):
     
     # Variables involved
     target_variable: str = Field(..., description="Name of the variable being queried")
-    
-    # Query metadata
-    estimated_informativeness: float = Field(
-        0.5,
-        ge=0.0,
-        le=1.0,
-        description="Estimated information gain from this query"
-    )
-    
-    def to_prompt(self) -> str:
-        """Convert query to a prompt suitable for the LLM."""
-        return self.text
 
 
-class MarginalQuery(Query):
+class BooleanQuery(Query):
     """Query for the marginal distribution of a variable.
     
     For binary variables: "What is the probability that X?"
     For continuous: Converted to threshold or quantile queries.
     """
     
-    query_type: QueryType = Field(default=QueryType.MARGINAL, frozen=True)
+    query_type: QueryType = Field(default=QueryType.BOOLEAN, frozen=True)
 
+    def to_prompt(self) -> str:
+        """Generate the natural language prompt."""
+        return f"What is the probability that {self.target_variable} is true?"
 
 class ThresholdQuery(Query):
     """Query for probability of exceeding/falling below a threshold.
@@ -66,7 +118,6 @@ class ThresholdQuery(Query):
     """
     
     query_type: QueryType = Field(default=QueryType.THRESHOLD, frozen=True)
-    
     threshold: float = Field(..., description="The threshold value")
     direction: str = Field(
         "greater",
@@ -80,15 +131,30 @@ class ThresholdQuery(Query):
         else:
             return f"What is the probability that {self.target_variable} will be less than {self.threshold}?"
 
+class ExpectationQuery(Query):
+    """Query for expected value of a variable.
+    
+    Example: "What is the expected number of train riders tomorrow?"
+    """
+    
+    query_type: QueryType = Field(default=QueryType.EXPECTATION, frozen=True)
+    
+    def to_prompt(self) -> str:
+        """Generate the natural language prompt."""
+        return f"What is the expected value of {self.target_variable}?"
+    
 
 class ConditionalQuery(Query):
-    """Query for conditional distribution P(X | condition).
+    """Query for conditional distribution P(X | conditions).
     
-    Example: "If it rains tomorrow, what is the probability that more
-    than 50,000 people will take the train?"
+    Examples: "If it rains tomorrow, what is the probability that more
+    than 50,000 people will take the train?" 
+
+    "If it rains tomorrow and the temperature is below 60F, what is the expected number of train riders?"
     """
     
     query_type: QueryType = Field(default=QueryType.CONDITIONAL, frozen=True)
+    base_query_type: QueryType = Field(..., description="Type of the base query (threshold or expectation)")
     
     # The conditioning information
     condition_variable: str = Field(..., description="Variable being conditioned on")
@@ -98,7 +164,7 @@ class ConditionalQuery(Query):
     # For threshold conditionals
     threshold: Optional[float] = Field(None, description="Threshold if querying P(X > t | Y)")
     threshold_direction: str = Field("greater", description="Direction for threshold")
-    
+
     def to_prompt(self) -> str:
         """Generate the natural language prompt."""
         if self.threshold is not None:
@@ -110,188 +176,3 @@ class ConditionalQuery(Query):
         else:
             return f"Given that {self.condition_text}, what is the expected value of {self.target_variable}?"
 
-
-class QuantileQuery(Query):
-    """Query for quantiles of a distribution.
-    
-    Example: "What is the median number of people who will take the train?"
-    """
-    
-    query_type: QueryType = Field(default=QueryType.QUANTILE, frozen=True)
-    
-    quantile: float = Field(
-        0.5,
-        ge=0.0,
-        le=1.0,
-        description="The quantile to query (0.5 = median)"
-    )
-    
-    # For conditional quantiles
-    condition_text: Optional[str] = Field(None, description="Conditioning statement if any")
-    
-    def to_prompt(self) -> str:
-        """Generate the natural language prompt."""
-        quantile_name = {
-            0.25: "25th percentile",
-            0.5: "median",
-            0.75: "75th percentile",
-            0.1: "10th percentile",
-            0.9: "90th percentile",
-        }.get(self.quantile, f"{self.quantile*100:.0f}th percentile")
-        
-        if self.condition_text:
-            return f"Given that {self.condition_text}, what is the {quantile_name} of {self.target_variable}?"
-        return f"What is the {quantile_name} of {self.target_variable}?"
-
-
-class ExpectationQuery(Query):
-    """Query for expected value of a variable.
-    
-    Example: "What is the expected number of train riders tomorrow?"
-    """
-    
-    query_type: QueryType = Field(default=QueryType.EXPECTATION, frozen=True)
-    
-    # For conditional expectations
-    condition_text: Optional[str] = Field(None, description="Conditioning statement if any")
-    
-    def to_prompt(self) -> str:
-        """Generate the natural language prompt."""
-        if self.condition_text:
-            return f"Given that {self.condition_text}, what is the expected value of {self.target_variable}?"
-        return f"What is the expected value of {self.target_variable}?"
-
-
-class QueryData(BaseModel):
-    """Raw query data from LLM generation."""
-    id: str = Field(..., description="Unique identifier for the query")
-    text: str = Field(..., description="Natural language query text")
-    target_variable: str = Field(..., description="Name of the variable being queried")
-    query_type: str = Field(..., description="Type: threshold, conditional, marginal, quantile, expectation")
-    threshold: Optional[float] = Field(None, description="Threshold value if applicable")
-    threshold_direction: Optional[str] = Field(None, description="Direction: greater or less")
-    condition_variable: Optional[str] = Field(None, description="Variable being conditioned on")
-    condition_text: Optional[str] = Field(None, description="Natural language condition")
-    informativeness: float = Field(0.5, description="Estimated information gain")
-
-
-class QueryList(BaseModel):
-    """List of queries from LLM generation."""
-    queries: list[QueryData] = Field(..., description="List of generated queries")
-
-
-# ============================================================================
-# Constrained Query Models for Gemini Structured Output
-# These models ensure target_variable and condition_variables match input variables
-# ============================================================================
-
-class ConstraintQueryType(str, Enum):
-    """Query types that map directly to constraint types."""
-    PROBABILITY = "probability"                     # P(X > threshold) - maps to ProbabilityConstraint
-    EXPECTATION = "expectation"                     # E[X] - maps to MeanConstraint  
-    CONDITIONAL_PROBABILITY = "conditional_probability"   # P(X > t | Y > t_y) - maps to ConditionalQuantileConstraint
-    CONDITIONAL_EXPECTATION = "conditional_expectation"   # E[X | Y > t_y] - maps to ConditionalMeanConstraint
-
-
-class ConditionSpec(BaseModel):
-    """A single threshold condition on a variable."""
-    variable: str = Field(..., description="Name of the condition variable (must match a variable name)")
-    threshold: float = Field(..., description="Threshold value for the condition (must be within variable's range)")
-    is_upper_bound: bool = Field(..., description="True if condition is 'variable <= threshold', False if 'variable > threshold'")
-
-
-class ProbabilityQuerySpec(BaseModel):
-    """Query for the probability of exceeding/being below a threshold."""
-    query_type: ConstraintQueryType = Field(default=ConstraintQueryType.PROBABILITY, frozen=True)
-    text: str = Field(..., description="Natural language query text")
-    target_variable: str = Field(..., description="Name of the variable being queried (must match a variable name)")
-    threshold: float = Field(..., description="Threshold value (must be within variable's range)")
-    exceeds: bool = Field(..., description="True for P(X > threshold), False for P(X <= threshold)")
-    informativeness: float = Field(0.5, ge=0.0, le=1.0, description="Estimated information gain")
-
-
-class ExpectationQuerySpec(BaseModel):
-    """Query for the expected value of a variable."""
-    query_type: ConstraintQueryType = Field(default=ConstraintQueryType.EXPECTATION, frozen=True)
-    text: str = Field(..., description="Natural language query text")
-    target_variable: str = Field(..., description="Name of the variable being queried (must match a variable name)")
-    informativeness: float = Field(0.5, ge=0.0, le=1.0, description="Estimated information gain")
-
-
-class ConditionalProbabilityQuerySpec(BaseModel):
-    """Query for probability of exceeding a threshold, conditional on other variables."""
-    query_type: ConstraintQueryType = Field(default=ConstraintQueryType.CONDITIONAL_PROBABILITY, frozen=True)
-    text: str = Field(..., description="Natural language query text")
-    target_variable: str = Field(..., description="Name of the variable being queried (must match a variable name)")
-    threshold: float = Field(..., description="Threshold value for target variable")
-    exceeds: bool = Field(..., description="True for P(X > threshold | ...), False for P(X <= threshold | ...)")
-    conditions: list[ConditionSpec] = Field(..., min_length=1, description="Conditions that must hold")
-    informativeness: float = Field(0.5, ge=0.0, le=1.0, description="Estimated information gain")
-
-
-class ConditionalExpectationQuerySpec(BaseModel):
-    """Query for expected value conditional on other variables."""
-    query_type: ConstraintQueryType = Field(default=ConstraintQueryType.CONDITIONAL_EXPECTATION, frozen=True)
-    text: str = Field(..., description="Natural language query text")
-    target_variable: str = Field(..., description="Name of the variable being queried (must match a variable name)")
-    conditions: list[ConditionSpec] = Field(..., min_length=1, description="Conditions that must hold")
-    informativeness: float = Field(0.5, ge=0.0, le=1.0, description="Estimated information gain")
-
-
-class ConstrainedQueryList(BaseModel):
-    """List of queries with constrained types that map to MaxEnt constraints.
-    
-    Each query must be one of: probability, expectation, conditional_probability, or conditional_expectation.
-    All variable references must match the provided variable names exactly.
-    """
-    probability_queries: list[ProbabilityQuerySpec] = Field(default_factory=list, description="Probability threshold queries")
-    expectation_queries: list[ExpectationQuerySpec] = Field(default_factory=list, description="Expectation queries")
-    conditional_probability_queries: list[ConditionalProbabilityQuerySpec] = Field(default_factory=list, description="Conditional probability queries")
-    conditional_expectation_queries: list[ConditionalExpectationQuerySpec] = Field(default_factory=list, description="Conditional expectation queries")
-    
-    def all_queries(self) -> list:
-        """Return all queries as a flat list."""
-        return (
-            list(self.probability_queries) +
-            list(self.expectation_queries) +
-            list(self.conditional_probability_queries) +
-            list(self.conditional_expectation_queries)
-        )
-
-
-class QueryResult(BaseModel):
-    """Result of a distributional query."""
-    
-    query_id: str = Field(..., description="ID of the query this answers")
-    
-    # The answer
-    probability: Optional[float] = Field(
-        None,
-        ge=0.0,
-        le=1.0,
-        description="Probability answer (for threshold/marginal queries)"
-    )
-    value: Optional[float] = Field(
-        None,
-        description="Value answer (for quantile/expectation queries)"
-    )
-    
-    # Confidence in the answer
-    confidence: float = Field(
-        0.5,
-        ge=0.0,
-        le=1.0,
-        description="LLM's confidence in this answer"
-    )
-    
-    # Raw response for debugging
-    raw_response: Optional[str] = Field(None, description="Raw LLM response text")
-    raw_query: Optional[str] = Field(None, description="Raw LLM query text")
-    
-    def get_answer(self) -> float:
-        """Get the numeric answer."""
-        if self.probability is not None:
-            return self.probability
-        if self.value is not None:
-            return self.value
-        raise ValueError("No answer available")

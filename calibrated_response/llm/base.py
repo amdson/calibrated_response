@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 T = TypeVar('T', bound=BaseModel)
 
-
+#TODO just use pydantic AI for queries. This is redundant.
 class LLMResponse(BaseModel):
     """Response from an LLM query."""
     

@@ -1,3 +1,7 @@
+from calibrated_response.models.variable import (DiscreteVariable, ContinuousVariable, BinaryVariable,
+                                                 demo_binary_var, demo_continuous_var)
+import json
+
 """Prompt templates for LLM generation tasks."""
 
 PROMPTS = {
@@ -10,12 +14,12 @@ Focus on variables that are:
 3. Not perfectly correlated with each other
 4. A mix of easy-to-know facts and uncertain quantities
 
-For continuous variables, always provide reasonable lower and upper bounds for the plausible range.
-For binary variables, provide clear yes/no labels if applicable.""",
+For continuous variables, always provide reasonable lower and upper bounds for the plausible range and units. 
+For binary variables, provide clear yes/no labels in the description.""",
         
-        "user": """Question to forecast: {question}
+        "user": f"""Question to forecast: {{question}}
 
-Identify {n_variables} relevant variables that could help predict the answer to this question.
+Identify {{n_variables}} relevant variables that could help predict the answer to this question.
 For each variable, provide:
 - A short name (2-4 words, no spaces preferred, use underscores)
 - A description of what it represents  
@@ -25,28 +29,13 @@ For each variable, provide:
 - For BINARY variables: yes_label and no_label (e.g., "raining", "not raining")
 
 Respond in JSON format:
-{{
+{
   "variables": [
-    {{
-      "name": "temperature",
-      "description": "Current air temperature",
-      "type": "continuous",
-      "importance": 0.8,
-      "lower_bound": -20,
-      "upper_bound": 50,
-      "unit": "degrees F"
-    }},
-    {{
-      "name": "is_snowing",
-      "description": "Whether it is currently snowing",
-      "type": "binary",
-      "importance": 0.9,
-      "yes_label": "snowing",
-      "no_label": "not snowing"
-    }}
+    {json.dumps(demo_continuous_var.model_dump())},
+    {json.dumps(demo_binary_var.model_dump())}
   ]
-}}"""
-    },
+}"""
+    },  
     
     "query_generation": {
         "system": """You are an expert forecaster designing queries to elicit probability distributions.
@@ -56,7 +45,7 @@ You MUST generate exactly four types of queries that map to maximum entropy cons
 
 1. PROBABILITY queries: Ask for the probability of a variable exceeding (or being below) a specific threshold
    - Example: "What is the probability that Snow Depth exceeds 6 inches?"
-   - Example: "What is the probability that Temperature is below 32°F?"
+   - Example: "What is the probability that Stock Return is below -5%?"
    - Use thresholds within the variable's plausible range
 
 2. EXPECTATION queries: Ask for the expected/mean value of a variable

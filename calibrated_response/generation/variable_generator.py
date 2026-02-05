@@ -10,7 +10,7 @@ from calibrated_response.models.variable import (
     VariableList,
     BinaryVariable,
     ContinuousVariable,
-    DiscreteVariable,
+    # DiscreteVariable,
 )
 from calibrated_response.generation.prompts import PROMPTS
 
@@ -30,11 +30,7 @@ class VariableGenerator:
         self,
         question: str,
         n_variables: int = 5,
-        include_target: bool = True,
-        target_lower_bound: Optional[float] = None,
-        target_upper_bound: Optional[float] = None,
-        target_unit: Optional[str] = None,
-    ) -> list[Union[BinaryVariable, ContinuousVariable, DiscreteVariable]]:
+    ) -> list[Union[BinaryVariable, ContinuousVariable]]:
         """Generate relevant variables for a forecasting question.
         
         Args:
@@ -61,7 +57,7 @@ class VariableGenerator:
                 response_model=VariableList,
                 system_prompt=prompts["system"],
                 temperature=0.7,
-                max_tokens=1000*n_variables+1200,
+                max_tokens=1000*n_variables+2500,
             )
             
             # Convert to typed Variable objects from Pydantic model
@@ -72,16 +68,6 @@ class VariableGenerator:
                     variables.append(parsed_var)
         except Exception as e:
             raise ValueError(f"Failed to generate variables: {e}")
-        
-        # Optionally add target variable
-        if include_target:
-            target = self._create_target_variable(
-                question, 
-                lower_bound=target_lower_bound,
-                upper_bound=target_upper_bound,
-                unit=target_unit,
-            )
-            variables.insert(0, target)
         
         return variables
     

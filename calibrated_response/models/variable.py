@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -26,88 +26,55 @@ class Variable(BaseModel):
     
     name: str = Field(..., description="Short identifier for the variable")
     description: str = Field(..., description="What this variable represents")
-    type: str = Field("continuous", description="Type: binary, continuous, discrete, or ordinal")
-    # relevance: Optional[str] = Field(None, description="Why this variable is relevant")
-    importance: float = Field(
-        0.5,
-        ge=0.0,
-        le=1.0,
-        description="Estimated importance (0-1) for the main question"
-    )
-    
-    # Internal fields (not from LLM)
-    is_target: bool = Field(False, description="Whether this is the main target variable")
-    
-    @property
-    def variable_type(self) -> VariableType:
-        """Get the variable type as an enum."""
-        type_map = {
-            "binary": VariableType.BINARY,
-            "continuous": VariableType.CONTINUOUS,
-            "discrete": VariableType.DISCRETE,
-            "ordinal": VariableType.ORDINAL,
-        }
-        return type_map.get(self.type.lower(), VariableType.CONTINUOUS)
-    
-    @property
-    def estimated_importance(self) -> float:
-        """Alias for importance."""
-        return self.importance
-    
-    def to_query_variable(self) -> str:
+    type: VariableType = Field(VariableType.CONTINUOUS, description="Type: binary, continuous, discrete, or ordinal")
+
+    def to_query_variable(self) -> str: 
         """Get a string representation suitable for queries."""
         return f"{self.name}: {self.description}"
-    
-class VariableList(BaseModel):
-    """List of variables."""
-    variables: list[Variable] = Field(..., description="List of relevant variables")
 
 class BinaryVariable(Variable):
     """A binary (yes/no) variable."""
-    
-    type: str = Field(default="binary", frozen=True)
-    
-    # Labels for the outcomes
-    yes_label: str = Field("yes", description="Label for positive outcome")
-    no_label: str = Field("no", description="Label for negative outcome")
+    type: VariableType = Field(VariableType.BINARY, frozen=True)
 
 class ContinuousVariable(Variable):
     """A continuous (real-valued) variable."""
     
-    type: str = Field(default="continuous", frozen=True)
+    type: VariableType = Field(VariableType.CONTINUOUS, frozen=True)
     
     # Domain bounds
-    lower_bound: Optional[float] = Field(None, description="Lower bound of domain")
-    upper_bound: Optional[float] = Field(None, description="Upper bound of domain")
+    lower_bound: float = Field(0, description="Lower bound of domain")
+    upper_bound: float = Field(0, description="Upper bound of domain")
     
     # Unit of measurement
     unit: Optional[str] = Field(None, description="Unit of measurement (e.g., 'people', 'USD')")
     
     def get_domain(self) -> tuple[float, float]:
         """Get the domain bounds."""
-        return (
-            self.lower_bound if self.lower_bound is not None else float('-inf'),
-            self.upper_bound if self.upper_bound is not None else float('inf')
-        )
-
+        return (self.lower_bound, self.upper_bound)
+    
 class DiscreteVariable(Variable):
     """A discrete variable with a finite set of possible values."""
-    
-    type: str = Field(default="discrete", frozen=True)
+    type: VariableType = Field(VariableType.DISCRETE, frozen=True)
     
     # Possible values
     categories: list[str] = Field(default_factory=list, description="List of possible values")
+
+class VariableList(BaseModel):
+    """A list of variables."""
+    model_config = ConfigDict(frozen=True)
     
-    # Prior distribution over categories
-    prior_probabilities: Optional[dict[str, float]] = Field(
-        None,
-        description="Prior probability for each category"
-    )
-    
-    def validate_prior(self) -> bool:
-        """Check if prior probabilities are valid."""
-        if self.prior_probabilities is None:
-            return True
-        
-        probs = list(self.prior_probabilities.values())
-        return abs(sum(probs) - 1.0) < 1e-6 and all(p >= 0 for p in probs)
+    variables: list[Union[BinaryVariable, ContinuousVariable]] = Field(default_factory=list, description="List of variables")
+
+demo_continuous_var = ContinuousVariable(
+    name="daily_high_temp",
+    description="The daily high temperature in degrees Fahrenheit",
+    lower_bound=30.0,
+    upper_bound=100.0,
+    unit="degrees F"
+) 
+
+demo_binary_var = BinaryVariable(
+    name="is_raining",
+    description="Whether it is currently raining"
+)
+
