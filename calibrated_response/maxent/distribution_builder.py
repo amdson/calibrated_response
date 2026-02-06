@@ -59,7 +59,7 @@ class DomainNormalizer:
         """Get the original domain for a variable."""
         idx = self.var_name_to_idx.get(var_name)
         if idx is None:
-            return (0.0, 1.0)
+            raise ValueError(f"Variable '{var_name}' not found.")
         return self.domains[idx]
     
     def normalize_value(self, value: float, var_name: str) -> float:

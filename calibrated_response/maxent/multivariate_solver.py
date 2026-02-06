@@ -5,6 +5,8 @@ from jax import grad, jit, vmap
 from jax.scipy.special import logsumexp
 import optax
 
+from typing import Sequence
+
 from calibrated_response.models.variable import (Variable, BinaryVariable, ContinuousVariable)
 from calibrated_response.maxent.constraints import (ConditionalMeanConstraint, ConditionalThresholdConstraint, ConditionalThresholdConstraint, Constraint,
     ConstraintSet, ConstraintUnion, ProbabilityConstraint, MeanConstraint, ThresholdConstraint, ThresholdConstraint, to_bins
@@ -150,20 +152,71 @@ def gen_threshold_precondition_mask(bin_edges: List[jnp.ndarray], var_lower_boun
         precondition_mask = precondition_mask.reshape(precondition_mask.shape + (1,)) * m[i].reshape((1,) * i + (-1,))
     return precondition_mask
 
+def compute_gaussian_reference(bin_edges_list: Sequence[np.ndarray], mean: float = 0.5, std: float = 0.17):
+    """Compute a discretized Gaussian reference distribution over the joint grid.
+    
+    For each variable, computes the Gaussian density at bin centers, normalizes
+    to a valid marginal, then takes the outer product to get the joint reference.
+    
+    Args:
+        bin_edges_list: Bin edges for each variable
+        mean: Mean of the Gaussian (default 0.5, suitable for [0,1]-normalized variables)
+        std: Standard deviation of the Gaussian (default 0.17)
+    
+    Returns:
+        JAX array of the reference distribution with the same shape as the joint distribution
+    """
+    marginals = []
+    for edges in bin_edges_list:
+        edges = jnp.array(edges)
+        centers = (edges[:-1] + edges[1:]) / 2
+        # Gaussian density at bin centers
+        log_q = -0.5 * ((centers - mean) / std) ** 2
+        # Normalize to valid distribution
+        q = jnp.exp(log_q - logsumexp(log_q))
+        marginals.append(q)
+    
+    # Build joint reference as outer product of marginals (independence)
+    q_joint = marginals[0]
+    for i in range(1, len(marginals)):
+        q_joint = q_joint.reshape(q_joint.shape + (1,)) * marginals[i].reshape((1,) * i + (-1,))
+    return q_joint
+
+
 def create_objective_fn(
     variables: Sequence[Variable],
     constraints: Sequence[Constraint],
     bin_edges_list: Sequence[np.ndarray],
     constraint_weight: float = 3.0,
-    regularization: float = 0.01
+    regularization: float = 0.01,
+    regularization_type: str = 'entropy',
+    gaussian_mean: float = 0.5,
+    gaussian_std: float = 0.17
 ):
     """Create a JAX-compatible objective function for the MaxEnt problem.
     
     The function operates on log-probabilities for numerical stability.
+    
+    Args:
+        variables: Sequence of Variable objects
+        constraints: Sequence of Constraint objects
+        bin_edges_list: Bin edges for each variable
+        constraint_weight: Weight for constraint violation penalties
+        regularization: L2 regularization on log-probabilities
+        regularization_type: 'entropy' for max-entropy (default), or
+            'kl_gaussian' for KL-divergence from a Gaussian prior
+        gaussian_mean: Mean of the Gaussian prior (used when regularization_type='kl_gaussian')
+        gaussian_std: Std of the Gaussian prior (used when regularization_type='kl_gaussian')
     """
     # Convert bin edges to JAX arrays
     n_vars = len(variables)
     bin_edges_jax = [jnp.array(b) for b in bin_edges_list]
+    
+    # Precompute Gaussian reference if needed
+    log_q_ref = None
+    if regularization_type == 'kl_gaussian':
+        q_ref = compute_gaussian_reference(bin_edges_list, mean=gaussian_mean, std=gaussian_std)
+        log_q_ref = jnp.log(q_ref + 1e-30)
     
     # Extract constraint parameters
     constraint_params = []
@@ -206,11 +259,16 @@ def create_objective_fn(
         log_p = log_p_flat.reshape(shape)
         log_p_normalized = log_p - logsumexp(log_p)  # log-softmax for normalization
         p = jnp.exp(log_p_normalized)
-        
-        # Entropy: H(p) = -sum(p * log(p))
-        # Using log_p_normalized to avoid numerical issues
-        entropy = -jnp.sum(p * log_p_normalized)
-        neg_entropy = -entropy
+
+        # Regularization term: entropy or KL-divergence
+        if regularization_type == 'kl_gaussian':
+            # KL(p || q) = sum(p * (log p - log q))
+            kl_div = jnp.sum(p * (log_p_normalized - log_q_ref.reshape(shape)))
+            neg_entropy = kl_div
+        else:
+            # Maximum entropy: H(p) = -sum(p * log(p))
+            entropy = -jnp.sum(p * log_p_normalized)
+            neg_entropy = -entropy
         
         # Constraint violations
         penalty = 0.0
@@ -340,7 +398,7 @@ def jax_evaluate(
     constraint: Constraint, 
     p: np.ndarray, 
     var_idx: int, 
-    bin_edges: np.ndarray,
+    bin_edges_list: list[np.ndarray],
     variables: Sequence[Variable]
 ) -> float:
     """Evaluate a constraint on a distribution using JAX functions.
@@ -351,7 +409,7 @@ def jax_evaluate(
         constraint: The constraint to evaluate
         p: Joint distribution array
         var_idx: Index of the target variable
-        bin_edges: Bin edges for the target variable
+        bin_edges_list: List of bin edges for all variables
         variables: Sequence[Variable] of all variables (needed for conditional constraints)
     
     Returns:
@@ -359,6 +417,7 @@ def jax_evaluate(
     """
     # Convert to JAX arrays
     p_jax = jnp.array(p)
+    bin_edges = bin_edges_list[var_idx]
     bin_edges_jax = jnp.array(bin_edges)
     
     # Compute marginal for the target variable
@@ -397,8 +456,8 @@ def jax_evaluate(
             else:
                 var_upper_bounds[cvar_idx] = min(cv, var_upper_bounds[cvar_idx])
         
-        # Get bin edges for all variables (use normalized domain)
-        all_bin_edges = [jnp.array(to_bins(v, max_bins=len(bin_edges)-1, normalized=True)) for v in variables]
+        # Get bin edges for all variables from bin_edges_list
+        all_bin_edges = [jnp.array(edges) for edges in bin_edges_list]
         precondition_mask = gen_threshold_precondition_mask(all_bin_edges, var_lower_bounds, var_upper_bounds)
         
         if isinstance(constraint, ConditionalThresholdConstraint):
@@ -428,6 +487,9 @@ class JAXSolverConfig:
     regularization: float = 0.001
     max_bins: int = 10
     verbose: bool = False
+    regularization_type: str = 'entropy'  # 'entropy' or 'kl_gaussian'
+    gaussian_mean: float = 0.5
+    gaussian_std: float = 0.17
 
 class MultivariateMaxEntSolver:
     """JAX-based multivariate maximum entropy solver using L-BFGS."""
@@ -456,14 +518,16 @@ class MultivariateMaxEntSolver:
             variables, max_bins=self.config.max_bins, normalized=True
         )
         p0 = create_joint_distribution(marginals)
-        
-        # Create objective
+
         objective_fn = create_objective_fn(
             variables=variables,
             constraints=constraints,
             bin_edges_list=bin_edges_list,
             constraint_weight=self.config.constraint_weight,
-            regularization=self.config.regularization
+            regularization=self.config.regularization,
+            regularization_type=self.config.regularization_type,
+            gaussian_mean=self.config.gaussian_mean,
+            gaussian_std=self.config.gaussian_std
         )
 
         initial_error = objective_fn(jnp.log(p0.flatten() + 1e-12), p0.shape)
@@ -483,7 +547,7 @@ class MultivariateMaxEntSolver:
         info['constraint_satisfaction'] = {}
         constraint_var_ind = [variables.index(c.target_variable) for c in constraints]
         for c, var_idx in zip(constraints, constraint_var_ind):
-            actual = jax_evaluate(c, p_optimal, var_idx, bin_edges_list[var_idx], variables)
+            actual = jax_evaluate(c, p_optimal, var_idx, bin_edges_list, variables)
             target = c.target_value()
             info['constraint_satisfaction'][c.id] = {
                 'target': target,

@@ -36,12 +36,6 @@ Focus on variables that are:
 3. Not perfectly correlated with each other
 4. A mix of easy-to-know facts and uncertain quantities
 
-For continuous variables, always provide reasonable lower and upper bounds for the plausible range and units. 
-
-CRITICAL RULES:
-- Variable names must be short (2-4 words, no spaces preferred, use underscores)
-- Variable descriptions should be clear and concise
-- Variable types must be binary or continuous
 - The first variable should be a literal answer to the main question (e.g., "Will it rain tomorrow?" -> variable: "will_rain_tomorrow", type: binary)
 """,
         
@@ -51,10 +45,16 @@ Identify {n_variables} relevant variables that could help predict the answer to 
 For each variable, provide:
 - A short name (2-4 words, no spaces preferred, use underscores)
 - A description of what it represents  
-- Whether it's binary (yes/no), continuous (numeric), or discrete (categories)
+- Whether it's binary (yes/no) or continuous (numeric)
 - An estimated importance from 0 to 1
 - For CONTINUOUS variables: lower_bound, upper_bound (plausible range), and unit (e.g., "inches", "dollars", "people")
-- For BINARY variables: yes_label and no_label (e.g., "raining", "not raining")
+
+IMPORTANT:
+- Variable names must be short (2-4 words, no spaces preferred, use underscores)
+- Variable descriptions should be clear and concise
+- Variable types must be binary or continuous
+- The plausible range for continuous variables must be very conservative, covering all realistic outcomes.
+- The first variable should be a literal answer to the main question (e.g., "Will it rain tomorrow?" -> variable: "will_rain_tomorrow", type: binary)
 
 Respond in JSON format. E.g.:
 {{{{
@@ -67,6 +67,9 @@ Respond in JSON format. E.g.:
             demo_binary_var_json=demo_binary_var_json)
     }, 
 
+    
+    # ============================================================================
+    # Estimate Generation Prompts
     "estimate_generation": {
         "system": """You are an expert forecaster providing calibrated probability and expectation estimates.
 Your task is to generate structured estimates about relationships between variables for a forecasting problem.
@@ -169,6 +172,7 @@ IMPORTANT:
 - All variable names must EXACTLY match the variable names above
 - Use > or < for continuous variables, = True/False for binary variables
 - Include a variety of estimates that capture different relationships between the variables, not just direct predictions of the main question.
+- Include a direct prediction of each variable as either a probability or expectation estimate.
 
 Respond with JSON:
 {{
