@@ -13,7 +13,6 @@ from calibrated_response.llm.base import LLMClient, LLMResponse
 
 T = TypeVar('T', bound=BaseModel)
 
-
 class OpenRouterClient(LLMClient):
     """Client for OpenRouter API."""
     
@@ -23,6 +22,7 @@ class OpenRouterClient(LLMClient):
         model: str = "openai/gpt-4o-mini",
         site_url: Optional[str] = None,
         site_name: Optional[str] = None,
+        providers: Optional[list[str]] = None,
     ):
         """Initialize the OpenRouter client.
         
@@ -42,6 +42,7 @@ class OpenRouterClient(LLMClient):
         self._model = model
         self._site_url = site_url
         self._site_name = site_name
+        self._providers = providers
         
         from openai import OpenAI
         self._client = OpenAI(
@@ -82,6 +83,9 @@ class OpenRouterClient(LLMClient):
             f"Respond with valid JSON matching this schema:\n```json\n{schema_json}\n```"
         )
         messages.append({"role": "user", "content": structured_prompt})
+        extra_body = {}
+        if self._providers:
+            extra_body["provider"] = {"order": self._providers}
 
         try:
             response = self._client.chat.completions.create(
@@ -91,6 +95,7 @@ class OpenRouterClient(LLMClient):
                 max_tokens=max_tokens,
                 extra_headers=self._get_extra_headers(),
                 response_format={"type": "json_object"},
+                extra_body=extra_body
             )
             
             text = response.choices[0].message.content
@@ -115,6 +120,10 @@ class OpenRouterClient(LLMClient):
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
         
+        extra_body = {}
+        if self._providers:
+            extra_body["provider"] = {"order": self._providers}
+
         try:
             response = self._client.chat.completions.create(
                 model=self._model,
@@ -122,6 +131,7 @@ class OpenRouterClient(LLMClient):
                 temperature=temperature,
                 max_tokens=max_tokens,
                 extra_headers=self._get_extra_headers(),
+                extra_body=extra_body if extra_body else None,
             )
             
             # Extract response text

@@ -2,7 +2,6 @@
 
 from calibrated_response.models.question import Question, QuestionType, MetaculusQuestion
 from calibrated_response.models.variable import Variable, VariableType, BinaryVariable, ContinuousVariable
-from calibrated_response.models.query import Query, QueryType, MarginalQuery, ConditionalQuery, ThresholdQuery
 from calibrated_response.models.distribution import (
     Distribution,
     DiscreteDistribution,
@@ -18,11 +17,6 @@ __all__ = [
     "VariableType",
     "BinaryVariable",
     "ContinuousVariable",
-    "Query",
-    "QueryType",
-    "MarginalQuery",
-    "ConditionalQuery",
-    "ThresholdQuery",
     "Distribution",
     "DiscreteDistribution",
     "BinaryDistribution",

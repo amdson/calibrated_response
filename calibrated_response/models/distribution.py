@@ -153,7 +153,7 @@ class HistogramDistribution(Distribution):
         """Validate histogram structure."""
         if len(self.bin_edges) != len(self.bin_probabilities) + 1:
             raise ValueError("bin_edges should have one more element than bin_probabilities")
-        if abs(sum(self.bin_probabilities) - 1.0) > 1e-6:
+        if abs(sum(self.bin_probabilities) - 1.0) > 1e-3:
             raise ValueError(f"Probabilities must sum to 1, got {sum(self.bin_probabilities)}")
     
     @property

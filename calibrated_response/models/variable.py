@@ -30,16 +30,16 @@ class Variable(BaseModel):
 
     def to_query_variable(self) -> str: 
         """Get a string representation suitable for queries."""
-        return f"{self.name}: {self.description}"
+        return f"{self.name} ({self.description})"
 
 class BinaryVariable(Variable):
     """A binary (yes/no) variable."""
-    type: VariableType = Field(VariableType.BINARY, frozen=True)
+    type: VariableType = VariableType.BINARY
 
 class ContinuousVariable(Variable):
     """A continuous (real-valued) variable."""
     
-    type: VariableType = Field(VariableType.CONTINUOUS, frozen=True)
+    type: VariableType = VariableType.CONTINUOUS
     
     # Domain bounds
     lower_bound: float = Field(0, description="Lower bound of domain")
@@ -54,27 +54,13 @@ class ContinuousVariable(Variable):
     
 class DiscreteVariable(Variable):
     """A discrete variable with a finite set of possible values."""
-    type: VariableType = Field(VariableType.DISCRETE, frozen=True)
-    
+    type: VariableType = VariableType.DISCRETE
     # Possible values
     categories: list[str] = Field(default_factory=list, description="List of possible values")
 
 class VariableList(BaseModel):
     """A list of variables."""
     model_config = ConfigDict(frozen=True)
-    
     variables: list[Union[BinaryVariable, ContinuousVariable]] = Field(default_factory=list, description="List of variables")
 
-demo_continuous_var = ContinuousVariable(
-    name="daily_high_temp",
-    description="The daily high temperature in degrees Fahrenheit",
-    lower_bound=30.0,
-    upper_bound=100.0,
-    unit="degrees F"
-) 
-
-demo_binary_var = BinaryVariable(
-    name="is_raining",
-    description="Whether it is currently raining"
-)
 

@@ -80,4 +80,3 @@ demo_conditional_exp_estimate = ConditionalExpectationEstimate(
     conditions=[EqualityProposition(variable="is_raining", value=True)],
     expected_value=65.0  # E[daily_high_temp | is_raining = True] = 65.0
 )
-

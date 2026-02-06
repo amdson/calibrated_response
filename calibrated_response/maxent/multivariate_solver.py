@@ -6,13 +6,22 @@ from jax.scipy.special import logsumexp
 import optax
 
 from calibrated_response.models.variable import (Variable, BinaryVariable, ContinuousVariable)
-from calibrated_response.maxent.constraints import (ConditionalMeanConstraint, ConditionalQuantileConstraint, Constraint,
-    ConstraintSet, ProbabilityConstraint, MeanConstraint, QuantileConstraint, to_bins
+from calibrated_response.maxent.constraints import (ConditionalMeanConstraint, ConditionalThresholdConstraint, ConditionalThresholdConstraint, Constraint,
+    ConstraintSet, ConstraintUnion, ProbabilityConstraint, MeanConstraint, ThresholdConstraint, ThresholdConstraint, to_bins
 )
 
-def discretize_variables(variables: list[Variable], max_bins: int = 5):
-    """Convert variables to discrete bin edges and uniform marginals."""
-    bin_edges_list = [to_bins(var, max_bins=max_bins) for var in variables]
+def discretize_variables(variables: Sequence[Variable], max_bins: int = 5, normalized: bool = False):
+    """Convert variables to discrete bin edges and uniform marginals.
+    
+    Args:
+        variables: List of Variable objects
+        max_bins: Maximum number of bins per variable
+        normalized: If True, all continuous variables use [0, 1] domain
+    
+    Returns:
+        Tuple of (bin_edges_list, marginals)
+    """
+    bin_edges_list = [to_bins(var, max_bins=max_bins, normalized=normalized) for var in variables]
     
     # Create uniform marginals for each variable
     marginals = []
@@ -23,14 +32,14 @@ def discretize_variables(variables: list[Variable], max_bins: int = 5):
     return bin_edges_list, marginals
 
 
-def create_joint_distribution(marginals: list[np.ndarray]) -> np.ndarray:
+def create_joint_distribution(marginals: Sequence[np.ndarray]) -> np.ndarray:
     """Create joint distribution assuming independence (outer product of marginals)."""
     p = marginals[0]
     for i in range(1, len(marginals)):
         p = p.reshape(p.shape + (1,)) * marginals[i].reshape((1,) * i + (-1,))
     return p
 
-from typing import List
+from typing import List, Sequence
 def compute_marginal_jax(p: jnp.ndarray, var_idx: int, n_vars: int) -> jnp.ndarray:
     """Compute marginal distribution for a single variable using einsum.
     
@@ -73,14 +82,14 @@ def evaluate_probability_constraint_jax(
     
     return jnp.sum(marginal * overlap_fracs)
 
-def evaluate_quantile_constraint_jax(
+def evaluate_threshold_constraint_jax(
     marginal: jnp.ndarray,
     bin_edges: jnp.ndarray,
-    quantile_value: float  # the x value where P(X <= x) = q
+    threshold_value: float  # the x value where P(X <= x) = q
 ) -> jnp.ndarray:
     """Evaluate P(X <= value) for a marginal distribution.
     
-    Returns the CDF at the quantile value, which should equal the target quantile.
+    Returns the CDF at the threshold value, which should equal the target probability.
     """
     bin_lefts = bin_edges[:-1]
     bin_rights = bin_edges[1:]
@@ -90,23 +99,23 @@ def evaluate_quantile_constraint_jax(
     # If quantile_value >= bin_right: full bin contributes
     # If quantile_value <= bin_left: nothing contributes  
     # Otherwise: linear interpolation
-    frac_below = jnp.clip((quantile_value - bin_lefts) / jnp.maximum(bin_widths, 1e-10), 0.0, 1.0)
+    frac_below = jnp.clip((threshold_value - bin_lefts) / jnp.maximum(bin_widths, 1e-10), 0.0, 1.0)
     
     return jnp.sum(marginal * frac_below)
 
-def evaluate_precondition_quantile_constraint_jax(p: jnp.ndarray, precondition_mask: jnp.ndarray, marginal_index: int, 
-                                                  bin_edges: jnp.ndarray, quantile_value: float) -> jnp.ndarray:
-    """Evaluate a quantile constraint under a precondition mask."""
+def evaluate_precondition_threshold_constraint_jax(p: jnp.ndarray, precondition_mask: jnp.ndarray, marginal_index: int, 
+                                                  bin_edges: jnp.ndarray, threshold_value: float) -> jnp.ndarray:
+    """Evaluate a threshold constraint under a precondition mask."""
     # Apply precondition mask to joint distribution
     p_masked = p * precondition_mask
     p_masked /= jnp.sum(p_masked)  # Renormalize
     # Compute marginal for the specified variable
     marginal = compute_marginal_jax(p_masked, marginal_index, len(p.shape))
-    # Evaluate quantile constraint on the marginal
+    # Evaluate threshold constraint on the marginal
     bin_lefts = bin_edges[:-1]
     bin_rights = bin_edges[1:]
     bin_widths = bin_rights - bin_lefts
-    frac_below = jnp.clip((quantile_value - bin_lefts) / jnp.maximum(bin_widths, 1e-10), 0.0, 1.0)
+    frac_below = jnp.clip((threshold_value - bin_lefts) / jnp.maximum(bin_widths, 1e-10), 0.0, 1.0)
     return jnp.sum(marginal * frac_below)
 
 def evaluate_precondition_mean_constraint_jax(p: jnp.ndarray, precondition_mask: jnp.ndarray, marginal_index: int, 
@@ -121,7 +130,7 @@ def evaluate_precondition_mean_constraint_jax(p: jnp.ndarray, precondition_mask:
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
     return jnp.sum(marginal * bin_centers)
 
-def gen_quantile_precondition_mask(bin_edges: List[jnp.ndarray], var_lower_bounds: np.ndarray, var_upper_bounds: np.ndarray):
+def gen_threshold_precondition_mask(bin_edges: List[jnp.ndarray], var_lower_bounds: np.ndarray, var_upper_bounds: np.ndarray):
     m = []
     for edges, lower, upper in zip(bin_edges, var_lower_bounds, var_upper_bounds):
         bin_lefts = edges[:-1]
@@ -142,9 +151,9 @@ def gen_quantile_precondition_mask(bin_edges: List[jnp.ndarray], var_lower_bound
     return precondition_mask
 
 def create_objective_fn(
-    variables: list[Variable],
-    constraints: list[Constraint],
-    bin_edges_list: list[np.ndarray],
+    variables: Sequence[Variable],
+    constraints: Sequence[Constraint],
+    bin_edges_list: Sequence[np.ndarray],
     constraint_weight: float = 3.0,
     regularization: float = 0.01
 ):
@@ -159,17 +168,13 @@ def create_objective_fn(
     # Extract constraint parameters
     constraint_params = []
     for c in constraints:
-        if hasattr(c, 'mean') and not hasattr(c, 'condition_variables'):
-            assert isinstance(c, MeanConstraint)
+        if isinstance(c, MeanConstraint):
             constraint_params.append(('mean', c.mean, c.confidence))
-        elif hasattr(c, 'probability'):
-            assert isinstance(c, ProbabilityConstraint)
+        elif isinstance(c, ProbabilityConstraint):
             constraint_params.append(('probability', (c.lower_bound, c.upper_bound, c.probability), c.confidence))
-        elif hasattr(c, 'quantile') and not hasattr(c, 'condition_variables'):
-            assert isinstance(c, QuantileConstraint)
-            constraint_params.append(('quantile', (c.value, c.quantile), c.confidence))
-        elif hasattr(c, 'condition_variables'):
-            assert isinstance(c, (ConditionalQuantileConstraint, ConditionalMeanConstraint))
+        elif isinstance(c, ThresholdConstraint):
+            constraint_params.append(('threshold', (c.threshold, c.probability), c.confidence))
+        elif isinstance(c, (ConditionalThresholdConstraint, ConditionalMeanConstraint)):
             var_lower_bounds = np.full((n_vars,), -np.inf)
             var_upper_bounds = np.full((n_vars,), np.inf)
             for cv, var, is_lower_bound in zip(c.condition_values, 
@@ -181,12 +186,10 @@ def create_objective_fn(
                 else:
                     var_upper_bounds[cvar_idx] = min(cv, var_upper_bounds[cvar_idx])
         
-            precondition_mask = gen_quantile_precondition_mask(bin_edges_jax, var_lower_bounds, var_upper_bounds)
-            if hasattr(c, 'quantile'):
-                assert isinstance(c, ConditionalQuantileConstraint)
-                constraint_params.append(('conditional_quantile', (c.value, c.quantile, precondition_mask), c.confidence))
-            else:
-                assert isinstance(c, ConditionalMeanConstraint)
+            precondition_mask = gen_threshold_precondition_mask(bin_edges_jax, var_lower_bounds, var_upper_bounds)
+            if isinstance(c, ConditionalThresholdConstraint):
+                constraint_params.append(('conditional_threshold', (c.threshold, c.probability, precondition_mask), c.confidence))
+            elif isinstance(c, ConditionalMeanConstraint):
                 constraint_params.append(('conditional_mean', (c.value, precondition_mask), c.confidence))
     
     def objective(log_p_flat: jnp.ndarray, shape: tuple) -> jnp.ndarray:
@@ -215,7 +218,7 @@ def create_objective_fn(
         for var_idx, (ctype, params, confidence) in zip(constraint_var_ind, constraint_params):
             marginal = compute_marginal_jax(p, var_idx, len(variables))
             bins = bin_edges_jax[var_idx]
-            
+
             if ctype == 'mean':
                 actual = evaluate_mean_constraint_jax(marginal, bins)
                 target = params
@@ -223,15 +226,15 @@ def create_objective_fn(
                 lower, upper, prob = params
                 actual = evaluate_probability_constraint_jax(marginal, bins, lower, upper)
                 target = prob
-            elif ctype == 'quantile':
-                value, quantile = params
-                actual = evaluate_quantile_constraint_jax(marginal, bins, value)
-                target = quantile
-            elif ctype == 'conditional_quantile':
-                value, quantile, precondition_mask = params
+            elif ctype == 'threshold':
+                value, threshold = params
+                actual = evaluate_threshold_constraint_jax(marginal, bins, value)
+                target = threshold
+            elif ctype == 'conditional_threshold':
+                value, threshold, precondition_mask = params
                 # Generate precondition mask
-                actual = evaluate_precondition_quantile_constraint_jax(p, precondition_mask, var_idx, bins, value)
-                target = quantile
+                actual = evaluate_precondition_threshold_constraint_jax(p, precondition_mask, var_idx, bins, value)
+                target = threshold
             elif ctype == 'conditional_mean':
                 value, precondition_mask = params
                 # Generate precondition mask
@@ -338,7 +341,7 @@ def jax_evaluate(
     p: np.ndarray, 
     var_idx: int, 
     bin_edges: np.ndarray,
-    variables: list[Variable]
+    variables: Sequence[Variable]
 ) -> float:
     """Evaluate a constraint on a distribution using JAX functions.
     
@@ -349,7 +352,7 @@ def jax_evaluate(
         p: Joint distribution array
         var_idx: Index of the target variable
         bin_edges: Bin edges for the target variable
-        variables: List of all variables (needed for conditional constraints)
+        variables: Sequence[Variable] of all variables (needed for conditional constraints)
     
     Returns:
         The actual value of the constraint on the distribution
@@ -362,27 +365,22 @@ def jax_evaluate(
     marginal = compute_marginal_jax(p_jax, var_idx, len(p.shape))
     
     # Evaluate based on constraint type
-    if hasattr(constraint, 'mean') and not hasattr(constraint, 'condition_variables'):
-        # Simple mean constraint
-        assert isinstance(constraint, MeanConstraint)
+    if isinstance(constraint, MeanConstraint):
         actual = float(evaluate_mean_constraint_jax(marginal, bin_edges_jax))
     
-    elif hasattr(constraint, 'probability'):
-        assert isinstance(constraint, ProbabilityConstraint)
+    elif isinstance(constraint, ProbabilityConstraint):
         actual = float(evaluate_probability_constraint_jax(
             marginal, bin_edges_jax, 
             constraint.lower_bound, constraint.upper_bound
         ))
     
-    elif hasattr(constraint, 'quantile') and not hasattr(constraint, 'condition_variables'):
-        # Simple quantile constraint
-        assert isinstance(constraint, QuantileConstraint)
-        actual = float(evaluate_quantile_constraint_jax(
-            marginal, bin_edges_jax, constraint.value
+    elif isinstance(constraint, ThresholdConstraint):
+        # Simple threshold constraint
+        actual = float(evaluate_threshold_constraint_jax(
+            marginal, bin_edges_jax, constraint.threshold
         ))
     
-    elif hasattr(constraint, 'condition_variables'):
-        assert isinstance(constraint, (ConditionalQuantileConstraint, ConditionalMeanConstraint))
+    elif isinstance(constraint, (ConditionalThresholdConstraint, ConditionalMeanConstraint)):
 
         # Conditional constraint (quantile or mean)
         # Build the precondition mask
@@ -399,14 +397,14 @@ def jax_evaluate(
             else:
                 var_upper_bounds[cvar_idx] = min(cv, var_upper_bounds[cvar_idx])
         
-        # Get bin edges for all variables
-        all_bin_edges = [jnp.array(to_bins(v, max_bins=len(bin_edges)-1)) for v in variables]
-        precondition_mask = gen_quantile_precondition_mask(all_bin_edges, var_lower_bounds, var_upper_bounds)
+        # Get bin edges for all variables (use normalized domain)
+        all_bin_edges = [jnp.array(to_bins(v, max_bins=len(bin_edges)-1, normalized=True)) for v in variables]
+        precondition_mask = gen_threshold_precondition_mask(all_bin_edges, var_lower_bounds, var_upper_bounds)
         
-        if hasattr(constraint, 'quantile'):
-            # Conditional quantile constraint
-            actual = float(evaluate_precondition_quantile_constraint_jax(
-                p_jax, precondition_mask, var_idx, bin_edges_jax, constraint.value
+        if isinstance(constraint, ConditionalThresholdConstraint):
+            # Conditional threshold constraint
+            actual = float(evaluate_precondition_threshold_constraint_jax(
+                p_jax, precondition_mask, var_idx, bin_edges_jax, constraint.threshold
             ))
         else:
             # Conditional mean constraint
@@ -431,7 +429,6 @@ class JAXSolverConfig:
     max_bins: int = 10
     verbose: bool = False
 
-
 class MultivariateMaxEntSolver:
     """JAX-based multivariate maximum entropy solver using L-BFGS."""
     
@@ -440,8 +437,8 @@ class MultivariateMaxEntSolver:
     
     def solve(
         self,
-        variables: list[Variable],
-        constraints: list,
+        variables: Sequence[Variable],
+        constraints: Sequence[ConstraintUnion],
     ):
         """Solve the multivariate MaxEnt problem.
         
@@ -453,8 +450,11 @@ class MultivariateMaxEntSolver:
         Returns:
             Tuple of (joint_distribution, bin_edges_list, info_dict)
         """
-        # Discretize
-        bin_edges_list, marginals = discretize_variables(variables, self.config.max_bins)
+        # Discretize using normalized [0, 1] domain for all variables
+        # The DistributionBuilder normalizes constraints and denormalizes results
+        bin_edges_list, marginals = discretize_variables(
+            variables, max_bins=self.config.max_bins, normalized=True
+        )
         p0 = create_joint_distribution(marginals)
         
         # Create objective

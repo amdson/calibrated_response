@@ -9,15 +9,19 @@ from typing import Any, Callable, List, Optional
 import numpy as np
 from pydantic import BaseModel, Field
 
+from calibrated_response.models.variable import (Variable, 
+                                                 BinaryVariable, ContinuousVariable, DiscreteVariable)
+
+
 
 class ConstraintType(str, Enum):
     """Type of constraint."""
-    PROBABILITY = "probability"  # P(X in region) = p
+    PROBABILITY = "probability"  # P(x1 <= X < x2) = p
     MEAN = "mean"                # E[X] = mu
     VARIANCE = "variance"        # Var(X) = sigma^2
-    QUANTILE = "quantile"        # Q(p) = x
-    CONDITIONALMEAN = "conditional_mean"  # Conditional mean constraints
-    CONDITIONALQUANTILE = "conditional_quantile"  # Conditional quantile constraints
+    THRESHOLD = "threshold"        # P(X <= x) = p
+    CONDITIONALMEAN = "conditional_mean"  # E[X | conditions] = mu
+    CONDITIONALTHRESHOLD = "conditional_threshold"  # P(X <= x | conditions) = p
 
 
 
@@ -38,13 +42,6 @@ class Constraint(BaseModel, ABC):
         le=1.0,
         description="Confidence in this constraint (for soft constraints)"
     )
-    
-    # Source query ID for traceability
-    source_query_id: Optional[str] = Field(
-        None,
-        description="ID of the query that produced this constraint"
-    )
-
 
 class ProbabilityConstraint(Constraint):
     """Constraint on probability mass in a region: P(a <= X <= b) = p."""
@@ -98,8 +95,8 @@ class ProbabilityConstraint(Constraint):
         
         Args:
             threshold: The threshold value
-            probability: P(X > threshold) or P(X < threshold)
-            direction: "greater" for P(X > t), "less" for P(X < t)
+            probability: P(X > threshold) or P(X <= threshold)
+            direction: "greater" for P(X > t), "less" for P(X <= t)
             domain_min: Minimum of the domain
             domain_max: Maximum of the domain
         """
@@ -112,14 +109,13 @@ class ProbabilityConstraint(Constraint):
                 **kwargs,
             )
         else:
-            # P(X < threshold) = probability
+            # P(X <= threshold) = probability
             return cls(
                 lower_bound=domain_min,
                 upper_bound=threshold,
                 probability=probability,
                 **kwargs,
             )
-
 
 class MeanConstraint(Constraint):
     """Constraint on expected value: E[X] = mu."""
@@ -131,7 +127,9 @@ class MeanConstraint(Constraint):
     def evaluate(self, distribution: np.ndarray, bin_edges: np.ndarray) -> float:
         """Compute E[X] for the distribution."""
         bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-        return np.sum(distribution * bin_centers)
+        mean = np.sum(distribution * bin_centers)
+        assert isinstance(mean, float)
+        return mean
     
     def target_value(self) -> float:
         return self.mean
@@ -148,72 +146,86 @@ class VarianceConstraint(Constraint):
         """Compute Var(X) for the distribution."""
         bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
         mean = np.sum(distribution * bin_centers)
-        return np.sum(distribution * (bin_centers - mean) ** 2)
+        # assert isinstance(mean, float)
+        variance = np.sum(distribution * (bin_centers - mean) ** 2)
+        assert isinstance(variance, float)
+        return variance
     
     def target_value(self) -> float:
         return self.variance
 
 
-class QuantileConstraint(Constraint):
-    """Constraint on quantile: Q(p) = x, meaning P(X <= x) = p."""
+class ThresholdConstraint(Constraint):
+    """Constraint P(X <= t) = p."""
     
-    constraint_type: ConstraintType = Field(default=ConstraintType.QUANTILE, frozen=True)
+    constraint_type: ConstraintType = Field(default=ConstraintType.THRESHOLD, frozen=True)
     
-    quantile: float = Field(
+    threshold: float = Field(
         ...,
-        ge=0.0,
-        le=1.0,
-        description="Quantile level (0.5 = median)"
+        description="Threshold value t in P(X <= t) = p"
     )
-    value: float = Field(..., description="Target quantile value")
+    probability: float = Field(..., description="Target threshold probability p")
     
     def target_value(self) -> float:
-        return self.quantile
+        return self.threshold
     
+
 class ConditionalConstraint(Constraint):
 
     condition_variables : List[Variable] = Field(default_factory=list, description="List of condition variables")
-    condition_values : List[float] = Field(default_factory=list, description="List of quantiles for condition variables")
-    is_lower_bound: List[bool] = Field(default_factory=list, description="List of flags to indicate if condition is flipped (i.e., P(X > x) instead of P(X <= x))")
+    condition_values : List[float] = Field(default_factory=list, description="List of thresholds for condition variables")
+    is_lower_bound: List[bool] = Field(default_factory=list, description="If True, condition is X > threshold (value is lower bound); if False, condition is X <= threshold (value is upper bound)")
 
-class ConditionalQuantileConstraint(ConditionalConstraint):
-    """Constraint on quantile: Q(p) = x, meaning P(X <= x) = p, subject to arbitrary conditions on quantiles of variables."""
+class ConditionalThresholdConstraint(ConditionalConstraint):
+    """Constraint on threshold: P(X <= t) = p, subject to arbitrary conditions on thresholds of variables."""
     
-    constraint_type: ConstraintType = Field(default=ConstraintType.CONDITIONALQUANTILE, frozen=True)
+    constraint_type: ConstraintType = Field(default=ConstraintType.CONDITIONALTHRESHOLD, frozen=True)
     
-    quantile: float = Field(
+    threshold: float = Field(
         ...,
-        ge=0.0,
-        le=1.0,
-        description="Quantile level (0.5 = median)"
+        description="Threshold value t in P(X <= t) = p"
     )
-    value: float = Field(..., description="Target quantile value")
+    probability: float = Field(..., description="Target threshold probability p")
 
     def target_value(self) -> float:
-        return self.quantile
+        return self.threshold
     
 class ConditionalMeanConstraint(ConditionalConstraint):
-    """Constraint on quantile: Q(p) = x, meaning P(X <= x) = p, subject to arbitrary conditions on quantiles of variables."""
+    """Constraint on mean: E[X] = mu, subject to arbitrary conditions on thresholds of variables."""
     
     constraint_type: ConstraintType = Field(default=ConstraintType.CONDITIONALMEAN, frozen=True)
     value: float = Field(..., description="Target mean value")
 
     def target_value(self) -> float:
         return self.value
-    
-from calibrated_response.models.variable import (Variable, 
-                                                 BinaryVariable, ContinuousVariable, DiscreteVariable)
 
-def to_bins(var: Variable, max_bins=5) -> np.ndarray:
+# Union type for all constraints
+ConstraintUnion = ProbabilityConstraint | MeanConstraint | VarianceConstraint | ThresholdConstraint | ConditionalThresholdConstraint | ConditionalMeanConstraint
+    
+def to_bins(var: Variable, max_bins=5, normalized: bool = False) -> np.ndarray:
+    """Create bin edges for a variable.
+    
+    Args:
+        var: Variable object
+        max_bins: Maximum number of bins
+        normalized: If True, always use [0, 1] domain regardless of variable's actual domain
+    
+    Returns:
+        Array of bin edges
+    """
     if isinstance(var, BinaryVariable):
         return np.array([0, 0.5, 1])
     if isinstance(var, ContinuousVariable):
-        # For continuous variables, create bins based on domain and max_bins
-        lower, upper = var.get_domain()
-        return np.linspace(lower, upper, max_bins+1)
+        if normalized:
+            # Use [0, 1] domain for normalized mode
+            return np.linspace(0.0, 1.0, max_bins + 1)
+        else:
+            # Use variable's actual domain
+            lower, upper = var.get_domain()
+            return np.linspace(lower, upper, max_bins + 1)
     if isinstance(var, DiscreteVariable):
         # For discrete variables, bins correspond to categories
-        return np.arange(len(var.categories)+1)
+        return np.arange(len(var.categories) + 1)
     else:
         raise ValueError(f"Unsupported variable type: {type(var)}")
 
@@ -303,7 +315,7 @@ class ConstraintSet(BaseModel):
 #         source_query_id: Optional[str] = None,
 #     ) -> None:
 #         """Add a quantile constraint."""
-#         self.add(QuantileConstraint(
+#         self.add(ThresholdConstraint(
 #             id=f"quantile_{len(self.constraints)}",
 #             quantile=quantile,
 #             value=value,

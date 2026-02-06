@@ -1,8 +1,30 @@
 from calibrated_response.models.variable import (DiscreteVariable, ContinuousVariable, BinaryVariable,
-                                                 demo_binary_var, demo_continuous_var)
+                                                 VariableType)
+from calibrated_response.models.query import (
+    EqualityProposition, InequalityProposition,
+    ProbabilityEstimate, ExpectationEstimate,
+    ConditionalProbabilityEstimate, ConditionalExpectationEstimate,
+)
 import json
+from calibrated_response.models.demo import (
+    demo_continuous_var,
+    demo_binary_var,
+    demo_equality_prop,
+    demo_inequality_prop_greater,
+    demo_inequality_prop_less,
+    demo_probability_estimate,
+    demo_expectation_estimate,
+    demo_conditional_prob_estimate,
+    demo_conditional_exp_estimate,)
 
 """Prompt templates for LLM generation tasks."""
+# Pre-compute JSON strings for use in prompts (avoids f-string format specifier issues)
+demo_continuous_var_json = json.dumps(demo_continuous_var.model_dump(), indent=4).replace('{', '{{').replace('}', '}}')
+demo_binary_var_json = json.dumps(demo_binary_var.model_dump(), indent=4).replace('{', '{{').replace('}', '}}')
+demo_prob_json = json.dumps(demo_probability_estimate.model_dump(), indent=6).replace('{', '{{').replace('}', '}}')
+demo_exp_json = json.dumps(demo_expectation_estimate.model_dump(), indent=6).replace('{', '{{').replace('}', '}}')
+demo_cond_prob_json = json.dumps(demo_conditional_prob_estimate.model_dump(), indent=6).replace('{', '{{').replace('}', '}}')
+demo_cond_exp_json = json.dumps(demo_conditional_exp_estimate.model_dump(), indent=6).replace('{', '{{').replace('}', '}}')
 
 PROMPTS = {
     "variable_generation": {
@@ -15,11 +37,17 @@ Focus on variables that are:
 4. A mix of easy-to-know facts and uncertain quantities
 
 For continuous variables, always provide reasonable lower and upper bounds for the plausible range and units. 
-For binary variables, provide clear yes/no labels in the description.""",
-        
-        "user": f"""Question to forecast: {{question}}
 
-Identify {{n_variables}} relevant variables that could help predict the answer to this question.
+CRITICAL RULES:
+- Variable names must be short (2-4 words, no spaces preferred, use underscores)
+- Variable descriptions should be clear and concise
+- Variable types must be binary or continuous
+- The first variable should be a literal answer to the main question (e.g., "Will it rain tomorrow?" -> variable: "will_rain_tomorrow", type: binary)
+""",
+        
+        "user": """Question to forecast: {question}
+
+Identify {n_variables} relevant variables that could help predict the answer to this question.
 For each variable, provide:
 - A short name (2-4 words, no spaces preferred, use underscores)
 - A description of what it represents  
@@ -28,152 +56,129 @@ For each variable, provide:
 - For CONTINUOUS variables: lower_bound, upper_bound (plausible range), and unit (e.g., "inches", "dollars", "people")
 - For BINARY variables: yes_label and no_label (e.g., "raining", "not raining")
 
-Respond in JSON format:
-{
+Respond in JSON format. E.g.:
+{{{{
   "variables": [
-    {json.dumps(demo_continuous_var.model_dump())},
-    {json.dumps(demo_binary_var.model_dump())}
+    {demo_continuous_var_json},
+    {demo_binary_var_json}
   ]
-}"""
-    },  
-    
-    "query_generation": {
-        "system": """You are an expert forecaster designing queries to elicit probability distributions.
-Your task is to generate specific, answerable questions about variables related to a forecasting problem.
+}}}}""".format(question="{question}", n_variables="{n_variables}", 
+            demo_continuous_var_json=demo_continuous_var_json, 
+            demo_binary_var_json=demo_binary_var_json)
+    }, 
 
-You MUST generate exactly four types of queries that map to maximum entropy constraints:
+    "estimate_generation": {
+        "system": """You are an expert forecaster providing calibrated probability and expectation estimates.
+Your task is to generate structured estimates about relationships between variables for a forecasting problem.
 
-1. PROBABILITY queries: Ask for the probability of a variable exceeding (or being below) a specific threshold
-   - Example: "What is the probability that Snow Depth exceeds 6 inches?"
-   - Example: "What is the probability that Stock Return is below -5%?"
-   - Use thresholds within the variable's plausible range
+You MUST generate four types of estimates:
 
-2. EXPECTATION queries: Ask for the expected/mean value of a variable
-   - Example: "What is the expected value of Snow Depth?"
+1. PROBABILITY ESTIMATES: P(proposition) - probability that a proposition is true
+   - For binary variables: P(X = true) or P(X = false)
+   - For continuous variables: P(X > threshold) or P(X < threshold)
+   - Probabilities must be between 0 and 1
 
-3. CONDITIONAL PROBABILITY queries: Ask for a threshold probability given conditions on OTHER variables
-   - Conditions use actual threshold values (not percentiles)
-   - Example: "Given that Yesterday's Snowfall was above 3 inches, what is the probability that Snow Depth exceeds 10 inches?"
-   - Example: "Given that Temperature is below 25°F, what is the probability that Snow Depth exceeds 8 inches?"
+2. EXPECTATION ESTIMATES: E[X] - expected value of a continuous variable
+   - Must be within the variable's plausible range
+   - Only for continuous variables
 
-4. CONDITIONAL EXPECTATION queries: Ask for expected value given threshold conditions on OTHER variables
-   - Example: "Given that Yesterday's Snowfall was above 2 inches and Temperature is below 30°F, what is the expected Snow Depth?"
+3. CONDITIONAL PROBABILITY ESTIMATES: P(proposition | conditions) 
+   - Probability of a proposition given one or more conditions
+   - Conditions can be on different variables than the target
+   - Use conditions that provide meaningful information
+
+4. CONDITIONAL EXPECTATION ESTIMATES: E[X | conditions]
+   - Expected value of a variable given conditions on OTHER variables
+   - Shows how expectations change under different scenarios
 
 CRITICAL RULES:
-- target_variable MUST be one of the exact variable names provided (case-sensitive)
-- condition variables MUST be different from the target_variable
-- condition variables MUST be exact variable names from the list provided
-- ALL threshold values MUST be within the plausible range of the variable
-- Use a variety of thresholds spread across each variable's range
-- Include a mix of all four query types for diverse information
-""",
-        "user": """Main forecasting question: {question}
+- All variable names must EXACTLY match the provided variable names
+- All thresholds must be within the variable's plausible range
+- Probabilities must be between 0 and 1
+- Expected values must be realistic given the variable's range
+- Condition variables must be DIFFERENT from the target variable
+- Include a good mix of all four estimate types
+- Estimates should be calibrated and reflect genuine uncertainty""",
+        
+        "user": """Question to forecast: {question}
 
-AVAILABLE VARIABLES (use these exact names, respecting the given ranges):
+AVAILABLE VARIABLES:
 {variables}
 
-Generate {n_queries} queries to help estimate the answer. 
-Include a mix of probability, expectation, conditional_probability, and conditional_expectation queries.
+Generate {num_estimates} estimates that capture the joint distribution over these variables. 
+Make sure your estimates are plausible based on your knowledge and common sense. 
+Include a mix of probability, expectation, conditional probability, and conditional expectation estimates, 
+and include one direct prediction of the main question as a probability or expectation estimate. 
 
-IMPORTANT: 
-- All target_variable values MUST match one of the variable names above EXACTLY
-- All condition variable names MUST match one of the variable names above EXACTLY  
-- All threshold values MUST be within the variable's plausible range
-- exceeds=true means P(X > threshold), exceeds=false means P(X <= threshold)
-- is_upper_bound=true means "variable <= threshold", is_upper_bound=false means "variable > threshold"
 
-Respond with a JSON object containing four arrays:
+IMPORTANT:
+- All variable names must EXACTLY match the variable names above
+- Use EqualityProposition for binary variables (value is true or false)
+- Use InequalityProposition for continuous variables (threshold with greater=true or greater=false)
+- variable_type must be "binary" for EqualityProposition and "continuous" for InequalityProposition
+- Condition variables must be different from the target
+
+Respond with a JSON object. E.g. :
+{{{{ 
+  "estimates": [
+    {demo_prob_json},
+    {demo_exp_json},
+    {demo_cond_prob_json},
+    {demo_cond_exp_json}
+  ]
+}}}}""".format(question="{question}", variables="{variables}", num_estimates="{num_estimates}",
+            demo_prob_json=demo_prob_json, demo_exp_json=demo_exp_json,
+            demo_cond_prob_json=demo_cond_prob_json, demo_cond_exp_json=demo_cond_exp_json)
+    },
+    
+    "natural_estimate_generation": {
+        "system": """You are an expert forecaster providing calibrated probability and expectation estimates.
+Output estimates using concise mathematical notation with brief reasoning.
+
+ESTIMATE FORMATS:
+- Probability: P(variable > threshold) = value  or  P(variable = True) = value
+- Expectation: E[variable] = value
+- Conditional Probability: P(variable > threshold | condition) = value
+- Conditional Expectation: E[variable | condition] = value
+
+RULES:
+- Use P(...) for probabilities, E[...] for expectations
+- Use parentheses () for P, square brackets [] for E
+- Conditions come after | (pipe symbol)
+- Multiple conditions separated by commas: P(X > 5 | Y = True, Z > 10) = 0.3
+- Probabilities must be between 0 and 1
+- For binary variables use = True or = False
+- For continuous variables use > or < with thresholds
+- Variable names must exactly match those provided
+- Include a brief "logic" explanation for each estimate""",
+        
+        "user": """Question to forecast: {question}
+
+AVAILABLE VARIABLES:
+{variables}
+
+Generate {num_estimates} estimates. Include a mix of:
+- Unconditional probabilities: P(var > threshold) = value
+- Unconditional expectations: E[var] = value  
+- Conditional probabilities: P(var > threshold | other_var > value) = prob
+- Conditional expectations: E[var | other_var = True] = value
+
+For each estimate, include a brief "logic" field explaining your reasoning. 
+
+IMPORTANT:
+- All variable names must EXACTLY match the variable names above
+- Use > or < for continuous variables, = True/False for binary variables
+- Include a variety of estimates that capture different relationships between the variables, not just direct predictions of the main question.
+
+Respond with JSON:
 {{
-  "probability_queries": [
-    {{
-      "text": "What is the probability that VariableName exceeds 10?",
-      "target_variable": "VariableName",
-      "threshold": 10.0,
-      "exceeds": true,
-      "informativeness": 0.8
-    }}
-  ],
-  "expectation_queries": [
-    {{
-      "text": "What is the expected value of VariableName?",
-      "target_variable": "VariableName",
-      "informativeness": 0.7
-    }}
-  ],
-  "conditional_probability_queries": [
-    {{
-      "text": "Given that VarA is above 5, what is the probability that VarB exceeds 15?",
-      "target_variable": "VarB",
-      "threshold": 15.0,
-      "exceeds": true,
-      "conditions": [
-        {{"variable": "VarA", "threshold": 5.0, "is_upper_bound": false}}
-      ],
-      "informativeness": 0.9
-    }}
-  ],
-  "conditional_expectation_queries": [
-    {{
-      "text": "Given that VarA is above 5, what is the expected value of VarB?",
-      "target_variable": "VarB",
-      "conditions": [
-        {{"variable": "VarA", "threshold": 5.0, "is_upper_bound": false}}
-      ],
-      "informativeness": 0.85
-    }}
+  "estimates": [
+    {{"logic": "Based on current market trends and growth rate", "expression": "P(variable_name > 50.0) = 0.3"}},
+    {{"logic": "Historical average adjusted for inflation", "expression": "E[variable_name] = 75.0"}},
+    {{"logic": "Strong correlation observed between these variables", "expression": "P(var1 > 10 | var2 = True) = 0.6"}},
+    {{"logic": "Conditional mean shifts upward when var2 is high", "expression": "E[var1 | var2 > 5.0] = 25.0"}}
   ]
 }}"""
-    },
-
-    
-    "probability_query": {
-        "system": """You are an expert forecaster providing calibrated probability estimates.
-Give your best estimate as a probability between 0 and 1.
-Be specific and quantitative. Explain your reasoning briefly, then state your probability estimate.
-Format your final answer as: "My probability estimate: X%" where X is a number between 0 and 100.""",
-        
-        "user": """{query}
-
-Consider relevant factors and provide your probability estimate."""
-    },
-    
-    "quantile_query": {
-        "system": """You are an expert forecaster providing calibrated numeric estimates.
-Give your best estimate for the requested quantity.
-Be specific and quantitative. Explain your reasoning briefly, then state your numeric estimate.
-Format your final answer as: "My estimate: [number]" with appropriate units if applicable.""",
-        
-        "user": """{query}
-
-Consider relevant factors and provide your numeric estimate."""
-    },
-    
-    "conditional_probability": {
-        "system": """You are an expert forecaster providing calibrated conditional probability estimates.
-Given a specific condition, estimate how it affects the probability of the outcome.
-Be specific and quantitative. Explain your reasoning briefly, then state your probability estimate.
-Format your final answer as: "My conditional probability estimate: X%" where X is a number between 0 and 100.""",
-        
-        "user": """Main question: {main_question}
-
-Condition: {condition}
-
-Query: {query}
-
-Assuming the condition is true, provide your probability estimate."""
-    },
-    
-    "threshold_probability": {
-        "system": """You are an expert forecaster estimating the probability that a quantity exceeds a threshold.
-Think about the distribution of possible values and estimate what fraction would exceed the threshold.
-Be specific and quantitative. Explain your reasoning briefly, then state your probability estimate.
-Format your final answer as: "Probability of exceeding threshold: X%" where X is a number between 0 and 100.""",
-        
-        "user": """Question context: {context}
-
-What is the probability that {variable} will be {direction} {threshold}?
-
-Consider the range of plausible values and provide your probability estimate."""
     },
 }
 
