@@ -43,7 +43,13 @@ class NaturalEstimateList(BaseModel):
     
     def convert_all(self) -> List[EstimateUnion]:
         """Convert all natural estimates to structured format."""
-        return [est.convert() for est in self.estimates]
+        l = []
+        for est in self.estimates:
+            try:
+                l.append(est.convert())
+            except Exception as e:
+                print(f"Error converting estimate '{est.expression}': {e}")
+        return l
 
 
 # ==========================================
@@ -85,7 +91,7 @@ def _parse_proposition(prop_str: str) -> PropositionUnion:
         return InequalityProposition(
             variable=var_name,
             threshold=float(value), # Inequalities require floats in your model
-            greater=(operator in [">", ">="])
+            is_lower_bound=(not operator in ["<", "<="])
         )
 
 def parse_natural_syntax(expression: str) -> EstimateUnion:

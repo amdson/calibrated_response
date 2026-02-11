@@ -1,3 +1,9 @@
+INSTALL NOTES
+To install in a colab notebook: 
+!pip install "calibrated-response[dev,eval] @ git+https://github.com/amdson/calibrated_response.git"
+
+
+PROJECT DESCRIPTION
 Here, we're building a python repo for the purpose of building calibrated distribution predictions 
 by combining many component predictions. 
 It will cover the process of updating a joint distribution over query answers based on question results

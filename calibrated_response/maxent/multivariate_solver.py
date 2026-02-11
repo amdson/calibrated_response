@@ -183,6 +183,12 @@ def compute_gaussian_reference(bin_edges_list: Sequence[np.ndarray], mean: float
     return q_joint
 
 
+def laplacian_smoothness(hist_values):
+    t = 0
+    for i in range(len(hist_values.shape)):
+        t += jnp.sum(jnp.diff(hist_values, n=1, axis=i) ** 2)
+    return t
+
 def create_objective_fn(
     variables: Sequence[Variable],
     constraints: Sequence[Constraint],
@@ -191,7 +197,8 @@ def create_objective_fn(
     regularization: float = 0.01,
     regularization_type: str = 'entropy',
     gaussian_mean: float = 0.5,
-    gaussian_std: float = 0.17
+    gaussian_std: float = 0.17,
+    smoothness_weight: float = 0.0
 ):
     """Create a JAX-compatible objective function for the MaxEnt problem.
     
@@ -307,7 +314,11 @@ def create_objective_fn(
             penalty += confidence * violation
         
         # L2 regularization on log-probabilities
-        reg = regularization * jnp.sum(log_p_flat ** 2)
+        # reg = regularization * jnp.sum(log_p_flat ** 2)
+        if smoothness_weight > 0.0:
+            reg = smoothness_weight * laplacian_smoothness(p)
+        else:
+            reg = 0.0
 
         return neg_entropy + constraint_weight * penalty + reg
     
@@ -490,6 +501,7 @@ class JAXSolverConfig:
     regularization_type: str = 'entropy'  # 'entropy' or 'kl_gaussian'
     gaussian_mean: float = 0.5
     gaussian_std: float = 0.17
+    smoothness_weight: float = 0.0
 
 class MultivariateMaxEntSolver:
     """JAX-based multivariate maximum entropy solver using L-BFGS."""
@@ -527,7 +539,8 @@ class MultivariateMaxEntSolver:
             regularization=self.config.regularization,
             regularization_type=self.config.regularization_type,
             gaussian_mean=self.config.gaussian_mean,
-            gaussian_std=self.config.gaussian_std
+            gaussian_std=self.config.gaussian_std, 
+            smoothness_weight=self.config.smoothness_weight
         )
 
         initial_error = objective_fn(jnp.log(p0.flatten() + 1e-12), p0.shape)
@@ -546,15 +559,51 @@ class MultivariateMaxEntSolver:
         # Add constraint satisfaction to info
         info['constraint_satisfaction'] = {}
         constraint_var_ind = [variables.index(c.target_variable) for c in constraints]
+        if self.config.verbose:
+            print("\nOptimization Breakdown:")
+
         for c, var_idx in zip(constraints, constraint_var_ind):
             actual = jax_evaluate(c, p_optimal, var_idx, bin_edges_list, variables)
             target = c.target_value()
+            contribution = self.config.constraint_weight * ((actual - target) ** 2)
+
             info['constraint_satisfaction'][c.id] = {
                 'target': target,
                 'actual': actual,
                 'error': abs(actual - target)
             }
             if self.config.verbose:
-                print(f"Constraint {c.id}: target={target}, actual={actual}, error={abs(actual - target)}")
+                print(f"Constraint {c.id}: target={target:.6f}, actual={actual:.6f}, "
+                      f"error={abs(actual - target):.6f}, loss_contribution={contribution:.6f}")
+
+        if self.config.verbose:
+            # Entropy / KL contribution
+            if self.config.regularization_type == 'kl_gaussian':
+                q_ref = compute_gaussian_reference(bin_edges_list, self.config.gaussian_mean, self.config.gaussian_std)
+                # Compute KL(p||q)
+                p_jax = jnp.array(p_optimal)
+                kl_val = jnp.sum(p_jax * (jnp.log(p_jax + 1e-30) - jnp.log(q_ref + 1e-30)))
+                entropy_term = float(kl_val)
+                print(f"  KL Divergence (Gaussian): {entropy_term:.6f}")
+            else:
+                entropy_term = -info['entropy']
+                print(f"  Negative Entropy: {entropy_term:.6f}")
+            
+            # Smoothness contribution
+            smoothness_term = 0.0
+            if self.config.smoothness_weight > 0.0:
+                sm_val = float(laplacian_smoothness(jnp.array(p_optimal)))
+                smoothness_term = self.config.smoothness_weight * sm_val
+                print(f"  Smoothness Penalty: {smoothness_term:.6f} (raw: {sm_val:.6f})")
+            
+            # Total
+            total_constraint_loss = sum(
+                self.config.constraint_weight * (info['constraint_satisfaction'][c.id]['error'] ** 2)
+                for c in constraints
+            )
+            print(f"  Total Constraint Penalty: {total_constraint_loss:.6f}")
+            print(f"  Total Objective: {total_constraint_loss + entropy_term + smoothness_term:.6f}")
+            print(f"  Solver Reported Loss: {info['final_loss']:.6f}")
+
         
         return p_optimal, bin_edges_list, info

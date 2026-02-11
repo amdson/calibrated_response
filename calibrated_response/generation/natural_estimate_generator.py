@@ -20,6 +20,18 @@ class NaturalEstimateGenerator:
     - E[Cost] = 100.0
     - P(A > 5 | B = True) = 0.7
     - E[X | Y > 10] = 50.0
+    - Cov(X, Y) = 25.0
+    - Corr(X, Y) = 0.8
+    - Corr(X, Y) > 0.2
+    - Var(X) = 16.0
+    - Var(X | Y > 10) = 9.0
+    - Var(X | Y = True) < Var(X | Y = False)
+    - E[X | Y > 10] > E[X | Y <= 10]
+    - Independence: $Indep(X, Y)$ 
+    - $P(Y | do(X=x))$ 
+    - Likelihood Ratio/Odds: $P(A) / P(B) = 2.0$
+    - 
+
     
     These are then parsed into structured Estimate objects.
     """

@@ -29,16 +29,16 @@ demo_equality_prop = EqualityProposition(
 # InequalityProposition: For continuous variables (X > threshold or X < threshold)
 demo_inequality_prop_greater = InequalityProposition(
     variable="daily_high_temp",
-    variable_type=VariableType.CONTINUOUS,
+    variable_type="continuous",
     threshold=80.0,
-    greater=True  # daily_high_temp > 80
+    is_lower_bound=True  # daily_high_temp > 80
 )
 
 demo_inequality_prop_less = InequalityProposition(
     variable="daily_high_temp",
-    variable_type=VariableType.CONTINUOUS,
+    variable_type="continuous",
     threshold=50.0,
-    greater=False  # daily_high_temp < 50
+    is_lower_bound=False  # daily_high_temp < 50
 )
 
 # ============================================================================

@@ -10,6 +10,13 @@ from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 
 from calibrated_response.models.variable import Variable, ContinuousVariable, BinaryVariable
+from calibrated_response.maxent.constraints import (
+    Constraint, ThresholdConstraint, MeanConstraint, ProbabilityConstraint,
+    ConditionalThresholdConstraint, ConditionalMeanConstraint,
+)
+
+# Colors for distinguishing multiple conditional constraints
+_COND_COLORS = ['#e74c3c', '#2ecc71', '#9b59b6', '#f39c12', '#1abc9c']
 
 
 def compute_2d_marginal(
@@ -74,6 +81,62 @@ def compute_1d_marginal(
         marginal_1d = marginal_1d.sum(axis=ax)
     
     return marginal_1d, bin_edges_list[var_idx]
+
+
+def _compute_conditional_marginal(
+    ordered_joint: np.ndarray,
+    ordered_edges: list[np.ndarray],
+    ordered_vars: list[Variable],
+    target_var_idx: int,
+    constraint,
+) -> Optional[tuple[np.ndarray, np.ndarray, str]]:
+    """Compute a conditional 1D marginal for a conditional constraint.
+
+    Applies the constraint's conditions as a mask on the joint distribution,
+    renormalizes, and marginalizes to the target variable.
+
+    Returns:
+        Tuple of (marginal, bin_edges, label) or None if no mass in condition region.
+    """
+    n_vars = ordered_joint.ndim
+    mask = np.ones_like(ordered_joint)
+    label_parts = []
+
+    for cond_var, cond_val, is_lower in zip(
+        constraint.condition_variables,
+        constraint.condition_values,
+        constraint.is_lower_bound,
+    ):
+        cond_name = cond_var.name
+        cond_idx = next(
+            (i for i, v in enumerate(ordered_vars) if v.name == cond_name), None
+        )
+        if cond_idx is None:
+            continue
+
+        edges = ordered_edges[cond_idx]
+        centers = (edges[:-1] + edges[1:]) / 2
+
+        if is_lower:
+            bin_mask = (centers > cond_val).astype(float)
+            label_parts.append(f'{cond_name}>{cond_val:.2g}')
+        else:
+            bin_mask = (centers <= cond_val).astype(float)
+            label_parts.append(f'{cond_name}\u2264{cond_val:.2g}')
+
+        shape = [1] * n_vars
+        shape[cond_idx] = len(centers)
+        mask *= bin_mask.reshape(shape)
+
+    conditioned = ordered_joint * mask
+    total = conditioned.sum()
+    if total < 1e-12:
+        return None
+    conditioned /= total
+
+    marginal = compute_1d_marginal(conditioned, ordered_edges, target_var_idx)
+    label = f'P(\u00b7|{", ".join(label_parts)})'
+    return marginal[0], marginal[1], label
 
 
 def plot_pairwise_marginals(
@@ -152,6 +215,13 @@ def plot_pairwise_marginals(
                 # Add mean line
                 mean = np.sum(marginal * centers)
                 ax.axvline(mean, color='red', linestyle='--', linewidth=1.5, alpha=0.8)
+
+                # Overlay constraint info on diagonal
+                if constraints:
+                    _overlay_constraints_diagonal(
+                        ax, constraints, ordered_vars, ordered_edges,
+                        ordered_joint, i,
+                    )
                 
             elif i > j:
                 # Lower triangle: 2D marginal heatmap
@@ -172,7 +242,7 @@ def plot_pairwise_marginals(
                         ax, constraints, 
                         ordered_vars[j].name, ordered_vars[i].name,
                         edges_j, edges_i,
-                        constraint_color
+                        constraint_color,
                     )
                 
             else:
@@ -211,6 +281,87 @@ def plot_pairwise_marginals(
     return fig
 
 
+def _overlay_constraints_diagonal(
+    ax: Axes,
+    constraints: list,
+    ordered_vars: list[Variable],
+    ordered_edges: list[np.ndarray],
+    ordered_joint: np.ndarray,
+    var_idx: int,
+) -> None:
+    """Overlay constraint visualizations on a diagonal (1D marginal) plot.
+
+    For simple constraints: draws threshold / mean lines.
+    For conditional constraints: overlays the conditional marginal as a
+    step-function outline so the shift from the unconditional marginal
+    is immediately visible.
+    """
+    var_name = ordered_vars[var_idx].name
+    cond_count = 0
+    has_legend = False
+
+    for constraint in constraints:
+        target_var = getattr(constraint, 'target_variable', None)
+        if target_var is None or getattr(target_var, 'name', None) != var_name:
+            continue
+
+        # --- Simple threshold constraint ---
+        if isinstance(constraint, ThresholdConstraint) and not isinstance(
+            constraint, ConditionalThresholdConstraint
+        ):
+            ax.axvline(
+                constraint.threshold, color='green', linestyle=':',
+                linewidth=1.5, alpha=0.7,
+                label=f'P(\u2264{constraint.threshold:.2g})={constraint.probability:.2g}',
+            )
+            has_legend = True
+
+        # --- Simple mean constraint ---
+        elif isinstance(constraint, MeanConstraint):
+            ax.axvline(
+                constraint.mean, color='green', linestyle=':',
+                linewidth=1.5, alpha=0.7,
+                label=f'E[X]={constraint.mean:.2g}',
+            )
+            has_legend = True
+
+        # --- Conditional constraints: overlay conditional marginal ---
+        elif isinstance(constraint, (ConditionalThresholdConstraint, ConditionalMeanConstraint)):
+            result = _compute_conditional_marginal(
+                ordered_joint, ordered_edges, ordered_vars,
+                var_idx, constraint,
+            )
+            if result is None:
+                continue
+            marginal, edges, label = result
+            color = _COND_COLORS[cond_count % len(_COND_COLORS)]
+
+            # Draw step-function outline of conditional marginal
+            step_x = np.repeat(edges, 2)[1:-1]
+            step_y = np.repeat(marginal, 2)
+            ax.plot(step_x, step_y, color=color, linewidth=2, alpha=0.85, label=label)
+
+            # Mark the target value on the x-axis
+            if isinstance(constraint, ConditionalThresholdConstraint):
+                ax.axvline(
+                    constraint.threshold, color=color, linestyle=':',
+                    linewidth=1.5, alpha=0.6,
+                )
+            elif isinstance(constraint, ConditionalMeanConstraint):
+                centers = (edges[:-1] + edges[1:]) / 2
+                cond_mean = float(np.sum(marginal * centers))
+                ax.axvline(
+                    cond_mean, color=color, linestyle='--',
+                    linewidth=1.5, alpha=0.6,
+                )
+
+            cond_count += 1
+            has_legend = True
+
+    if has_legend:
+        ax.legend(fontsize=6, loc='upper right')
+
+
 def _overlay_constraints(
     ax: Axes,
     constraints: list,
@@ -220,46 +371,92 @@ def _overlay_constraints(
     edges_y: np.ndarray,
     color: str,
 ) -> None:
+    """Overlay constraint lines/regions on a 2D marginal plot.
+
+    Handles all constraint types:
+    - ProbabilityConstraint: dashed line at each finite bound
+    - ThresholdConstraint: dashed line at the threshold value
+    - MeanConstraint: dashed line at the mean value
+    - ConditionalThresholdConstraint / ConditionalMeanConstraint:
+        * shaded region showing the conditioning range
+        * dashed line showing the target threshold / mean
     """
-    Overlay constraint lines/regions on a 2D marginal plot.
-    
-    Args:
-        ax: Matplotlib axes
-        constraints: List of constraint objects
-        var_x: Name of x-axis variable
-        var_y: Name of y-axis variable
-        edges_x: Bin edges for x variable
-        edges_y: Bin edges for y variable
-        color: Color for constraint lines
-    """
+    cond_count = 0
+
     for constraint in constraints:
-        # Check if constraint involves either variable
         target_var = getattr(constraint, 'target_variable', None)
         if target_var is None:
             continue
-        
-        constraint_var = getattr(target_var, 'name', None)
-        if constraint_var is None:
+        target_name = getattr(target_var, 'name', None)
+        if target_name is None:
             continue
-            
-        # For probability constraints, get the threshold from bounds
-        lower_bound = getattr(constraint, 'lower_bound', None)
-        upper_bound = getattr(constraint, 'upper_bound', None)
-        
-        if lower_bound is not None and upper_bound is not None:
-            # Use the non-infinite bound as threshold
-            if lower_bound > edges_x[0] and constraint_var == var_x:
-                ax.axvline(lower_bound, color=color, linestyle='--', 
-                          linewidth=1.5, alpha=0.7)
-            elif upper_bound < edges_x[-1] and constraint_var == var_x:
-                ax.axvline(upper_bound, color=color, linestyle='--', 
-                          linewidth=1.5, alpha=0.7)
-            elif lower_bound > edges_y[0] and constraint_var == var_y:
-                ax.axhline(lower_bound, color=color, linestyle='--', 
-                          linewidth=1.5, alpha=0.7)
-            elif upper_bound < edges_y[-1] and constraint_var == var_y:
-                ax.axhline(upper_bound, color=color, linestyle='--', 
-                          linewidth=1.5, alpha=0.7)
+
+        # ---- Conditional constraints ----
+        if isinstance(constraint, (ConditionalThresholdConstraint, ConditionalMeanConstraint)):
+            cond_color = _COND_COLORS[cond_count % len(_COND_COLORS)]
+
+            # Draw condition regions
+            for cond_var, cond_val, is_lower in zip(
+                constraint.condition_variables,
+                constraint.condition_values,
+                constraint.is_lower_bound,
+            ):
+                cond_name = cond_var.name
+
+                if cond_name == var_x:
+                    if is_lower:
+                        ax.axvspan(cond_val, edges_x[-1], alpha=0.12, color=cond_color, zorder=0)
+                    else:
+                        ax.axvspan(edges_x[0], cond_val, alpha=0.12, color=cond_color, zorder=0)
+                    ax.axvline(cond_val, color=cond_color, linestyle=':', linewidth=1.5, alpha=0.6)
+                elif cond_name == var_y:
+                    if is_lower:
+                        ax.axhspan(cond_val, edges_y[-1], alpha=0.12, color=cond_color, zorder=0)
+                    else:
+                        ax.axhspan(edges_y[0], cond_val, alpha=0.12, color=cond_color, zorder=0)
+                    ax.axhline(cond_val, color=cond_color, linestyle=':', linewidth=1.5, alpha=0.6)
+
+            # Draw target value (threshold or mean)
+            if isinstance(constraint, ConditionalThresholdConstraint):
+                target_val = constraint.threshold
+            else:
+                target_val = constraint.value
+
+            if target_name == var_x:
+                ax.axvline(target_val, color=cond_color, linestyle='--', linewidth=2, alpha=0.8)
+            elif target_name == var_y:
+                ax.axhline(target_val, color=cond_color, linestyle='--', linewidth=2, alpha=0.8)
+
+            cond_count += 1
+
+        # ---- Simple threshold ----
+        elif isinstance(constraint, ThresholdConstraint):
+            if target_name == var_x:
+                ax.axvline(constraint.threshold, color=color, linestyle='--', linewidth=1.5, alpha=0.7)
+            elif target_name == var_y:
+                ax.axhline(constraint.threshold, color=color, linestyle='--', linewidth=1.5, alpha=0.7)
+
+        # ---- Simple mean ----
+        elif isinstance(constraint, MeanConstraint):
+            if target_name == var_x:
+                ax.axvline(constraint.mean, color=color, linestyle='--', linewidth=1.5, alpha=0.7)
+            elif target_name == var_y:
+                ax.axhline(constraint.mean, color=color, linestyle='--', linewidth=1.5, alpha=0.7)
+
+        # ---- Probability constraint ----
+        elif isinstance(constraint, ProbabilityConstraint):
+            lower_bound = constraint.lower_bound
+            upper_bound = constraint.upper_bound
+            if target_name == var_x:
+                if lower_bound > edges_x[0]:
+                    ax.axvline(lower_bound, color=color, linestyle='--', linewidth=1.5, alpha=0.7)
+                if upper_bound < edges_x[-1]:
+                    ax.axvline(upper_bound, color=color, linestyle='--', linewidth=1.5, alpha=0.7)
+            elif target_name == var_y:
+                if lower_bound > edges_y[0]:
+                    ax.axhline(lower_bound, color=color, linestyle='--', linewidth=1.5, alpha=0.7)
+                if upper_bound < edges_y[-1]:
+                    ax.axhline(upper_bound, color=color, linestyle='--', linewidth=1.5, alpha=0.7)
 
 
 def plot_pairwise_from_builder(

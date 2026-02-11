@@ -262,7 +262,7 @@ class DistributionBuilder:
         if isinstance(prop, InequalityProposition):
             # P(X > threshold) or P(X < threshold)
             threshold = prop.threshold
-            if prop.greater:
+            if prop.is_lower_bound:
                 # P(X > threshold)
                 lower_bound = threshold
                 upper_bound = domain_max
@@ -346,14 +346,14 @@ class DistributionBuilder:
             
             if isinstance(cond, InequalityProposition):
                 condition_values.append(cond.threshold)
-                is_lower_bound.append(not cond.greater)  # greater means NOT lower bound
+                is_lower_bound.append(cond.is_lower_bound)  # greater means NOT lower bound
             elif isinstance(cond, EqualityProposition):
                 if isinstance(cond.value, bool):
                     condition_values.append(0.5)
-                    is_lower_bound.append(not cond.value)
+                    is_lower_bound.append(cond.value)
                 else:
-                    condition_values.append(float(cond.value) if isinstance(cond.value, (int, float)) else 0.5)
-                    is_lower_bound.append(False)
+                    #throw error for non-binary equality conditions since we can't handle them in threshold constraints
+                    assert ValueError(f"Cannot handle non-binary equality condition for variable '{cond_var_name}' in conditional probability constraint.")
         
         if not condition_vars:
             return None
@@ -362,7 +362,7 @@ class DistributionBuilder:
         if isinstance(prop, InequalityProposition):
             threshold = prop.threshold
             # P(X > threshold | cond) = prob means quantile at threshold = 1 - prob
-            if prop.greater:
+            if prop.is_lower_bound:
                 probability = 1.0 - estimate.probability
             else:
                 probability = estimate.probability
@@ -414,14 +414,14 @@ class DistributionBuilder:
             
             if isinstance(cond, InequalityProposition):
                 condition_values.append(cond.threshold)
-                is_lower_bound.append(not cond.greater)
+                is_lower_bound.append(cond.is_lower_bound)
             elif isinstance(cond, EqualityProposition):
                 if isinstance(cond.value, bool):
                     condition_values.append(0.5)
-                    is_lower_bound.append(not cond.value)
+                    is_lower_bound.append(cond.value)
                 else:
-                    condition_values.append(float(cond.value) if isinstance(cond.value, (int, float)) else 0.5)
-                    is_lower_bound.append(False)
+                    #throw error for non-binary equality conditions since we can't handle them in threshold constraints
+                    assert ValueError(f"Cannot handle non-binary equality condition for variable '{cond_var_name}' in conditional probability constraint.")
         
         return ConditionalMeanConstraint(
             id=constraint_id,

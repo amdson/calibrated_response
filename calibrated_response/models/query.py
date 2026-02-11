@@ -35,11 +35,11 @@ class InequalityProposition(Proposition):
     proposition_type: Literal["inequality"] = "inequality"
     variable_type: Literal["continuous", "discrete"] = "continuous"
     threshold: float = Field(..., description="Threshold value for inequality")
-    greater: bool = Field(..., description="True for X > threshold, False for X < threshold")
+    is_lower_bound: bool = Field(..., description="True for X > threshold, False for X < threshold")
 
     def to_query_proposition(self) -> str:
         """Get a string representation suitable for queries."""
-        operator = ">" if self.greater else "<"
+        operator = "<" if self.is_lower_bound else ">"
         return f"{self.variable} {operator} {self.threshold}"
 
 # Discriminated union for propositions - Pydantic will use proposition_type to determine subclass
