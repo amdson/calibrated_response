@@ -39,7 +39,7 @@ class InequalityProposition(Proposition):
 
     def to_query_proposition(self) -> str:
         """Get a string representation suitable for queries."""
-        operator = "<" if self.is_lower_bound else ">"
+        operator = ">" if self.is_lower_bound else "<"
         return f"{self.variable} {operator} {self.threshold}"
 
 # Discriminated union for propositions - Pydantic will use proposition_type to determine subclass
