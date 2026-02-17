@@ -30,8 +30,6 @@ class NaturalEstimateGenerator:
     - Independence: $Indep(X, Y)$ 
     - $P(Y | do(X=x))$ 
     - Likelihood Ratio/Odds: $P(A) / P(B) = 2.0$
-    - 
-
     
     These are then parsed into structured Estimate objects.
     """
