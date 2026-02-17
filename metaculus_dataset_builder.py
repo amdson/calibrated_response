@@ -282,10 +282,7 @@ def build_dataset(
 DEFAULT_FORECAST_TYPES = "binary,multiple_choice,numeric,discrete,date"
 
 """
-python metaculus_dataset_builder.py --tournament ""fall-aib-2025" \
---statuses "resolved" --forecast-type "binary,numeric" \
---max-posts 1000 --output data/fall_aib_2025.jsonl \
-
+python metaculus_dataset_builder.py --tournament ""fall-aib-2025" --statuses "resolved" --forecast-type "binary,numeric" --max-posts 1000 --output data/fall_aib_2025.jsonl
 
 """
 

@@ -12,8 +12,6 @@ from pydantic import BaseModel, Field
 from calibrated_response.models.variable import (Variable, 
                                                  BinaryVariable, ContinuousVariable, DiscreteVariable)
 
-
-
 class ConstraintType(str, Enum):
     """Type of constraint."""
     PROBABILITY = "probability"  # P(x1 <= X < x2) = p
@@ -22,8 +20,6 @@ class ConstraintType(str, Enum):
     THRESHOLD = "threshold"        # P(X <= x) = p
     CONDITIONALMEAN = "conditional_mean"  # E[X | conditions] = mu
     CONDITIONALTHRESHOLD = "conditional_threshold"  # P(X <= x | conditions) = p
-
-
 
 class Constraint(BaseModel, ABC):
     """Abstract base class for distributional constraints."""

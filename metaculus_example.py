@@ -877,7 +877,7 @@ class NumericDistribution(BaseModel):
         for l in cdf_eval_locations:
             continuous_cdf.append(self._get_cdf_at(l))
             cdf_xaxis.append(self._cdf_location_to_nominal_location(l))
-
+            
         if self.standardize_cdf:
             continuous_cdf = self._standardize_cdf(continuous_cdf)
 
@@ -1286,12 +1286,10 @@ def extract_option_probabilities_from_response(forecast_text: str, options) -> f
     NUM_OPTIONS = len(options)
 
     if len(option_probabilities) > 0:
-        # return the last NUM_OPTIONS items
         return option_probabilities[-NUM_OPTIONS:]
     else:
         raise ValueError(f"Could not extract prediction from response: {forecast_text}")
-
-
+    
 def generate_multiple_choice_forecast(options, option_probabilities) -> dict:
     """
     Returns: dict corresponding to the probabilities of each option.
