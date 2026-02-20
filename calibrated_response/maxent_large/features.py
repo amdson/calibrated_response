@@ -18,9 +18,6 @@ import jax
 import jax.numpy as jnp
 
 
-# ---------------------------------------------------------------------------
-# Feature spec dataclasses
-# ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class MomentFeature:
@@ -121,7 +118,6 @@ def _soft_threshold(x_val: jnp.ndarray, threshold: float, direction: str, sharpn
         return jax.nn.sigmoid(sharpness * (x_val - threshold))
     else:
         return jax.nn.sigmoid(sharpness * (threshold - x_val))
-
 
 def compile_feature(spec: FeatureSpec) -> Callable[[jnp.ndarray], jnp.ndarray]:
     """Compile a single feature spec into a pure JAX function ``f(x) → scalar``.

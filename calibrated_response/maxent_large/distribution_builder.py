@@ -13,6 +13,7 @@ import uuid
 
 import numpy as np
 
+from calibrated_response.maxent_large.variable_spec import BetaPriorSpec, GaussianPriorSpec, UniformPriorSpec, VariableSpec
 from calibrated_response.models.distribution import HistogramDistribution
 from calibrated_response.models.query import (
     EstimateUnion,
@@ -35,11 +36,6 @@ from calibrated_response.maxent_large.features import (
 from calibrated_response.maxent_large.maxent_solver import MaxEntSolver, JAXSolverConfig
 from calibrated_response.maxent_large.normalizer import ContinuousDomainNormalizer
 from calibrated_response.maxent_large.energy_model import EnergyModel
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def _histogram_marginal(
     states: np.ndarray,
@@ -85,11 +81,12 @@ class DistributionBuilder:
         variables: Sequence[Variable],
         estimates: Sequence[EstimateUnion],
         solver_config: Optional[JAXSolverConfig] = None,
+        extra_feature_constraints: Optional[Sequence[tuple[FeatureSpec, float]]] = None,
     ):
         self.variables = list(variables)
         self.estimates = list(estimates)
         self.solver_config = solver_config or JAXSolverConfig()
-
+        self.extra_feature_constraints = extra_feature_constraints or []
         self.var_name_to_idx = {v.name: i for i, v in enumerate(self.variables)}
         self.var_name_to_var = {v.name: v for v in self.variables}
 
@@ -97,9 +94,11 @@ class DistributionBuilder:
         self.normalizer = ContinuousDomainNormalizer(self.variables)
 
         # Convert estimates → (FeatureSpec, target_value) pairs
+        self.var_specs: list[VariableSpec] = []
         self.feature_specs: list[FeatureSpec] = []
         self.feature_targets: list[float] = []
         self.skipped: list[str] = []
+        self._build_variables() 
         self._build_features()
 
         # Solver
@@ -109,6 +108,39 @@ class DistributionBuilder:
     # ------------------------------------------------------------------
     # Feature construction from estimates
     # ------------------------------------------------------------------
+
+    def _build_variables(self) -> None:
+        """Walk through variables and append to ``self.var_specs``."""
+        if self.solver_config.continuous_prior not in {"gaussian", "beta", "uniform"}:
+            raise ValueError(f"Unsupported continuous_prior: {self.solver_config.continuous_prior}")
+        if self.solver_config.continuous_prior == "gaussian":
+            prior_cls = GaussianPriorSpec
+            prior_kwargs = dict(mean=0.5, std=0.25)
+        elif self.solver_config.continuous_prior == "beta":
+            prior_cls = BetaPriorSpec
+            prior_kwargs = dict(alpha=2.0, beta=2.0)
+        else:
+            prior_cls = UniformPriorSpec
+            prior_kwargs = {}
+        for var in self.variables:
+            if isinstance(var, ContinuousVariable):
+                var_spec = VariableSpec(
+                    name=var.name,
+                    description=var.description,
+                    type="continuous",
+                    prior=prior_cls(**prior_kwargs),
+                )
+            elif isinstance(var, BinaryVariable):
+                var_spec = VariableSpec(
+                    name=var.name,
+                    description=var.description,
+                    type="binary",
+                    prior=UniformPriorSpec(),
+                )
+            else:
+                self.skipped.append(f"{getattr(var, 'name', '?')}: unsupported variable type")
+                continue
+            self.var_specs.append(var_spec)
 
     def _build_features(self) -> None:
         """Walk through estimates and append to ``self.feature_specs`` / ``self.feature_targets``."""
@@ -126,6 +158,9 @@ class DistributionBuilder:
                     self.skipped.append(f"{getattr(est, 'id', '?')}: unsupported estimate type")
             except Exception as exc:   # noqa: BLE001
                 self.skipped.append(f"{getattr(est, 'id', '?')}: {exc}")
+        for feature_spec, target in self.extra_feature_constraints:
+            self.feature_specs.append(feature_spec)
+            self.feature_targets.append(target)
 
     # -- Probability estimates ------------------------------------------
 
@@ -141,7 +176,7 @@ class DistributionBuilder:
             norm_thresh = self.normalizer.normalize_value(var_name, prop.threshold)
             direction = "greater" if prop.is_lower_bound else "less"
             self.feature_specs.append(
-                SoftThresholdFeature(var_idx=idx, threshold=norm_thresh, direction=direction)
+                SoftThresholdFeature(var_idx=idx, threshold=norm_thresh, direction=direction, sharpness=self.solver_config.indicator_sharpness)
             )
             self.feature_targets.append(float(est.probability))
 
@@ -150,7 +185,7 @@ class DistributionBuilder:
             if isinstance(prop.value, bool):
                 direction = "greater" if prop.value else "less"
                 self.feature_specs.append(
-                    SoftThresholdFeature(var_idx=idx, threshold=0.5, direction=direction)
+                    SoftThresholdFeature(var_idx=idx, threshold=0.5, direction=direction, sharpness=self.solver_config.indicator_sharpness)
                 )
                 self.feature_targets.append(float(est.probability))
             else:
@@ -220,7 +255,7 @@ class DistributionBuilder:
 
             # 1. Condition indicator feature (if not already added)
             cond_feature = SoftThresholdFeature(
-                var_idx=cond_idx, threshold=cond_thresh, direction=cond_dir,
+                var_idx=cond_idx, threshold=cond_thresh, direction=cond_dir, sharpness=self.solver_config.indicator_sharpness
             )
             # We can't easily deduplicate across builds, so we add and let
             # the solver handle the extra feature.  A more sophisticated
@@ -234,6 +269,7 @@ class DistributionBuilder:
                 cond_var=cond_idx,
                 cond_threshold=cond_thresh,
                 cond_direction=cond_dir,
+                sharpness=self.solver_config.indicator_sharpness,
             )
 
             # Target for E[I(target) · I(cond)] = P(target ∩ cond).
@@ -295,7 +331,7 @@ class DistributionBuilder:
 
             # 1. Condition indicator
             self.feature_specs.append(
-                SoftThresholdFeature(var_idx=cond_idx, threshold=cond_thresh, direction=cond_dir)
+                SoftThresholdFeature(var_idx=cond_idx, threshold=cond_thresh, direction=cond_dir, sharpness=self.solver_config.indicator_sharpness)
             )
             self.feature_targets.append(p_cond_approx)
 
@@ -306,6 +342,7 @@ class DistributionBuilder:
                     cond_var=cond_idx,
                     cond_threshold=cond_thresh,
                     cond_direction=cond_dir,
+                    sharpness=self.solver_config.indicator_sharpness,
                 )
             )
             self.feature_targets.append(float(norm_cond_exp * p_cond_approx))
@@ -349,10 +386,11 @@ class DistributionBuilder:
         # Build & solve
         import jax.numpy as jnp
         self.solver.build(
-            var_specs=self.variables,
+            var_specs=self.var_specs,
             feature_specs=self.feature_specs,
             feature_targets=jnp.array(self.feature_targets, dtype=jnp.float32),
         )
+
         theta, solver_info = self.solver.solve()
 
         theta = np.asarray(theta)  # (n_features,) numpy

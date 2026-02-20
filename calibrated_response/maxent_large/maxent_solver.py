@@ -19,7 +19,8 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 
-from calibrated_response.models.variable import Variable
+from calibrated_response.maxent_large.variable_spec import GaussianPriorSpec, BetaPriorSpec, VariableSpec
+from calibrated_response.models.variable import Variable, VariableType
 from calibrated_response.maxent_large.features import FeatureSpec, compile_feature_vector
 from calibrated_response.maxent_large.mcmc import (HMCConfig, PersistentBuffer, 
                                                     build_hmc_step_fn, advance_buffer)
@@ -46,14 +47,23 @@ class JAXSolverConfig:
     tolerance: float = 1e-4
     verbose: bool = False
 
+    mean_initialisation: bool = True  # whether to initialise theta with mean-matching guess
+    continuous_prior: str = "gaussian"  # "gaussian", "beta", or "uniform" (default)
+
     # HMC kernel
     hmc_step_size: float = 0.01
     hmc_leapfrog_steps: int = 10
     adapt_step_size: bool = True
     target_accept_rate: float = 0.65
 
-    prior: str = "uniform"  # "uniform" or "gaussian"
-    prior_std: float = 0.5   # only used if prior="gaussian"
+    # prior: str = "uniform"  # "uniform" or "gaussian"
+    # prior_std: float = 0.5   # only used if prior="gaussian"
+    indicator_sharpness: float = 10.0   # sharpness for sigmoid surrogates in features
+
+    # Roughness penalty: adds roughness_gamma * theta @ R @ theta to the dual objective,
+    # where R_{ij} = E[nabla f_i . nabla f_j].  Disabled when roughness_gamma == 0.
+    roughness_gamma: float = 0.0
+    roughness_n_samples: int = 10_000   # MC samples used to estimate R
 
     # Misc
     seed: int = 0
@@ -86,9 +96,10 @@ class MaxEntSolver:
         self._opt_state: Optional[optax.OptState] = None
         self._optimizer: Optional[optax.GradientTransformation] = None
         self._n_features: int = 0
-        self._var_specs: Optional[Sequence[Variable]] = None
+        self._var_specs: Optional[Sequence[VariableSpec]] = None
         self._n_vars: int = 0
         self._hmc_config: Optional[HMCConfig] = None
+        self._R: Optional[jnp.ndarray] = None   # roughness matrix, populated by build()
         self._built = False
 
     # ------------------------------------------------------------------
@@ -97,7 +108,7 @@ class MaxEntSolver:
 
     def build(
         self,
-        var_specs: Sequence[Variable],
+        var_specs: Sequence[VariableSpec],
         feature_specs: Sequence[FeatureSpec],
         feature_targets: jnp.ndarray | np.ndarray,
     ) -> None:
@@ -128,19 +139,52 @@ class MaxEntSolver:
         # never recompiled as theta values change across iterations.
         fv_fn = self._feature_vector_fn
 
-        # self.is_continuous = jnp.array([var.type == "continuous" for var in feature_specs], dtype=bool)
+        self.prior_mean = jnp.array([var.prior.mean if isinstance(var.prior, GaussianPriorSpec) else 0.0 for var in var_specs], dtype=jnp.float32)
+        self.prior_std = jnp.array([var.prior.std if isinstance(var.prior, GaussianPriorSpec) else 1.0 for var in var_specs], dtype=jnp.float32)
+        self.is_gaussian = jnp.array([1.0 if isinstance(var.prior, GaussianPriorSpec) else 0.0 for var in var_specs], dtype=jnp.float32)
+        self.prior_alpha = jnp.array([var.prior.alpha if isinstance(var.prior, BetaPriorSpec) else 1.0 for var in var_specs], dtype=jnp.float32)
+        self.prior_beta = jnp.array([var.prior.beta if isinstance(var.prior, BetaPriorSpec) else 1.0 for var in var_specs], dtype=jnp.float32)
+        self.is_beta = jnp.array([1.0 if isinstance(var.prior, BetaPriorSpec) else 0.0 for var in var_specs], dtype=jnp.float32)
 
+        # Per-variable prior mean used only for mean-matching theta initialisation.
+        prior_init_means = jnp.array([
+            var.prior.mean if isinstance(var.prior, GaussianPriorSpec) else
+            var.prior.alpha / (var.prior.alpha + var.prior.beta) if isinstance(var.prior, BetaPriorSpec) else
+            0.0
+            for var in var_specs
+        ], dtype=jnp.float32)
+
+        print(f"Prior means: {self.prior_mean}")
+        print(f"Prior stds: {self.prior_std}")
+        print(f"Is Gaussian: {self.is_gaussian}")
+        print(f"Prior alpha: {self.prior_alpha}")
+        print(f"Prior beta: {self.prior_beta}")
+        print(f"Is Beta: {self.is_beta}")
+
+        # def _energy(theta, x):
+        #     return jnp.dot(theta, fv_fn(x))
+        
+        # if cfg.prior == "gaussian":
         def _energy(theta, x):
-            return jnp.dot(theta, fv_fn(x))
-        if cfg.prior == "gaussian":
-            def _energy(theta, x):
-                return jnp.dot(theta, fv_fn(x)) + jnp.sum((x - 0.5) ** 2 / (2 * cfg.prior_std ** 2))
+            gaussian_energy = (x - self.prior_mean) ** 2 / (2 * self.prior_std ** 2) - jnp.log(self.prior_std * jnp.sqrt(2 * jnp.pi))
+            beta_energy = (-(self.prior_alpha - 1) * jnp.log(x)
+                           - (self.prior_beta - 1) * jnp.log(1 - x)
+                           - jax.scipy.special.betaln(self.prior_alpha, self.prior_beta))
+            prior_energy = jnp.sum(
+                self.is_gaussian * gaussian_energy +
+                self.is_beta * beta_energy
+                # uniform contributes zero; no term needed
+            )
+            energy = jnp.dot(theta, fv_fn(x)) + prior_energy
+            return energy
 
         self._energy_fn = jax.jit(_energy)
         self._grad_energy_fn = jax.jit(jax.grad(_energy, argnums=1))
 
         # Initial parameters
         self._theta = jnp.zeros(self._n_features, dtype=jnp.float32)
+        if cfg.mean_initialisation:
+            self._theta = jnp.asarray(feature_targets, dtype=jnp.float32) - self._batch_feature_fn(prior_init_means[None, :]).squeeze()
 
         # HMC config
         self._hmc_config = HMCConfig(
@@ -162,6 +206,22 @@ class MaxEntSolver:
             step_size=cfg.hmc_step_size,
         )
         
+        # Roughness matrix  R_{ij} = E[∇f_i · ∇f_j]  (estimated by MC)
+        if cfg.roughness_gamma > 0.0:
+            from calibrated_response.maxent_large.estimate_r import estimate_R
+            rng_R = jax.random.PRNGKey(cfg.seed + 1)
+            if cfg.verbose:
+                print(f"[MaxEntSolver] Estimating roughness matrix R "
+                      f"({cfg.roughness_n_samples} samples)...")
+            self._R = estimate_R(
+                self._feature_vector_fn,
+                self._n_vars,
+                n_samples=cfg.roughness_n_samples,
+                key=rng_R,
+            )
+        else:
+            self._R = None
+
         # Optax optimiser (we *negate* gradients since optax minimises)
         self._optimizer = optax.adam(cfg.learning_rate)
         self._opt_state = self._optimizer.init(self._theta)
@@ -197,6 +257,7 @@ class MaxEntSolver:
             "iteration": [],
             "max_error": [],
             "mean_error": [],
+            "mean_squared_error": [],
             "accept_rate": [],
             "step_size": [],
             "runtime_sec": [],
@@ -221,6 +282,8 @@ class MaxEntSolver:
 
             # --- C: Compute gradient ---
             grad = targets - model_expectations + cfg.l2_regularization * theta
+            if self._R is not None:
+                grad = grad + cfg.roughness_gamma * (self._R @ theta)
             grad = jnp.clip(grad, -cfg.grad_clip, cfg.grad_clip)
 
             # --- D: Update parameters via optax ---
@@ -233,10 +296,11 @@ class MaxEntSolver:
             err = jnp.abs(targets - model_expectations)
             max_err = float(err.max())
             mean_err = float(err.mean())
-
+            mean_squared_err = float((err ** 2).mean())
             history["iteration"].append(it)
             history["max_error"].append(max_err)
             history["mean_error"].append(mean_err)
+            history["mean_squared_error"].append(mean_squared_err)
             history["accept_rate"].append(float(buffer.accept_rate))
             history["step_size"].append(float(buffer.step_size))
             history["runtime_sec"].append(time.time() - t0)
@@ -244,7 +308,7 @@ class MaxEntSolver:
             if cfg.verbose and it % 50 == 0:
                 print(
                     f"[MaxEntSolver] iter {it:4d}  "
-                    f"max_err={max_err:.6f}  mean_err={mean_err:.6f}  "
+                    f"max_err={max_err:.6f}  mean_err={mean_err:.6f}  mean_squared_err={mean_squared_err:.6f}  "
                     f"accept={buffer.accept_rate:.3f}  step_size={buffer.step_size:.5f}"
                 )
 
@@ -266,5 +330,6 @@ class MaxEntSolver:
             "final_model_expectations": np.asarray(model_expectations),
             "n_iterations": it,
             "converged": max_err < cfg.tolerance,
+            "roughness_matrix_used": self._R is not None,
         }
         return theta, info

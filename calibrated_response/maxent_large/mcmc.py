@@ -18,6 +18,7 @@ import jax
 import jax.numpy as jnp
 from jax import lax
 
+from calibrated_response.maxent_large.variable_spec import VariableSpec
 from calibrated_response.models.variable import Variable
 
 
@@ -217,12 +218,12 @@ class PersistentBuffer:
         step_size: float = 0.01,
         *,
         n_vars: Optional[int] = None,
-        var_specs: Optional[Sequence[Variable]] = None,
+        var_specs: Optional[Sequence[VariableSpec]] = None,
     ) -> PersistentBuffer:
         """Create a buffer with uniform [0, 1] initial states.
 
         Provide either ``n_vars`` (int) or ``var_specs`` (sequence of
-        Variable objects).  All variables are treated as continuous in
+        VariableSpec objects).  All variables are treated as continuous in
         [0, 1] for HMC purposes.
         """
         if var_specs is not None:
