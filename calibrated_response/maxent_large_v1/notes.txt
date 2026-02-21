@@ -1,7 +1,0 @@
-Inputs:
-Variables (low, high)
-Constraints (E(fi(x)) = ci)
-
-
-
-
