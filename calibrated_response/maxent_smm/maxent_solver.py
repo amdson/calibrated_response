@@ -123,6 +123,8 @@ class MaxEntSolver:
         var_specs: Sequence[VariableSpec],
         feature_specs: Sequence[FeatureSpec],
         feature_targets: jnp.ndarray | np.ndarray,
+        energy_fn: Callable,
+        init_theta: jnp.ndarray,
     ) -> None:
         """Compile JAX programs and initialise solver state.
 
@@ -134,12 +136,15 @@ class MaxEntSolver:
             Declarative feature definitions.
         feature_targets : array-like, shape (K,)
             Target expectations for each feature.
+        energy_fn : callable
+            Energy function E(θ, x) → scalar.
         """
         cfg = self.config
         self._var_specs = var_specs
         self._n_vars = len(var_specs)
         self._n_features = len(feature_specs)
         self._feature_targets = jnp.asarray(feature_targets, dtype=jnp.float32)
+        self._param_energy_fn = energy_fn
 
         # Compile feature vector function: x → (K,)
         self._feature_vector_fn = compile_feature_vector(feature_specs)
@@ -187,7 +192,8 @@ class MaxEntSolver:
                 self.is_beta * beta_energy
                 # uniform contributes zero; no term needed
             )
-            energy = jnp.dot(theta, fv_fn(x)) + prior_energy
+            # energy = jnp.dot(theta, fv_fn(x)) + prior_energy
+            energy = self._param_energy_fn(theta, x) + prior_energy
             return energy
 
         self._energy_fn = jax.jit(_energy)
@@ -201,10 +207,9 @@ class MaxEntSolver:
         )
 
         # Initial parameters
-        self._theta = jnp.zeros(self._n_features, dtype=jnp.float32)
-        if cfg.mean_initialisation:
-            self._theta = jnp.asarray(feature_targets, dtype=jnp.float32) - self._batch_feature_fn(prior_init_means[None, :]).squeeze()
-
+        # self._theta = jnp.zeros(self._n_features, dtype=jnp.float32)
+        self._theta = init_theta
+        
         # HMC config
         self._hmc_config = HMCConfig(
             step_size=cfg.hmc_step_size,
@@ -227,7 +232,7 @@ class MaxEntSolver:
         
         # Roughness matrix  R_{ij} = E[∇f_i · ∇f_j]  (estimated by MC)
         if cfg.roughness_gamma > 0.0:
-            from calibrated_response.maxent_large.estimate_r import estimate_R
+            from calibrated_response.maxent_smm.estimate_r import estimate_R
             rng_R = jax.random.PRNGKey(cfg.seed + 1)
             if cfg.verbose:
                 print(f"[MaxEntSolver] Estimating roughness matrix R "
@@ -248,6 +253,7 @@ class MaxEntSolver:
         self._built = True
 
     def compile_grad(self):
+        #incomplete function to compile the gradient estimator separately if needed
         chain_features = self._batch_feature_fn(buffer.states)    # (C, K)
         model_expectations = chain_features.mean(axis=0)          # (K,)
 

@@ -10,6 +10,7 @@ from matplotlib.figure import Figure
 from matplotlib.axes import Axes
 
 from calibrated_response.models.variable import Variable, ContinuousVariable, BinaryVariable
+
 from calibrated_response.maxent.constraints import (
     Constraint, ThresholdConstraint, MeanConstraint, ProbabilityConstraint,
     ConditionalThresholdConstraint, ConditionalMeanConstraint,

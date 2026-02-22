@@ -8,7 +8,7 @@ resulting chain samples.
 
 from __future__ import annotations
 
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 import uuid
 
 import numpy as np
@@ -80,11 +80,15 @@ class DistributionBuilder:
         self,
         variables: Sequence[Variable],
         estimates: Sequence[EstimateUnion],
+        energy_fn: Callable, 
+        init_theta: np.ndarray,
         solver_config: Optional[JAXSolverConfig] = None,
         extra_feature_constraints: Optional[Sequence[tuple[FeatureSpec, float]]] = None,
     ):
         self.variables = list(variables)
         self.estimates = list(estimates)
+        self.energy_fn = energy_fn
+        self.init_theta = init_theta
         self.solver_config = solver_config or JAXSolverConfig()
         self.extra_feature_constraints = extra_feature_constraints or []
         self.var_name_to_idx = {v.name: i for i, v in enumerate(self.variables)}
@@ -389,6 +393,8 @@ class DistributionBuilder:
             var_specs=self.var_specs,
             feature_specs=self.feature_specs,
             feature_targets=jnp.array(self.feature_targets, dtype=jnp.float32),
+            energy_fn=self.energy_fn,
+            init_theta=self.init_theta,
         )
 
         theta, solver_info = self.solver.solve()

@@ -154,12 +154,12 @@ class MaxEntSolver:
             for var in var_specs
         ], dtype=jnp.float32)
 
-        print(f"Prior means: {self.prior_mean}")
-        print(f"Prior stds: {self.prior_std}")
-        print(f"Is Gaussian: {self.is_gaussian}")
-        print(f"Prior alpha: {self.prior_alpha}")
-        print(f"Prior beta: {self.prior_beta}")
-        print(f"Is Beta: {self.is_beta}")
+        # print(f"Prior means: {self.prior_mean}")
+        # print(f"Prior stds: {self.prior_std}")
+        # print(f"Is Gaussian: {self.is_gaussian}")
+        # print(f"Prior alpha: {self.prior_alpha}")
+        # print(f"Prior beta: {self.prior_beta}")
+        # print(f"Is Beta: {self.is_beta}")
 
         # def _energy(theta, x):
         #     return jnp.dot(theta, fv_fn(x))
