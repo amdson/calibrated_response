@@ -30,8 +30,8 @@ from calibrated_response.maxent_smm.features import (
     MomentFeature,
     SoftThresholdFeature,
     SoftIndicatorFeature,
-    ConditionalSoftThresholdFeature,
-    WeightedMomentConditionFeature,
+    CenteredConditionalFeature,
+    CenteredConditionalMomentFeature,
 )
 from calibrated_response.maxent_smm.maxent_solver import MaxEntSolver, JAXSolverConfig
 from calibrated_response.maxent_smm.normalizer import ContinuousDomainNormalizer
@@ -232,10 +232,8 @@ class DistributionBuilder:
             self.skipped.append(f"{est.id}: no conditions in conditional probability")
             return
 
-        # For each condition variable, create a ConditionalSoftThresholdFeature.
-        # With multiple conditions we build one feature per condition pairing
-        # (the roadmap approach).  For simplicity we handle the first condition
-        # and note multiple conditions in diagnostics.
+        # For each condition variable, add one CenteredConditionalFeature.
+
         for cond in est.conditions:
             cond_name = cond.variable
             if cond_name not in self.var_name_to_idx:
@@ -253,46 +251,23 @@ class DistributionBuilder:
                 self.skipped.append(f"{est.id}: unsupported condition proposition type")
                 continue
 
-            # Feature: I(target) · I(cond)  →  expectation = P(target ∩ cond)
-            # We also add the condition indicator so we can estimate P(cond).
-            # Then target = P(target | cond) * P(cond).
-
-            # 1. Condition indicator feature (if not already added)
-            cond_feature = SoftThresholdFeature(
-                var_idx=cond_idx, threshold=cond_thresh, direction=cond_dir, sharpness=self.solver_config.indicator_sharpness
+            # Encode P(target | cond) = p via the centered conditional feature:
+            #   E[σ_cond · (σ_target − p)] = 0  ⟺  P(target | cond) = p
+            # This is exact and requires no knowledge of P(cond).
+            self.feature_specs.append(
+                CenteredConditionalFeature(
+                    target_var=target_idx,
+                    target_threshold=target_thresh,
+                    target_direction=target_dir,
+                    cond_var=cond_idx,
+                    cond_threshold=cond_thresh,
+                    cond_direction=cond_dir,
+                    p_target_given_cond=float(est.probability),
+                    sharpness=self.solver_config.indicator_sharpness,
+                )
             )
-            # We can't easily deduplicate across builds, so we add and let
-            # the solver handle the extra feature.  A more sophisticated
-            # builder could track added features.
+            self.feature_targets.append(0.0)
 
-            # 2. Joint indicator feature
-            joint_feature = ConditionalSoftThresholdFeature(
-                target_var=target_idx,
-                target_threshold=target_thresh,
-                target_direction=target_dir,
-                cond_var=cond_idx,
-                cond_threshold=cond_thresh,
-                cond_direction=cond_dir,
-                sharpness=self.solver_config.indicator_sharpness,
-            )
-
-            # Target for E[I(target) · I(cond)] = P(target ∩ cond).
-            # We don't know P(cond), so we set target for the joint
-            # indicator to  P(target | cond) * 0.5  as an initial guess
-            # (uniform prior on condition).  The solver will jointly
-            # adjust.  This is approximate but the MaxEnt objective
-            # naturally resolves the coupling.
-            # A better heuristic: assume P(cond) ≈ 0.5 for binary,
-            # or use a rough estimate from marginal features.
-            p_target_given_cond = float(est.probability)
-            p_cond_approx = 0.5    # prior assumption
-            p_joint = p_target_given_cond * p_cond_approx
-
-            self.feature_specs.append(cond_feature)
-            self.feature_targets.append(p_cond_approx)
-
-            self.feature_specs.append(joint_feature)
-            self.feature_targets.append(p_joint)
 
     # -- Conditional expectation estimates ------------------------------
 
@@ -331,25 +306,20 @@ class DistributionBuilder:
                 self.skipped.append(f"{est.id}: unsupported condition proposition")
                 continue
 
-            p_cond_approx = 0.5
-
-            # 1. Condition indicator
+            # Encode E[X | cond] = μ via the centered conditional moment feature:
+            #   E[σ_cond · (x − μ)] = 0  ⟺  E[X | cond] = μ
+            # This is exact and requires no knowledge of P(cond).
             self.feature_specs.append(
-                SoftThresholdFeature(var_idx=cond_idx, threshold=cond_thresh, direction=cond_dir, sharpness=self.solver_config.indicator_sharpness)
-            )
-            self.feature_targets.append(p_cond_approx)
-
-            # 2. Weighted moment: x[target] * I(cond)
-            self.feature_specs.append(
-                WeightedMomentConditionFeature(
+                CenteredConditionalMomentFeature(
                     target_var=target_idx,
                     cond_var=cond_idx,
                     cond_threshold=cond_thresh,
                     cond_direction=cond_dir,
+                    expected_value=float(norm_cond_exp),
                     sharpness=self.solver_config.indicator_sharpness,
                 )
             )
-            self.feature_targets.append(float(norm_cond_exp * p_cond_approx))
+            self.feature_targets.append(0.0)
 
     # ------------------------------------------------------------------
     # build / solve

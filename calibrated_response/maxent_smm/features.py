@@ -97,6 +97,48 @@ class WeightedMomentConditionFeature:
     sharpness: float = default_sharpness
 
 
+@dataclass(frozen=True)
+class CenteredConditionalFeature:
+    """Feature: σ_cond(x) * (σ_target(x) - p)  with target expectation 0.
+
+    Encodes P(target | cond) = p exactly without needing to know P(cond):
+
+        E[σ_cond · (σ_target − p)] = 0  ⟺  P(target | cond) = p
+
+    Unlike the joint-indicator approach (which requires P(cond) ≈ 0.5), this
+    feature's target is always 0, making it valid regardless of the condition
+    marginal probability.
+    """
+    target_var: int
+    target_threshold: float
+    target_direction: str          # 'greater' or 'less'
+    cond_var: int
+    cond_threshold: float
+    cond_direction: str            # 'greater' or 'less'
+    p_target_given_cond: float     # the conditional probability p
+    sharpness: float = default_sharpness
+
+
+@dataclass(frozen=True)
+class CenteredConditionalMomentFeature:
+    """Feature: σ_cond(x) * (x[target_var] - μ)  with target expectation 0.
+
+    Encodes E[X | cond] = μ exactly without needing to know P(cond):
+
+        E[σ_cond · (x − μ)] = 0  ⟺  E[X | cond] = μ
+
+    Unlike the weighted-moment approach (which requires P(cond) ≈ 0.5), this
+    feature's target is always 0, making it valid regardless of the condition
+    marginal probability.
+    """
+    target_var: int
+    cond_var: int
+    cond_threshold: float
+    cond_direction: str = "greater"
+    expected_value: float = 0.0    # the conditional expectation μ (normalised domain)
+    sharpness: float = default_sharpness
+
+
 # Union of all feature types
 FeatureSpec = Union[
     MomentFeature,
@@ -105,6 +147,8 @@ FeatureSpec = Union[
     ProductMomentFeature,
     ConditionalSoftThresholdFeature,
     WeightedMomentConditionFeature,
+    CenteredConditionalFeature,
+    CenteredConditionalMomentFeature,
 ]
 
 
@@ -169,6 +213,23 @@ def compile_feature(spec: FeatureSpec) -> Callable[[jnp.ndarray], jnp.ndarray]:
         def _weighted(x: jnp.ndarray) -> jnp.ndarray:
             return x[tv] * _soft_threshold(x[cv], ct, cd, s)
         return _weighted
+
+    if isinstance(spec, CenteredConditionalFeature):
+        tv, tt, td = spec.target_var, spec.target_threshold, spec.target_direction
+        cv, ct, cd = spec.cond_var, spec.cond_threshold, spec.cond_direction
+        p, s = spec.p_target_given_cond, spec.sharpness
+        def _centered_cond(x: jnp.ndarray) -> jnp.ndarray:
+            return _soft_threshold(x[cv], ct, cd, s) * (
+                _soft_threshold(x[tv], tt, td, s) - p
+            )
+        return _centered_cond
+
+    if isinstance(spec, CenteredConditionalMomentFeature):
+        tv, cv = spec.target_var, spec.cond_var
+        ct, cd, mu, s = spec.cond_threshold, spec.cond_direction, spec.expected_value, spec.sharpness
+        def _centered_moment(x: jnp.ndarray) -> jnp.ndarray:
+            return _soft_threshold(x[cv], ct, cd, s) * (x[tv] - mu)
+        return _centered_moment
 
     raise TypeError(f"Unknown feature spec type: {type(spec)}")
 
