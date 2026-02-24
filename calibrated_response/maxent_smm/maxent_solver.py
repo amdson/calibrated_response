@@ -196,15 +196,15 @@ class MaxEntSolver:
             energy = self._param_energy_fn(theta, x) + prior_energy
             return energy
 
-        self._energy_fn = jax.jit(_energy)
-        self._grad_energy_fn = jax.jit(jax.grad(_energy, argnums=1))
+        self._energy_fn = _energy
+        self._grad_energy_fn = jax.grad(_energy, argnums=1)
 
         # Gradient of energy w.r.t. θ (not x), batched over chain states.
         # Used by the SMM estimator: ∇J ≈ (1/N) Σ_i w_i · ∇_θ E(θ, x_i)
         _grad_theta_fn = jax.grad(_energy, argnums=0)          # (θ, x) → (K,)
-        self._batch_grad_theta_fn = jax.jit(
-            jax.vmap(_grad_theta_fn, in_axes=(None, 0))         # (θ, (C,D)) → (C, K)
-        )
+        self._batch_grad_theta_fn = jax.vmap(_grad_theta_fn, in_axes=(None, 0))         # (θ, (C,D)) → (C, K)
+        
+        self.compile_grad() # compile the SMM gradient estimator separately (since it doesn't depend on theta values and can be traced once)
 
         # Initial parameters
         # self._theta = jnp.zeros(self._n_features, dtype=jnp.float32)
@@ -254,32 +254,26 @@ class MaxEntSolver:
 
     def compile_grad(self):
         #incomplete function to compile the gradient estimator separately if needed
-        chain_features = self._batch_feature_fn(buffer.states)    # (C, K)
-        model_expectations = chain_features.mean(axis=0)          # (K,)
 
-
-        def smm_grad(theta, states, targets):
-            chain_features = self._batch_feature_fn(states)    # (C, K)
-            model_expectations = chain_features.mean(axis=0)          # (K,)
-            chain_grad_theta = self._batch_grad_theta_fn(theta, states)
-
-
-        # --- C: Compute SMM gradient ---
-        # ∇_θ E(θ, x_i) at each chain state: (C, K)
-        chain_grad_theta = self._batch_grad_theta_fn(theta, buffer.states)
-
-        # Efficient covariance estimator (O(N(p+K)), no matrix formed):
-        #   w_i = -dot(delta, f(x_i) - g_hat)
-        #   ∇J ≈ (1/N) Σ_i w_i · ∇_θ E(θ, x_i)
-        delta    = model_expectations - targets               # (p,)  E_θ[f] - μ
-        centered = chain_features - model_expectations        # (C, p) centred features
-        w        = -(centered @ delta)                        # (C,)  scalar weight per chain
-        grad     = (w[:, None] * chain_grad_theta).mean(axis=0)   # (K,)  ≈ ∇_θ J
-
-    # ------------------------------------------------------------------
-    # solve
-    # ------------------------------------------------------------------
-
+        #batch estimator of gradient of MSE of model expectations vs targets
+        def smm_potential(theta, states, targets):
+            sample_features = jax.vmap(self._feature_vector_fn)(states) #feature_fn(states)    # (C, K)
+            model_expectations = sample_features.mean(axis=0)          # (K,)
+            delta = model_expectations - targets               # (p,)  E_θ[f] - μ
+            centered = sample_features - model_expectations        # (C, p) centred features
+            sample_energy = jax.vmap(self._energy_fn, in_axes=(None, 0))(theta, states)  # (C,)
+            mean_energy = sample_energy.mean()  # scalar
+            delta_energy = sample_energy - mean_energy  # (C,)
+            sample_potential = - jnp.einsum('j, ij, i -> ', 
+                                             delta,
+                                             centered,
+                                             delta_energy) / states.shape[0]  # (C,)
+            return sample_potential
+        smm_grad_fn = jax.grad(smm_potential, argnums=0)
+        self._smm_grad_fn = jax.jit(smm_grad_fn)
+        self._smm_potential_fn = smm_potential
+        return self._smm_grad_fn, self._smm_potential_fn
+                                           
     def solve(self) -> Tuple[jnp.ndarray, dict]:
         """Run the training loop.
 
@@ -313,6 +307,7 @@ class MaxEntSolver:
         }
 
 
+
         for it in range(1, cfg.num_iterations + 1):
             t0 = time.time()
 
@@ -325,21 +320,23 @@ class MaxEntSolver:
             )
 
             # --- B: Estimate model expectations ---
-            # vmap feature_vector over chains: (C, D) → (C, K)
+            # # vmap feature_vector over chains: (C, D) → (C, K)
             chain_features = self._batch_feature_fn(buffer.states)    # (C, K)
             model_expectations = chain_features.mean(axis=0)          # (K,)
 
-            # --- C: Compute SMM gradient ---
-            # ∇_θ E(θ, x_i) at each chain state: (C, K)
-            chain_grad_theta = self._batch_grad_theta_fn(theta, buffer.states)
+            # # --- C: Compute SMM gradient ---
+            # # ∇_θ E(θ, x_i) at each chain state: (C, K)
+            # chain_grad_theta = self._batch_grad_theta_fn(theta, buffer.states)
 
-            # Efficient covariance estimator (O(N(p+K)), no matrix formed):
-            #   w_i = -dot(delta, f(x_i) - g_hat)
-            #   ∇J ≈ (1/N) Σ_i w_i · ∇_θ E(θ, x_i)
-            delta    = model_expectations - targets               # (p,)  E_θ[f] - μ
-            centered = chain_features - model_expectations        # (C, p) centred features
-            w        = -(centered @ delta)                        # (C,)  scalar weight per chain
-            grad     = (w[:, None] * chain_grad_theta).mean(axis=0)   # (K,)  ≈ ∇_θ J
+            # # Efficient covariance estimator (O(N(p+K)), no matrix formed):
+            # #   w_i = -dot(delta, f(x_i) - g_hat)
+            # #   ∇J ≈ (1/N) Σ_i w_i · ∇_θ E(θ, x_i)
+            # delta    = model_expectations - targets               # (p,)  E_θ[f] - μ
+            # centered = chain_features - model_expectations        # (C, p) centred features
+            # w        = -(centered @ delta)                        # (C,)  scalar weight per chain
+            # grad     = (w[:, None] * chain_grad_theta).mean(axis=0)   # (K,)  ≈ ∇_θ J
+
+            grad = self._smm_grad_fn(theta, buffer.states, targets)
             grad     = grad + cfg.l2_regularization * theta       # L2 regularisation
             if self._R is not None:
                 grad = grad + cfg.roughness_gamma * (self._R @ theta)
@@ -351,11 +348,13 @@ class MaxEntSolver:
             theta = optax.apply_updates(theta, updates)
 
             # --- Diagnostics ---
-            err = jnp.abs(targets - model_expectations)
+            delta = targets - model_expectations
+            err = jnp.abs(delta)
             max_err = float(err.max())
             mean_err = float(err.mean())
             mean_squared_err = float((err ** 2).mean())
             smm_loss = float(0.5 * jnp.sum(delta ** 2))
+
             history["iteration"].append(it)
             history["smm_loss"].append(smm_loss)
             history["max_error"].append(max_err)

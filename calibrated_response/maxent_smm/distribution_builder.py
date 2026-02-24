@@ -366,6 +366,7 @@ class DistributionBuilder:
             energy_fn=self.energy_fn,
             init_theta=self.init_theta,
         )
+        print("Compiled maxent solver")
 
         theta, solver_info = self.solver.solve()
 

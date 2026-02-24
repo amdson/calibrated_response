@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"c:/Users/amdic/calibrated_response/examples/solver_debug.ipynb\":*)",
+      "Bash(python examples/_gen_debug_nb.py:*)",
+      "Bash(python3:*)",
+      "Bash(py:*)",
+      "Bash(conda run:*)"
+    ]
+  }
+}
