@@ -60,7 +60,6 @@ def _histogram_marginal(
         return counts.astype(float) / total
     return np.ones(len(counts), dtype=float) / max(len(counts), 1)
 
-
 # ---------------------------------------------------------------------------
 # DistributionBuilder
 # ---------------------------------------------------------------------------
@@ -80,15 +79,11 @@ class DistributionBuilder:
         self,
         variables: Sequence[Variable],
         estimates: Sequence[EstimateUnion],
-        energy_fn: Callable, 
-        init_theta: np.ndarray,
         solver_config: Optional[JAXSolverConfig] = None,
         extra_feature_constraints: Optional[Sequence[tuple[FeatureSpec, float]]] = None,
     ):
         self.variables = list(variables)
         self.estimates = list(estimates)
-        self.energy_fn = energy_fn
-        self.init_theta = init_theta
         self.solver_config = solver_config or JAXSolverConfig()
         self.extra_feature_constraints = extra_feature_constraints or []
         self.var_name_to_idx = {v.name: i for i, v in enumerate(self.variables)}
@@ -320,51 +315,16 @@ class DistributionBuilder:
                 )
             )
             self.feature_targets.append(0.0)
-
-    # ------------------------------------------------------------------
-    # build / solve
-    # ------------------------------------------------------------------
-
-    def build(
-        self,
-        target_variable: Optional[str] = None,
-    ) -> tuple[HistogramDistribution, dict]:
-        """Build a distribution for the target variable.
-
-        Returns
-        -------
-        distribution : HistogramDistribution
-            Marginal for the requested variable (in original domain).
-        info : dict
-            Diagnostics, chain states, bin edges, etc.
-        """
-        if not self.variables:
-            raise ValueError("At least one variable is required")
-
-        target_var = self._get_target_variable(target_variable)
-        target_idx = self.var_name_to_idx[target_var.name]
-        n_vars = len(self.variables)
-        n_bins = self.solver_config.max_bins
-
-        # Handle no-feature case → uniform
-        if not self.feature_specs:
-            dist = self._uniform_distribution(target_var)
-            info: dict = {
-                "message": "No features derived from estimates; returning uniform.",
-                "target_variable": target_var.name,
-                "n_estimates": len(self.estimates),
-                "skipped_constraints": self.skipped,
-            }
-            return dist, info
-
+            
+    def run_solver(self, energy_fn: Callable, init_theta: np.ndarray,):
         # Build & solve
         import jax.numpy as jnp
         self.solver.build(
             var_specs=self.var_specs,
             feature_specs=self.feature_specs,
             feature_targets=jnp.array(self.feature_targets, dtype=jnp.float32),
-            energy_fn=self.energy_fn,
-            init_theta=self.init_theta,
+            energy_fn=energy_fn,
+            init_theta=init_theta,
         )
         print("Compiled maxent solver")
 
@@ -374,25 +334,6 @@ class DistributionBuilder:
 
         # Chain samples are in [0, 1] normalised domain
         chain_states = solver_info["chain_states"]   # (C, D) numpy
-
-        # Compute all marginals as histograms (normalised domain)
-        bin_edges_norm: dict[str, np.ndarray] = {}
-        marginals: dict[str, np.ndarray] = {}
-        bin_edges_orig: dict[str, np.ndarray] = {}
-
-        for i, var in enumerate(self.variables):
-            edges_n = self.normalizer.normalized_bin_edges(var.name, n_bins)
-            probs = _histogram_marginal(chain_states, i, edges_n)
-            edges_o = self.normalizer.denormalize_edges(var.name, edges_n)
-            bin_edges_norm[var.name] = edges_n
-            bin_edges_orig[var.name] = edges_o
-            marginals[var.name] = probs
-
-        # Target distribution
-        distribution = HistogramDistribution(
-            bin_edges=bin_edges_orig[target_var.name].tolist(),
-            bin_probabilities=marginals[target_var.name].tolist(),
-        )
 
         # Build the energy model for downstream use
         self._energy_model = EnergyModel(
@@ -407,49 +348,18 @@ class DistributionBuilder:
         )
 
         info = {
-            "target_variable": target_var.name,
-            "n_variables": n_vars,
+            "n_variables": len(self.variables),
             "n_estimates": len(self.estimates),
             "n_features": len(self.feature_specs),
             "skipped_constraints": self.skipped,
             "history": solver_info.get("history"),
-            "bin_edges_list": [bin_edges_orig[v.name] for v in self.variables],
-            "bin_edges_list_normalized": [bin_edges_norm[v.name] for v in self.variables],
-            "marginals": marginals,
             "chain_states": chain_states,
             "theta": solver_info.get("theta"),
             "converged": solver_info.get("converged", False),
             "energy_model": self._energy_model,
-            "joint_note": "No dense joint is constructed; marginals estimated from persistent chains.",
         }
-        return distribution, info
-
-    # ------------------------------------------------------------------
-    # get_all_marginals
-    # ------------------------------------------------------------------
-
-    def get_all_marginals(self, info: dict) -> dict[str, HistogramDistribution]:
-        """Extract marginal distributions for every variable from solver info."""
-        marginals = info.get("marginals")
-        edges_list = info.get("bin_edges_list")
-        if marginals is None or edges_list is None:
-            raise ValueError("Solver info does not contain marginals / bin_edges_list")
-
-        out: dict[str, HistogramDistribution] = {}
-        for i, var in enumerate(self.variables):
-            probs = np.asarray(marginals[var.name], dtype=float)
-            total = probs.sum()
-            probs = probs / total if total > 0 else np.ones_like(probs) / max(len(probs), 1)
-            out[var.name] = HistogramDistribution(
-                bin_edges=np.asarray(edges_list[i], dtype=float).tolist(),
-                bin_probabilities=probs.tolist(),
-            )
-        return out
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
+        return self.solver, info
+    
     def get_energy_model(self) -> EnergyModel:
         """Return the trained energy model.
 
@@ -464,29 +374,4 @@ class DistributionBuilder:
         if self._energy_model is None:
             raise RuntimeError("Call build() before get_energy_model().")
         return self._energy_model
-
-    def _get_target_variable(self, target_variable: Optional[str]) -> Variable:
-        if target_variable is not None:
-            if target_variable in self.var_name_to_var:
-                return self.var_name_to_var[target_variable]
-            raise ValueError(f"Variable '{target_variable}' not found")
-        for v in self.variables:
-            if getattr(v, "is_target", False):
-                return v
-        return self.variables[0]
-
-    def _uniform_distribution(self, var: Variable) -> HistogramDistribution:
-        n_bins = self.solver_config.max_bins
-        if isinstance(var, ContinuousVariable):
-            lo, hi = var.get_domain()
-            edges = np.linspace(lo, hi, n_bins + 1)
-        elif isinstance(var, BinaryVariable):
-            edges = np.array([0.0, 0.5, 1.0])
-            n_bins = 2
-        else:
-            edges = np.linspace(0.0, 1.0, n_bins + 1)
-        probs = np.ones(n_bins) / n_bins
-        return HistogramDistribution(
-            bin_edges=edges.tolist(),
-            bin_probabilities=probs.tolist(),
-        )
+    

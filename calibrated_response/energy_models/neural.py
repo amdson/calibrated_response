@@ -22,19 +22,52 @@ import jax.numpy as jnp
 from jax.flatten_util import ravel_pytree
 
 
+def fourier_encode(x: jax.Array, n_freqs: int) -> jax.Array:
+    """Lift a state vector to sinusoidal Fourier features.
+
+    For each variable x_i in [0, 1], computes:
+
+        φ(x_i) = [x_i, sin(π x_i), cos(π x_i), ..., sin(Kπ x_i), cos(Kπ x_i)]
+
+    giving a (2K+1)-dimensional embedding per variable.  The full output is the
+    concatenation over all variables: shape ``(n_vars * (2K+1),)``.
+
+    This is a parameter-free, fully differentiable transformation.
+
+    Parameters
+    ----------
+    x : (n_vars,) jax.Array
+        State vector in ``[0, 1]^d``.
+    n_freqs : int
+        Number of frequency bands K.
+
+    Returns
+    -------
+    (n_vars * (2K+1),) jax.Array
+    """
+    freqs = jnp.arange(1, n_freqs + 1, dtype=float)          # (K,)
+    args  = jnp.pi * freqs[None, :] * x[:, None]             # (n_vars, K)
+    encoded = jnp.concatenate(
+        [x[:, None], jnp.sin(args), jnp.cos(args)], axis=1   # (n_vars, 2K+1)
+    )
+    return encoded.ravel()                                     # (n_vars*(2K+1),)
+
+
 class NeuralEnergyModel:
-    """MLP energy model.
+    """MLP energy model with Fourier input encoding.
 
-    Maps the full state vector ``x ∈ [0, 1]^d`` to a scalar energy through a
-    feedforward neural network::
+    Each variable is first lifted from a scalar to a (2K+1)-dimensional
+    sinusoidal feature vector (see ``fourier_encode``), then the concatenated
+    embedding is passed through a ReLU MLP::
 
-        h_0 = x
-        h_i = ReLU(W_i h_{i-1} + b_i)   for each hidden layer i
-        E   = w · h_last + c             (linear readout)
+        φ(x)  = fourier_encode(x, n_freqs)       # parameter-free
+        h_0   = φ(x)
+        h_i   = ReLU(W_i h_{i-1} + b_i)          for each hidden layer i
+        E     = w · h_last + c                    (linear readout)
 
     Typical usage::
 
-        model = NeuralEnergyModel(n_vars=10, hidden_sizes=[64, 32])
+        model = NeuralEnergyModel(n_vars=10, hidden_sizes=[64, 32], n_freqs=8)
 
         # Initialise parameters
         params = model.init_params(jax.random.PRNGKey(0))
@@ -52,6 +85,7 @@ class NeuralEnergyModel:
         self,
         n_vars: int,
         hidden_sizes: Union[int, list[int]] = 64,
+        n_freqs: int = 8,
     ) -> None:
         """Construct a neural energy model.
 
@@ -63,16 +97,23 @@ class NeuralEnergyModel:
             Width(s) of the hidden layers.  A single int creates one hidden
             layer.  For example ``hidden_sizes=[64, 32]`` gives a network with
             two hidden layers of widths 64 and 32.
+        n_freqs : int
+            Number of Fourier frequency bands K.  Each variable is embedded
+            into ``2K+1`` dimensions, so the MLP input width is
+            ``n_vars * (2K+1)``.  Set to ``0`` to disable encoding and feed
+            raw scalars to the MLP.
         """
         self.n_vars: int = n_vars
+        self.n_freqs: int = n_freqs
+        self.embed_dim: int = n_vars * (2 * n_freqs + 1) if n_freqs > 0 else n_vars
 
         if isinstance(hidden_sizes, int):
             hidden_sizes = [hidden_sizes]
         self.hidden_sizes: list[int] = list(hidden_sizes)
 
-        # Layer widths: input → h0 → h1 → ... → output (scalar readout).
+        # Layer widths: embed_dim → h0 → h1 → ... → output (scalar readout).
         # The output "layer" is stored as {'W': (H_last,), 'b': ()}.
-        widths = [n_vars] + self.hidden_sizes
+        widths = [self.embed_dim] + self.hidden_sizes
 
         self._layer_shapes: list[tuple] = []
         for fan_in, fan_out in zip(widths[:-1], widths[1:]):
@@ -97,7 +138,7 @@ class NeuralEnergyModel:
         * Hidden layers — ``{'W': (H_out, H_in), 'b': (H_out,)}``.
         * Output layer  — ``{'W': (H_last,), 'b': ()}``.
         """
-        widths = [self.n_vars] + self.hidden_sizes
+        widths = [self.embed_dim] + self.hidden_sizes
         params = [
             {'W': jnp.zeros((fan_out, fan_in)), 'b': jnp.zeros(fan_out)}
             for fan_in, fan_out in zip(widths[:-1], widths[1:])
@@ -117,7 +158,7 @@ class NeuralEnergyModel:
         key : jax.Array
             JAX PRNG key.
         """
-        widths = [self.n_vars] + self.hidden_sizes
+        widths = [self.embed_dim] + self.hidden_sizes
         n_layers = len(widths)   # number of weight matrices (hidden + output)
         keys = jax.random.split(key, n_layers)
 
@@ -174,7 +215,7 @@ class NeuralEnergyModel:
         -------
         Scalar energy value.
         """
-        h = x
+        h = fourier_encode(x, self.n_freqs) if self.n_freqs > 0 else x
         for layer in params[:-1]:
             h = jnp.maximum(jnp.dot(layer['W'], h) + layer['b'], 0.0)
         output = params[-1]
