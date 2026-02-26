@@ -276,7 +276,9 @@ class MaxEntSolver:
         self._smm_grad_fn = jax.jit(smm_grad_fn)
         self._smm_potential_fn = smm_potential
         return self._smm_grad_fn, self._smm_potential_fn
-                                           
+    
+
+    #TODO: integrate variance based feature weighting for loss                                       
     def solve(self) -> Tuple[jnp.ndarray, dict]:
         """Run the training loop.
 
@@ -378,7 +380,7 @@ class MaxEntSolver:
                 if cfg.verbose:
                     print(f"[MaxEntSolver] Converged at iteration {it}.")
                 break
-
+            
         # Store final state
         self._theta = theta
         self._buffer = buffer

@@ -24,6 +24,71 @@ from jax.flatten_util import ravel_pytree
 from calibrated_response.maxent_smm.features import FeatureSpec, compile_feature_vector
 
 
+def init_feature_weights(
+    feature_specs: Sequence[FeatureSpec],
+    feature_targets: jax.Array,
+    n_vars: int,
+    key: jax.Array,
+    n_samples: int = 10_000,
+    eps: float = 1e-6,
+    max_weight: float = 100.0,
+) -> jax.Array:
+    """Initialise feature weights via a diagonal Newton step from the uniform prior.
+
+    In the MaxEnt exponential family the Hessian of the SMM objective at θ=0
+    (uniform distribution) is the Fisher information matrix
+    ``I_0 = Cov_uniform[f(x)]``.  The first Newton step toward satisfying all
+    constraints is:
+
+        θ_i ≈ (μ_i − E_uniform[f_i]) / Var_uniform[f_i]
+
+    This naturally gives conditional features larger weights: a centered
+    conditional ``f_i = σ_cond · (σ_target − p)`` has variance proportional to
+    ``P(cond)²`` under the uniform, so rare conditioning events require
+    correspondingly large weights.
+
+    Both the prior mean and variance are estimated empirically from uniform
+    samples, which works for all ``FeatureSpec`` types without any closed-form
+    derivation.
+
+    Parameters
+    ----------
+    feature_specs : sequence of FeatureSpec
+        The same specs used to construct ``FeatureWeightModel``.
+    feature_targets : (K,) jax.Array
+        The target expectations μ for each feature.
+    n_vars : int
+        Dimensionality of the state vector (number of model variables).
+    key : jax.Array
+        JAX PRNG key used to draw the uniform samples.
+    n_samples : int
+        Number of uniform samples to use for estimating the prior statistics.
+    eps : float
+        Small constant added to the variance before division, preventing
+        division by zero for near-deterministic features.
+    max_weight : float
+        Absolute value clip applied to the output weights, guarding against
+        pathologically large values when conditioning events are very rare.
+
+    Returns
+    -------
+    (K,) jax.Array
+        Initial weight vector.
+    """
+    # Sample x ~ Uniform[0, 1]^(n_samples × n_vars).
+    X = jax.random.uniform(key, shape=(n_samples, n_vars))  # (N, D)
+
+    # Evaluate all features on every sample: F[i, k] = f_k(X[i]).
+    feature_fn = compile_feature_vector(feature_specs)
+    F = jax.vmap(feature_fn)(X)  # (N, K)
+
+    mu_prior  = F.mean(axis=0)   # (K,)
+    var_prior = F.var(axis=0)    # (K,)
+
+    weights = (jnp.asarray(feature_targets) - mu_prior) / (var_prior + eps)
+    return jnp.clip(weights, -max_weight, max_weight)
+
+
 class FeatureWeightModel:
     """Classical MaxEnt energy model: a dot product of weights and features.
 
@@ -92,6 +157,37 @@ class FeatureWeightModel:
             JAX PRNG key.
         """
         return jax.random.normal(key, (len(self.feature_specs),)) * 0.01
+
+    def init_params_from_targets(
+        self,
+        feature_targets: jax.Array,
+        n_vars: int,
+        key: jax.Array,
+        n_samples: int = 10_000,
+        **kwargs,
+    ) -> jax.Array:
+        """Initialise weights via a diagonal Newton step from the uniform prior.
+
+        Convenience wrapper around :func:`init_feature_weights`.  Produces
+        larger weights for features with low variance under the uniform
+        distribution (e.g. conditional features on rare events).
+
+        Parameters
+        ----------
+        feature_targets : (K,) jax.Array
+            Target expectations μ for each feature.
+        n_vars : int
+            Dimensionality of the state vector.
+        key : jax.Array
+            JAX PRNG key.
+        n_samples : int
+            Number of uniform samples for prior-statistics estimation.
+        **kwargs
+            Forwarded to :func:`init_feature_weights` (``eps``, ``max_weight``).
+        """
+        return init_feature_weights(
+            self.feature_specs, feature_targets, n_vars, key, n_samples, **kwargs
+        )
 
     def pack_params(self, params: jax.Array) -> jax.Array:
         """Flatten the parameter pytree into a single ``(K,)`` vector.

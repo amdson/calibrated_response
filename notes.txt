@@ -21,7 +21,7 @@ distribution prediction, such as "if it is rainy tomorrow, how many people will 
 There would be a fixed budget for the number of queries, and queries could be selected greedily, with some heuristic 
 (potentially just asking the LLM) for which query to select next. 
 
-A maxentropy model will be used to reconstruct the maximum entropy model which best reproduces the query answer distributions. Because 
+A maxentropy model will be used to reconstruct the distribution hich best reproduces the predicted variable attributes. Because 
 there's no guarantee constraints won't overfit, it will be important to have a reasonable way of producing a best fit model which
 best meets constraints, even when they're mostly exclusive. Because it's a maxentropy model, there's no limit on the ordering or direction
 of queries, they can be made arbitrarely. 
