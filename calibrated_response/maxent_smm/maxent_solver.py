@@ -27,7 +27,9 @@ from calibrated_response.maxent_smm.variable_spec import GaussianPriorSpec, Beta
 from calibrated_response.models.variable import Variable, VariableType
 from calibrated_response.maxent_smm.features import FeatureSpec, compile_feature_vector
 from calibrated_response.maxent_smm.mcmc import (HMCConfig, PersistentBuffer,
-                                                  build_hmc_step_fn, advance_buffer)
+                                                  build_hmc_step_fn, 
+                                                  build_batch_hmc_chain_step_fn,
+                                                  advance_buffer)
 
 
 # ---------------------------------------------------------------------------
@@ -218,7 +220,8 @@ class MaxEntSolver:
             adapt_step_size=cfg.adapt_step_size,
         )
 
-        hmc_step_fn =  build_hmc_step_fn(self._energy_fn, self._grad_energy_fn)
+        hmc_step_fn =  build_hmc_step_fn(self._energy_fn, self._grad_energy_fn, num_leapfrog=cfg.hmc_leapfrog_steps)
+        # hmc_step_fn = build_batch_hmc_chain_step_fn(self._energy_fn, self._grad_energy_fn)
         self._hmc_step_fn = hmc_step_fn
 
         # Persistent buffer

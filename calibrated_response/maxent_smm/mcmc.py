@@ -159,38 +159,215 @@ def _hmc_step(
     new_state = jnp.where(accepted, q_prop, state)
     return new_state, accepted
 
-
 # ---------------------------------------------------------------------------
 # Vectorized chain step  (vmap over chains)
 # ---------------------------------------------------------------------------
 
-def _hmc_chain_step(
-    energy_fn: Callable,
-    grad_energy_fn: Callable,
+# def _hmc_chain_step(
+#     energy_fn: Callable,
+#     grad_energy_fn: Callable,
+#     theta: jnp.ndarray,
+#     states: jnp.ndarray,
+#     rng_keys: jnp.ndarray,
+#     step_size: float,
+#     num_leapfrog: int,
+# ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+#     """Advance C chains in parallel via ``vmap``.
+
+#     Parameters
+#     ----------
+#     theta : (K,) feature weights — explicit arg so JIT traces once.
+#     states : (C, D)
+#     rng_keys : (C, 2)
+
+#     Returns
+#     -------
+#     new_states : (C, D)
+#     accepted : (C,)
+#     """
+#     def _single(state, key):
+#         return _hmc_step(energy_fn, grad_energy_fn, theta, state, key,
+#                          step_size, num_leapfrog)
+
+#     return jax.vmap(_single)(states, rng_keys)
+
+
+# def _hmc_chain_step(
+#     energy_fn: Callable,
+#     grad_energy_fn: Callable,
+#     theta: jnp.ndarray,
+#     states: jnp.ndarray,
+#     rng_keys: jnp.ndarray,
+#     step_size: float,
+#     num_leapfrog: int,
+# ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+#     """Advance C chains in parallel via ``vmap``.
+
+#     Parameters
+#     ----------
+#     theta : (K,) feature weights — explicit arg so JIT traces once.
+#     states : (C, D)
+#     rng_keys : (C, 2)
+
+#     Returns
+#     -------
+#     new_states : (C, D)
+#     accepted : (C,)
+#     """
+#     def _single(state, key):
+#         return _hmc_step(energy_fn, grad_energy_fn, theta, state, key,
+#                          step_size, num_leapfrog)
+
+#     return jax.vmap(_single)(states, rng_keys)
+
+def build_hmc_step_fn(energy_fn, grad_energy_fn, num_leapfrog) -> Callable:
+    """Build a chain step function with energy and gradient closed over."""
+    # def step_fn(theta, states, rng_keys, step_size, num_leapfrog):
+    #     return _hmc_chain_step(energy_fn, grad_energy_fn, theta, states, rng_keys,
+    #                            step_size, num_leapfrog)
+
+    # def _single(theta, state, key, step_size):
+    #     return _hmc_step(energy_fn, grad_energy_fn, theta, state, key,
+    #                      step_size, num_leapfrog)
+
+    def step_fn(theta, states, rng_key, step_size):
+        n_chains = states.shape[0]
+        rng_keys = jax.random.split(rng_key, n_chains)
+        return jax.vmap(_hmc_step, in_axes=(None, None, None, 0, 0, None, None))(
+            energy_fn, grad_energy_fn, theta, states, rng_keys, step_size, num_leapfrog
+        )
+    return jax.jit(step_fn)
+
+# def build_hmc_step_fn(energy_fn, grad_energy_fn) -> Callable:
+#     """Build a chain step function with energy and gradient closed over."""
+#     def step_fn(theta, states, rng_keys, step_size, num_leapfrog):
+#         pass
+#     return step_fn
+
+
+import jax.lax as lax
+def _batch_leapfrog(
+    batch_grad_energy_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray],
     theta: jnp.ndarray,
-    states: jnp.ndarray,
-    rng_keys: jnp.ndarray,
+    q: jnp.ndarray,
+    p: jnp.ndarray,
     step_size: float,
-    num_leapfrog: int,
+    # num_steps: int,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-    """Advance C chains in parallel via ``vmap``.
+    """Leapfrog integrator with reflection at [0, 1] boundaries.
 
     Parameters
     ----------
-    theta : (K,) feature weights — explicit arg so JIT traces once.
-    states : (C, D)
-    rng_keys : (C, 2)
+    batch_grad_energy_fn : callable  ``(theta, x) -> grad_x``
+        Gradient of the energy w.r.t. position.
+    theta : jnp.ndarray, shape (K,)
+        Current feature weights (passed through, not closed over).
+    q : jnp.ndarray, shape (N, D)
+        Initial position.
+    p : jnp.ndarray, shape (N, D)
+        Initial momentum.
+    step_size : float
+    num_steps : int
 
     Returns
     -------
-    new_states : (C, D)
-    accepted : (C,)
+    q, p : updated position and momentum.
     """
-    def _single(state, key):
-        return _hmc_step(energy_fn, grad_energy_fn, theta, state, key,
-                         step_size, num_leapfrog)
+    eps = step_size
 
-    return jax.vmap(_single)(states, rng_keys)
+    # Half-step for momentum
+    p = p - 0.5 * eps * batch_grad_energy_fn(theta, q)
+
+    # First position step
+    q = q + eps * p
+    q, p = _reflect_with_momentum(q, p)
+
+    # def _inner_step(i, carry):
+    #     q, p = carry
+    #     grad = batch_grad_energy_fn(theta, q)
+    #     p = p - eps * grad
+    #     q = q + eps * p
+    #     q, p = _reflect_with_momentum(q, p)
+    #     return (q, p)
+
+    # q, p = lax.fori_loop(0, num_steps - 1, _inner_step, (q, p))
+
+    def _scan_step(carry, _):
+        """
+        carry: (q, p)
+        _: placeholder for the current element of the scan sequence
+        """
+        q, p = carry
+        grad = batch_grad_energy_fn(theta, q)
+        p = p - eps * grad
+        q = q + eps * p
+        q, p = _reflect_with_momentum(q, p)
+        
+        # scan requires returning (new_carry, output_at_this_step)
+        return (q, p), None
+
+    # Execution
+    (q, p), _ = lax.scan(
+        _scan_step, 
+        (q, p), 
+        xs=None, 
+        length=5 - 1 #hardcode num steps = 5
+    )
+
+    # Final half-step for momentum
+    p = p - 0.5 * eps * batch_grad_energy_fn(theta, q)
+
+    # Negate momentum for reversibility
+    p = -p
+    return q, p
+
+def _batch_hmc_step(
+    batch_energy_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray],
+    batch_grad_energy_fn: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray],
+    theta: jnp.ndarray,
+    state: jnp.ndarray,
+    rng_key: jnp.ndarray,
+    step_size: float,
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    """One HMC transition (propose + accept/reject).
+
+    Returns (new_state, accepted) where accepted is 0. or 1.
+    """
+    key_mom, key_accept = jax.random.split(rng_key)
+
+    # Sample momentum
+    p0 = jax.random.normal(key_mom, shape=state.shape)
+
+    # Current Hamiltonian
+    current_E = batch_energy_fn(theta, state)
+    current_K = 0.5 * jnp.sum(p0 ** 2)
+
+    # Leapfrog
+    q_prop, p_prop = _batch_leapfrog(batch_grad_energy_fn, theta, state, p0, step_size)
+
+    # Proposed Hamiltonian
+    proposed_E = batch_energy_fn(theta, q_prop)
+    proposed_K = 0.5 * jnp.sum(p_prop ** 2, axis=1)
+
+    # Metropolis accept/reject
+    log_alpha = (current_E + current_K) - (proposed_E + proposed_K)
+    log_u = jnp.log(jax.random.uniform(key_accept, shape=log_alpha.shape))
+    accepted = (log_u < log_alpha).astype(jnp.float32)
+
+    new_state = jnp.where(accepted[:, None], q_prop, state)
+    return new_state, accepted
+
+def build_batch_hmc_chain_step_fn(energy_fn, grad_energy_fn) -> Callable:
+    """Build a vectorized chain step function with energy and gradient closed over."""
+    batch_energy_fn = jax.vmap(energy_fn, in_axes=(None, 0))  # (θ, (C,D)) → (C,)
+    batch_grad_energy_fn = jax.vmap(grad_energy_fn, in_axes=(None, 0))  # (θ, (C,D)) → (C, K)
+    
+    def hmc_chain_step_fn(theta, states, rng_key, step_size):
+        return _batch_hmc_step(batch_energy_fn, batch_grad_energy_fn, theta, states, rng_key, step_size)
+    
+    return jax.jit(hmc_chain_step_fn)
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -236,13 +413,7 @@ class PersistentBuffer:
         states = jax.random.uniform(key_init, shape=(n_chains, n))
         return PersistentBuffer(states=states, rng_key=key_next, step_size=step_size)
     
-def build_hmc_step_fn(energy_fn, grad_energy_fn) -> Callable:
-    """Build a chain step function with energy and gradient closed over."""
-    def step_fn(theta, states, rng_keys, step_size, num_leapfrog):
-        return _hmc_chain_step(energy_fn, grad_energy_fn, theta, states, rng_keys,
-                               step_size, num_leapfrog)
 
-    return jax.jit(step_fn)
     
 def advance_buffer(buffer: PersistentBuffer,
             theta: jnp.ndarray,
@@ -258,11 +429,9 @@ def advance_buffer(buffer: PersistentBuffer,
     for _ in range(n_steps):
         rng_key, step_key = jax.random.split(rng_key)
         n_chains = states.shape[0]
-        chain_keys = jax.random.split(step_key, n_chains)
+        # chain_keys = jax.random.split(step_key, n_chains)
 
-        new_states, accepted = step_fn(theta, states, chain_keys,
-            step_size, config.num_leapfrog_steps,
-        )
+        new_states, accepted = step_fn(theta, states, step_key, step_size)
         states = new_states
         total_accepted = total_accepted + accepted.mean()
 
