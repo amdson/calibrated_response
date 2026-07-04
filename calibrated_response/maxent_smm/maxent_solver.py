@@ -49,6 +49,10 @@ class JAXSolverConfig:
     mcmc_steps_per_iteration: int = 5
     learning_rate: float = 0.01
     l2_regularization: float = 1e-4
+    # Penalises mean(E(x)²) over chain states.  Keeps energy magnitude small,
+    # preventing the distribution from becoming too peaked around chain positions.
+    # Equivalent to a soft bound on the energy range; set 0 to disable.
+    energy_reg_weight: float = 0.0
     grad_clip: float = 5.0
     tolerance: float = 1e-4
     verbose: bool = False
@@ -70,6 +74,13 @@ class JAXSolverConfig:
     # where R_{ij} = E[nabla f_i . nabla f_j].  Disabled when roughness_gamma == 0.
     roughness_gamma: float = 0.0
     roughness_n_samples: int = 10_000   # MC samples used to estimate R
+
+    # Gradient estimator: "autodiff" (default) or "manual".
+    # "autodiff" differentiates smm_potential with jax.grad.
+    # "manual" uses the explicit covariance formula:
+    #     w_i = -(f̃_i · δ),  grad = mean_i(w_i · ∇_θ E(θ, x_i))
+    # Both are mathematically equivalent; numerical differences may appear.
+    grad_estimator: str = "autodiff"
 
     # Misc
     seed: int = 0
@@ -256,7 +267,7 @@ class MaxEntSolver:
         self._built = True
 
     def compile_grad(self):
-        #incomplete function to compile the gradient estimator separately if needed
+        energy_reg_weight = self.config.energy_reg_weight
 
         #batch estimator of gradient of MSE of model expectations vs targets
         def smm_potential(theta, states, targets):
@@ -267,14 +278,34 @@ class MaxEntSolver:
             sample_energy = jax.vmap(self._energy_fn, in_axes=(None, 0))(theta, states)  # (C,)
             mean_energy = sample_energy.mean()  # scalar
             delta_energy = sample_energy - mean_energy  # (C,)
-            sample_potential = - jnp.einsum('j, ij, i -> ', 
+            sample_potential = - jnp.einsum('j, ij, i -> ',
                                              delta,
                                              centered,
-                                             delta_energy) / states.shape[0]  # (C,)
+                                             delta_energy) / states.shape[0]
+            # Energy magnitude regularisation: penalises mean(E²), keeping the
+            # distribution from becoming too peaked around chain positions.
+            sample_potential = sample_potential + energy_reg_weight * jnp.mean(sample_energy ** 2)
             return sample_potential
         smm_grad_fn = jax.grad(smm_potential, argnums=0)
         self._smm_grad_fn = jax.jit(smm_grad_fn)
         self._smm_potential_fn = smm_potential
+
+        # Manual gradient: explicit covariance formula (mathematically equivalent).
+        #   w_i = -(f̃_i · δ),  grad = mean_i(w_i · ∇_θ E(θ, x_i))
+        _batch_grad_theta_fn = self._batch_grad_theta_fn
+        _feature_vector_fn   = self._feature_vector_fn
+        assert _batch_grad_theta_fn is not None and _feature_vector_fn is not None
+        def manual_smm_grad(theta, states, targets):
+            chain_grad_theta = _batch_grad_theta_fn(theta, states)        # (C, n_params)
+            chain_features   = jax.vmap(_feature_vector_fn)(states)       # (C, K)
+            model_expectations = chain_features.mean(axis=0)              # (K,)
+            delta    = model_expectations - targets                        # (K,)
+            centered = chain_features - model_expectations                 # (C, K)
+            w        = -(centered @ delta)                                 # (C,)
+            grad     = (w[:, None] * chain_grad_theta).mean(axis=0)       # (n_params,)
+            return grad
+        self._manual_smm_grad_fn = jax.jit(manual_smm_grad)
+
         return self._smm_grad_fn, self._smm_potential_fn
     
 
@@ -341,7 +372,10 @@ class MaxEntSolver:
             # w        = -(centered @ delta)                        # (C,)  scalar weight per chain
             # grad     = (w[:, None] * chain_grad_theta).mean(axis=0)   # (K,)  ≈ ∇_θ J
 
-            grad = self._smm_grad_fn(theta, buffer.states, targets)
+            if cfg.grad_estimator == "manual":
+                grad = self._manual_smm_grad_fn(theta, buffer.states, targets)
+            else:
+                grad = self._smm_grad_fn(theta, buffer.states, targets)
             grad     = grad + cfg.l2_regularization * theta       # L2 regularisation
             if self._R is not None:
                 grad = grad + cfg.roughness_gamma * (self._R @ theta)

@@ -34,7 +34,6 @@ Focus on variables that are:
 1. Measurable or estimable
 2. Potentially influential on the outcome
 3. Not perfectly correlated with each other
-4. A mix of easy-to-know facts and uncertain quantities
 
 - The first variable should be a literal answer to the main question (e.g., "Will it rain tomorrow?" -> variable: "will_rain_tomorrow", type: binary)
 """,
@@ -55,6 +54,9 @@ IMPORTANT:
 - Variable types must be binary or continuous
 - The plausible range for continuous variables must be very conservative, covering all realistic outcomes.
 - The first variable should be a literal answer to the main question (e.g., "Will it rain tomorrow?" -> variable: "will_rain_tomorrow", type: binary)
+- Pick intuitive numerical answers which scale variables to the (0.1-10) range when possible for better calibration
+- Put a particular emphasis on variables that are necessary preconditions for the main question's outcome, 
+    for instance, if the question is "Will candidate X win the election?", a necessary precondition variable could be "Will candidate X secure the nomination?"
 
 Respond in JSON format. E.g.:
 {{{{

@@ -1,0 +1,3 @@
+{"heldout_nll": 16.077706806847047, "marginal_tv": 0.03917441753335246, "pair_tv_seen": 0.12456658294829509, "pair_tv_unseen": 0.11172788414218894, "engine": "independent", "n_pair": 40, "noise": 0.3, "conflict": 0.0, "seed": 0, "fit_seconds": 0.02}
+{"heldout_nll": NaN, "marginal_tv": NaN, "pair_tv_seen": NaN, "pair_tv_unseen": NaN, "engine": "tn_born_r8", "n_pair": 40, "noise": 0.3, "conflict": 0.0, "seed": 0, "fit_seconds": 807.44}
+{"heldout_nll": 16.633893966674805, "marginal_tv": 0.03831407558208761, "pair_tv_seen": 0.12561927470709353, "pair_tv_unseen": 0.11562056156068226, "engine": "tn_born_r8", "n_pair": 40, "noise": 0.3, "conflict": 0.0, "seed": 0, "fit_seconds": 470.56}

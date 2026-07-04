@@ -1,0 +1,3 @@
+{"heldout_nll": 12.476649250079017, "marginal_tv": 0.030208333333333347, "pair_tv_seen": 0.21942307692307697, "pair_tv_unseen": 0.2225, "engine": "independent", "n_pair": 20, "noise": 0.0, "conflict": 0.0, "seed": 0, "fit_seconds": 0.0}
+{"heldout_nll": 11.753083229064941, "marginal_tv": 0.030378366758426045, "pair_tv_seen": 0.1496708341559469, "pair_tv_unseen": 0.1684459380147746, "engine": "tn_born_r8", "n_pair": 20, "noise": 0.0, "conflict": 0.0, "seed": 0, "fit_seconds": 69.58}
+{"heldout_nll": 11.751923561096191, "marginal_tv": 0.03038056592146557, "pair_tv_seen": 0.1496475460725952, "pair_tv_unseen": 0.168482765579829, "engine": "tn_born_r8", "n_pair": 20, "noise": 0.0, "conflict": 0.0, "seed": 0, "fit_seconds": 65.01}
