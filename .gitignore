@@ -4,3 +4,4 @@ config.yaml
 *.egg*
 *__pycache__*
 *.pyc
+.jax_cache/

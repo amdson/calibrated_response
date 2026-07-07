@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(C:/Users/amdic/miniconda3/envs/calp/python.exe -c ' *)",
+      "Bash(\"C:/Users/amdic/miniconda3/envs/calp/python.exe\" \"C:/Users/amdic/AppData/Local/Temp/claude/c--Users-amdic-calibrated-response/afdc614d-8acb-4720-8fcd-da80b35c4fe1/scratchpad/repro_onoff.py\")",
+      "Bash(\"C:/Users/amdic/miniconda3/envs/calp/python.exe\" \"C:/Users/amdic/AppData/Local/Temp/claude/c--Users-amdic-calibrated-response/afdc614d-8acb-4720-8fcd-da80b35c4fe1/scratchpad/repro2.py\" nonneg 8 16 4 400)",
+      "Bash(\"C:/Users/amdic/miniconda3/envs/calp/python.exe\" \"C:/Users/amdic/AppData/Local/Temp/claude/c--Users-amdic-calibrated-response/afdc614d-8acb-4720-8fcd-da80b35c4fe1/scratchpad/bp_proto.py\")",
+      "Bash(\"C:/Users/amdic/miniconda3/envs/calp/python.exe\" \"C:/Users/amdic/AppData/Local/Temp/claude/c--Users-amdic-calibrated-response/afdc614d-8acb-4720-8fcd-da80b35c4fe1/scratchpad/verify_transpose.py\")",
+      "Bash(\"C:/Users/amdic/miniconda3/envs/calp/python.exe\" \"C:/Users/amdic/AppData/Local/Temp/claude/c--Users-amdic-calibrated-response/afdc614d-8acb-4720-8fcd-da80b35c4fe1/scratchpad/verify_refactor.py\")",
+      "Bash(\"C:/Users/amdic/miniconda3/envs/calp/python.exe\" \"C:/Users/amdic/AppData/Local/Temp/claude/c--Users-amdic-calibrated-response/afdc614d-8acb-4720-8fcd-da80b35c4fe1/scratchpad/verify_bp_integration.py\")",
+      "Bash(\"C:/Users/amdic/miniconda3/envs/calp/python.exe\" \"C:/Users/amdic/AppData/Local/Temp/claude/c--Users-amdic-calibrated-response/afdc614d-8acb-4720-8fcd-da80b35c4fe1/scratchpad/verify_subtree.py\")",
+      "Bash(\"C:/Users/amdic/miniconda3/envs/calp/python.exe\" \"C:/Users/amdic/AppData/Local/Temp/claude/c--Users-amdic-calibrated-response/afdc614d-8acb-4720-8fcd-da80b35c4fe1/scratchpad/bench_local.py\")",
+      "Bash(\"C:/Users/amdic/miniconda3/envs/calp/python.exe\" \"C:/Users/amdic/AppData/Local/Temp/claude/c--Users-amdic-calibrated-response/afdc614d-8acb-4720-8fcd-da80b35c4fe1/scratchpad/bench_batched.py\")",
+      "Bash(\"C:/Users/amdic/miniconda3/envs/calp/python.exe\" \"C:/Users/amdic/AppData/Local/Temp/claude/c--Users-amdic-calibrated-response/afdc614d-8acb-4720-8fcd-da80b35c4fe1/scratchpad/validate_factor.py\")"
+    ]
+  }
+}

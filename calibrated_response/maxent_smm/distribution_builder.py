@@ -265,7 +265,6 @@ class DistributionBuilder:
 
 
     # -- Conditional expectation estimates ------------------------------
-
     def _add_conditional_expectation_features(self, est: ConditionalExpectationEstimate) -> None:
         """Encode E[X | C] via the identity  E[X·I(C)] = E[X|C]·P(C).
 

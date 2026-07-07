@@ -1,0 +1,4088 @@
+{
+  "41370": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "podium_sweep_occurrence",
+        "description": "Whether there is at least one podium sweep at the 2026 Winter Olympic Games",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "total_sweeps_count",
+        "description": "The total number of podium sweeps that occur at the 2026 Winter Olympic Games",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 12.0,
+        "unit": "sweeps"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "netherlands_speed_skating_dominance",
+        "description": "Number of speed skating events where the Netherlands wins at least two medals",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 14.0,
+        "unit": "events"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "norway_cross_country_dominance",
+        "description": "Number of cross-country skiing events where Norway wins at least two medals",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 12.0,
+        "unit": "events"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "P_podium_sweep_occurrence = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "podium_sweep_occurrence",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.88
+      },
+      {
+        "id": "E_total_sweeps_count_",
+        "estimate_type": "expectation",
+        "variable": "total_sweeps_count",
+        "expected_value": 1.9
+      },
+      {
+        "id": "E_netherlands_speed_skating_dominance_",
+        "estimate_type": "expectation",
+        "variable": "netherlands_speed_skating_dominance",
+        "expected_value": 5.5
+      },
+      {
+        "id": "E_norway_cross_country_dominance_",
+        "estimate_type": "expectation",
+        "variable": "norway_cross_country_dominance",
+        "expected_value": 6.0
+      },
+      {
+        "id": "P_podium_sweep_occurrence = True_nethe",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "podium_sweep_occurrence",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "netherlands_speed_skating_dominance",
+            "variable_type": "continuous",
+            "threshold": 7.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.96
+      },
+      {
+        "id": "E_total_sweeps_count_norwa",
+        "estimate_type": "conditional_expectation",
+        "variable": "total_sweeps_count",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "norway_cross_country_dominance",
+            "variable_type": "continuous",
+            "threshold": 8.0,
+            "is_lower_bound": true
+          }
+        ],
+        "expected_value": 3.2
+      },
+      {
+        "id": "P_total_sweeps_count > 0.5_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "total_sweeps_count",
+          "variable_type": "continuous",
+          "threshold": 0.5,
+          "is_lower_bound": true
+        },
+        "probability": 0.88
+      },
+      {
+        "id": "P_total_sweeps_count > 2.0_norwa_nethe",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "total_sweeps_count",
+          "variable_type": "continuous",
+          "threshold": 2.0,
+          "is_lower_bound": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "norway_cross_country_dominance",
+            "variable_type": "continuous",
+            "threshold": 5.0,
+            "is_lower_bound": true
+          },
+          {
+            "proposition_type": "inequality",
+            "variable": "netherlands_speed_skating_dominance",
+            "variable_type": "continuous",
+            "threshold": 5.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.72
+      },
+      {
+        "id": "E_norway_cross_country_dominance_podiu",
+        "estimate_type": "conditional_expectation",
+        "variable": "norway_cross_country_dominance",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "podium_sweep_occurrence",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "expected_value": 3.5
+      },
+      {
+        "id": "P_total_sweeps_count > 4.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "total_sweeps_count",
+          "variable_type": "continuous",
+          "threshold": 4.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.15
+      }
+    ]
+  },
+  "0x7d5d324974fd30f5b011c0c7e041e50d3cb8af7a5483eb5e69fae955bfe3cc8f": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "jayden_daniels_wins_opoy",
+        "description": "Whether Jayden Daniels is officially named the 2025-26 NFL Offensive Player of the Year.",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "daniels_games_played",
+        "description": "The number of regular season games Jayden Daniels starts and plays in during the 2025-26 season.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 17.0,
+        "unit": "games"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "total_scrimmage_touchdowns",
+        "description": "Total number of combined passing and rushing touchdowns scored by Jayden Daniels in the 2025-26 regular season.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 60.0,
+        "unit": "touchdowns"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "is_all_pro_first_team",
+        "description": "Whether Jayden Daniels is selected as the First-Team All-Pro quarterback for the 2025-26 season.",
+        "type": "binary"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "P_jayden_daniels_wins_opoy = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "jayden_daniels_wins_opoy",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.08
+      },
+      {
+        "id": "E_daniels_games_played_",
+        "estimate_type": "expectation",
+        "variable": "daniels_games_played",
+        "expected_value": 14.8
+      },
+      {
+        "id": "E_total_scrimmage_touchdowns_",
+        "estimate_type": "expectation",
+        "variable": "total_scrimmage_touchdowns",
+        "expected_value": 32.5
+      },
+      {
+        "id": "P_jayden_daniels_wins_opoy = True_is_al",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "jayden_daniels_wins_opoy",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "is_all_pro_first_team",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.65
+      },
+      {
+        "id": "P_jayden_daniels_wins_opoy = True_is_al",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "jayden_daniels_wins_opoy",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "is_all_pro_first_team",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "probability": 0.02
+      },
+      {
+        "id": "P_is_all_pro_first_team = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "is_all_pro_first_team",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.07
+      },
+      {
+        "id": "P_jayden_daniels_wins_opoy = True_danie",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "jayden_daniels_wins_opoy",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "daniels_games_played",
+            "variable_type": "continuous",
+            "threshold": 14.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.01
+      },
+      {
+        "id": "E_total_scrimmage_touchdowns_danie",
+        "estimate_type": "conditional_expectation",
+        "variable": "total_scrimmage_touchdowns",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "daniels_games_played",
+            "variable_type": "continuous",
+            "threshold": 16.0,
+            "is_lower_bound": true
+          }
+        ],
+        "expected_value": 38.0
+      },
+      {
+        "id": "P_jayden_daniels_wins_opoy = True_total",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "jayden_daniels_wins_opoy",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "total_scrimmage_touchdowns",
+            "variable_type": "continuous",
+            "threshold": 40.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.45
+      },
+      {
+        "id": "P_daniels_games_played > 14.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "daniels_games_played",
+          "variable_type": "continuous",
+          "threshold": 14.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.75
+      }
+    ]
+  },
+  "8c78cf46f01e1f9ebf6b20b1a84836184bc3beafd8b343f0c4e2e334e6d3f1ad": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "riots_exceed_historic_average",
+        "description": "Will the number of 'Riots' in Finland during the 30 days before 2026-02-08 exceed the 30-day average from the 360 days preceding 2025-09-09?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "historic_riot_count_baseline",
+        "description": "Total number of 'Riots' in Finland during the 360-day period preceding 2025-09-09 used to calculate the threshold.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 24.0,
+        "unit": "riots"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "winter_period_riots_count",
+        "description": "Number of 'Riots' occurring in Finland during the specific 30-day window (2026-01-09 to 2026-02-08).",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 10.0,
+        "unit": "riots"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "political_protest_intensity_index",
+        "description": "The count of ACLED 'Protest' events in Finland during the 30 days before 2026-02-08, as protests often precede or escalate into riots.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 50.0,
+        "unit": "protests"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "E_historic_riot_count_baseline_",
+        "estimate_type": "expectation",
+        "variable": "historic_riot_count_baseline",
+        "expected_value": 4.5
+      },
+      {
+        "id": "P_riots_exceed_historic_average = 1_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "riots_exceed_historic_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.45
+      },
+      {
+        "id": "E_winter_period_riots_count_",
+        "estimate_type": "expectation",
+        "variable": "winter_period_riots_count",
+        "expected_value": 0.6
+      },
+      {
+        "id": "E_political_protest_intensity_index_",
+        "estimate_type": "expectation",
+        "variable": "political_protest_intensity_index",
+        "expected_value": 12.0
+      },
+      {
+        "id": "P_winter_period_riots_count > 0.5_polit",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "winter_period_riots_count",
+          "variable_type": "continuous",
+          "threshold": 0.5,
+          "is_lower_bound": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "political_protest_intensity_index",
+            "variable_type": "continuous",
+            "threshold": 20.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.7
+      },
+      {
+        "id": "P_riots_exceed_historic_average = 1_histo",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "riots_exceed_historic_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "historic_riot_count_baseline",
+            "variable_type": "continuous",
+            "threshold": 2.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.65
+      },
+      {
+        "id": "P_riots_exceed_historic_average = 1_winte",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "riots_exceed_historic_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "winter_period_riots_count",
+            "variable_type": "continuous",
+            "threshold": 0.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.95
+      },
+      {
+        "id": "E_winter_period_riots_count_polit",
+        "estimate_type": "conditional_expectation",
+        "variable": "winter_period_riots_count",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "political_protest_intensity_index",
+            "variable_type": "continuous",
+            "threshold": 30.0,
+            "is_lower_bound": true
+          }
+        ],
+        "expected_value": 2.5
+      },
+      {
+        "id": "P_winter_period_riots_count < 1.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "winter_period_riots_count",
+          "variable_type": "continuous",
+          "threshold": 1.0,
+          "is_lower_bound": false
+        },
+        "probability": 0.55
+      },
+      {
+        "id": "P_historic_riot_count_baseline > 12.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "historic_riot_count_baseline",
+          "variable_type": "continuous",
+          "threshold": 12.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.1
+      }
+    ]
+  },
+  "8874a023aa61d69330babc004208ae1977c6cb54c4bebb2c92e09017b4a0e53c": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "protest_surge_binary",
+        "description": "Will there be more than ten times as many 'Protests' in Russia for the 30 days before 2026-02-08 compared to the 360-day baseline metric?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "baseline_30_day_avg_protests",
+        "description": "The 30-day average number of protests in Russia recorded by ACLED over the 360 days preceding 2025-09-09.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 500.0,
+        "unit": "protests"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "protests_target_period",
+        "description": "Total number of ACLED-recorded protest events in Russia during the 30 days before 2026-02-08.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 5000.0,
+        "unit": "protests"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "major_mobilization_event",
+        "description": "Will a major domestic event (e.g., new mobilization wave, high-profile death, or election irregularity) occur in Russia during the target window?",
+        "type": "binary"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "E_baseline_30_day_avg_protests_",
+        "estimate_type": "expectation",
+        "variable": "baseline_30_day_avg_protests",
+        "expected_value": 25.0
+      },
+      {
+        "id": "E_protests_target_period_",
+        "estimate_type": "expectation",
+        "variable": "protests_target_period",
+        "expected_value": 35.0
+      },
+      {
+        "id": "P_protest_surge_binary = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "protest_surge_binary",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.08
+      },
+      {
+        "id": "P_major_mobilization_event = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "major_mobilization_event",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.15
+      },
+      {
+        "id": "P_protest_surge_binary = True_major",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "protest_surge_binary",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_mobilization_event",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.45
+      },
+      {
+        "id": "E_protests_target_period_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "protests_target_period",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_mobilization_event",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "expected_value": 20.0
+      },
+      {
+        "id": "E_protests_target_period_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "protests_target_period",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_mobilization_event",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 450.0
+      },
+      {
+        "id": "P_protests_target_period > 260.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "protests_target_period",
+          "variable_type": "continuous",
+          "threshold": 260.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.12
+      },
+      {
+        "id": "P_baseline_30_day_avg_protests > 100.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "baseline_30_day_avg_protests",
+          "variable_type": "continuous",
+          "threshold": 100.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.05
+      },
+      {
+        "id": "P_protest_surge_binary = True_basel",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "protest_surge_binary",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "baseline_30_day_avg_protests",
+            "variable_type": "continuous",
+            "threshold": 15.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.15
+      }
+    ]
+  },
+  "4702616e60cebe34795f35986ddf402e41abb78c19636d1c27274d77eee1d087": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "battles_increase_eswatini",
+        "description": "Will the number of 'Battles' in eSwatini in the 30 days before 2026-02-08 be greater than the 30-day average from the 360 days preceding 2025-09-09?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "historical_baseline_average",
+        "description": "The 30-day average of 'Battles' in eSwatini over the 360 days preceding 2025-09-09.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 10.0,
+        "unit": "average battles per 30 days"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "protest_to_violence_escalation",
+        "description": "Whether ACLED records a significant increase in 'Protests' or 'Riots' in eSwatini in the 60 days leading up to the target window, which often precedes 'Battles'.",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "target_period_battle_count",
+        "description": "The total number of 'Battles' recorded in eSwatini during the 30-day period ending 2026-02-08.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 25.0,
+        "unit": "battles"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "E_historical_baseline_average_",
+        "estimate_type": "expectation",
+        "variable": "historical_baseline_average",
+        "expected_value": 0.4
+      },
+      {
+        "id": "P_battles_increase_eswatini = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "battles_increase_eswatini",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.35
+      },
+      {
+        "id": "E_target_period_battle_count_",
+        "estimate_type": "expectation",
+        "variable": "target_period_battle_count",
+        "expected_value": 0.6
+      },
+      {
+        "id": "P_battles_increase_eswatini = True_prote",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "battles_increase_eswatini",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "protest_to_violence_escalation",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.7
+      },
+      {
+        "id": "P_target_period_battle_count > 1.0_prote",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "target_period_battle_count",
+          "variable_type": "continuous",
+          "threshold": 1.0,
+          "is_lower_bound": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "protest_to_violence_escalation",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "probability": 0.15
+      },
+      {
+        "id": "P_protest_to_violence_escalation = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "protest_to_violence_escalation",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.2
+      },
+      {
+        "id": "E_target_period_battle_count_prote",
+        "estimate_type": "conditional_expectation",
+        "variable": "target_period_battle_count",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "protest_to_violence_escalation",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 2.5
+      },
+      {
+        "id": "P_battles_increase_eswatini = True_histo",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "battles_increase_eswatini",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "historical_baseline_average",
+            "variable_type": "continuous",
+            "threshold": 1.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.25
+      },
+      {
+        "id": "P_target_period_battle_count < 0.1_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "target_period_battle_count",
+          "variable_type": "continuous",
+          "threshold": 0.1,
+          "is_lower_bound": false
+        },
+        "probability": 0.6
+      },
+      {
+        "id": "E_historical_baseline_average_prote",
+        "estimate_type": "conditional_expectation",
+        "variable": "historical_baseline_average",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "protest_to_violence_escalation",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 0.8
+      }
+    ]
+  },
+  "f08272e8551c9790027c5e9a93524507eabc78aa9ac56da6d774e76b1756a557": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "kenya_explosions_threshold_met",
+        "description": "Will there be more than ten times as many 'Explosions/Remote violence' in Kenya for the 30 days before 2026-02-08 compared to 1 + the 30-day average over the 360 days preceding 2025-09-09?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "historical_baseline_avg",
+        "description": "The 30-day average of 'Explosions/Remote violence' events in Kenya over the 360 days preceding 2025-09-09",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 50.0,
+        "unit": "events"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "al_shabaab_activity_index",
+        "description": "Total number of 'Explosions/Remote violence' events recorded in Kenya during the 30-day period ending 2026-02-08",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 500.0,
+        "unit": "events"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "major_offensive_or_escalation",
+        "description": "Whether a major military offensive or significant terrorist escalation (e.g., Al-Shabaab campaign) occurs in Kenya during the target 30-day window",
+        "type": "binary"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "E_historical_baseline_avg_",
+        "estimate_type": "expectation",
+        "variable": "historical_baseline_avg",
+        "expected_value": 4.5
+      },
+      {
+        "id": "P_kenya_explosions_threshold_met = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "kenya_explosions_threshold_met",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.08
+      },
+      {
+        "id": "E_al_shabaab_activity_index_",
+        "estimate_type": "expectation",
+        "variable": "al_shabaab_activity_index",
+        "expected_value": 6.2
+      },
+      {
+        "id": "P_major_offensive_or_escalation = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "major_offensive_or_escalation",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.12
+      },
+      {
+        "id": "P_kenya_explosions_threshold_met = True_major",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "kenya_explosions_threshold_met",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_offensive_or_escalation",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.45
+      },
+      {
+        "id": "E_al_shabaab_activity_index_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "al_shabaab_activity_index",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_offensive_or_escalation",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 42.0
+      },
+      {
+        "id": "P_kenya_explosions_threshold_met = True_histo",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "kenya_explosions_threshold_met",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "historical_baseline_avg",
+            "variable_type": "continuous",
+            "threshold": 6.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.03
+      },
+      {
+        "id": "P_major_offensive_or_escalation = True_al_sh",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "major_offensive_or_escalation",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "al_shabaab_activity_index",
+            "variable_type": "continuous",
+            "threshold": 50.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.85
+      },
+      {
+        "id": "E_al_shabaab_activity_index_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "al_shabaab_activity_index",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_offensive_or_escalation",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "expected_value": 4.8
+      },
+      {
+        "id": "P_al_shabaab_activity_index > 55.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "al_shabaab_activity_index",
+          "variable_type": "continuous",
+          "threshold": 55.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.07
+      }
+    ]
+  },
+  "91cecdff6f69fe6e4497c10723aa6a1949145d904d842944ca802d7e0e1b45fa": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "fatalities_exceed_tenfold_average",
+        "description": "Will there be more than ten times as many fatalities in Burkina Faso for the 30 days before 2026-02-08 compared to one plus the 30-day average of fatalities over the 360 days preceding 2025-09-09?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "baseline_30day_avg_fatalities",
+        "description": "The 30-day average of fatalities in Burkina Faso over the 360 days preceding 2025-09-09",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 1000.0,
+        "unit": "fatalities"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "january_2026_total_fatalities",
+        "description": "Total fatalities in Burkina Faso during the 30-day period ending 2026-02-08",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 10000.0,
+        "unit": "fatalities"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "major_insurgent_offensive_active",
+        "description": "Whether a major offensive by JNIM or ISGS is actively occurring in Burkina Faso during January 2026",
+        "type": "binary"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "E_baseline_30day_avg_fatalities_",
+        "estimate_type": "expectation",
+        "variable": "baseline_30day_avg_fatalities",
+        "expected_value": 650.0
+      },
+      {
+        "id": "E_january_2026_total_fatalities_",
+        "estimate_type": "expectation",
+        "variable": "january_2026_total_fatalities",
+        "expected_value": 750.0
+      },
+      {
+        "id": "P_fatalities_exceed_tenfold_average = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "fatalities_exceed_tenfold_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.04
+      },
+      {
+        "id": "P_major_insurgent_offensive_active = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "major_insurgent_offensive_active",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.35
+      },
+      {
+        "id": "E_january_2026_total_fatalities_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "january_2026_total_fatalities",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_insurgent_offensive_active",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 1400.0
+      },
+      {
+        "id": "P_fatalities_exceed_tenfold_average = True_major",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "fatalities_exceed_tenfold_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_insurgent_offensive_active",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.12
+      },
+      {
+        "id": "P_fatalities_exceed_tenfold_average = True_basel",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "fatalities_exceed_tenfold_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "baseline_30day_avg_fatalities",
+            "variable_type": "continuous",
+            "threshold": 300.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.08
+      },
+      {
+        "id": "P_january_2026_total_fatalities > 3000.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "january_2026_total_fatalities",
+          "variable_type": "continuous",
+          "threshold": 3000.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.02
+      },
+      {
+        "id": "P_major_insurgent_offensive_active = True_janua",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "major_insurgent_offensive_active",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "january_2026_total_fatalities",
+            "variable_type": "continuous",
+            "threshold": 1200.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.85
+      },
+      {
+        "id": "P_baseline_30day_avg_fatalities > 500.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "baseline_30day_avg_fatalities",
+          "variable_type": "continuous",
+          "threshold": 500.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.75
+      }
+    ]
+  },
+  "49dba3f6f7c5ca3332d34d40c12fc0db07347519a039307af49daea8798947f3": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "ten_fold_strategic_increase",
+        "description": "Will 'Strategic developments' in the 30 days before 2026-02-08 exceed 10x the reference 30-day average plus one?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "historical_30_day_average",
+        "description": "The average number of ACLED 'Strategic developments' in Czech Republic per 30-day period during the 360-day baseline (2024-09-14 to 2025-09-09).",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 50.0,
+        "unit": "events"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "target_period_event_count",
+        "description": "Total number of 'Strategic developments' recorded in Czech Republic between 2026-01-09 and 2026-02-08.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 200.0,
+        "unit": "events"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "major_political_security_shock",
+        "description": "Occurrence of a major political crisis, mass arrest of opposition, or state of emergency in Czech Republic during the target period.",
+        "type": "binary"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "E_historical_30_day_average_",
+        "estimate_type": "expectation",
+        "variable": "historical_30_day_average",
+        "expected_value": 1.2
+      },
+      {
+        "id": "E_target_period_event_count_",
+        "estimate_type": "expectation",
+        "variable": "target_period_event_count",
+        "expected_value": 1.5
+      },
+      {
+        "id": "P_ten_fold_strategic_increase = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "ten_fold_strategic_increase",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.02
+      },
+      {
+        "id": "E_target_period_event_count_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "target_period_event_count",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_political_security_shock",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 45.0
+      },
+      {
+        "id": "P_major_political_security_shock = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "major_political_security_shock",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.03
+      },
+      {
+        "id": "P_ten_fold_strategic_increase = True_major",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "ten_fold_strategic_increase",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_political_security_shock",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.45
+      },
+      {
+        "id": "P_ten_fold_strategic_increase = True_major",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "ten_fold_strategic_increase",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_political_security_shock",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "probability": 0.005
+      },
+      {
+        "id": "P_historical_30_day_average > 5.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "historical_30_day_average",
+          "variable_type": "continuous",
+          "threshold": 5.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.05
+      },
+      {
+        "id": "P_target_period_event_count > 25.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "target_period_event_count",
+          "variable_type": "continuous",
+          "threshold": 25.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.04
+      },
+      {
+        "id": "P_major_political_security_shock = True_targe",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "major_political_security_shock",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "target_period_event_count",
+            "variable_type": "continuous",
+            "threshold": 30.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.85
+      }
+    ]
+  },
+  "858e212927541060b0462a16825846f1d3370e65b886ea2fa69ae7b9d0747a8e": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "ten_fold_increase_explosions",
+        "description": "Whether ACLED 'Explosions/Remote violence' events in Ethiopia for 30 days before 2026-02-08 exceed ten times the calculated baseline (1 + 360-day average).",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "baseline_remote_violence_avg",
+        "description": "The 30-day average of 'Explosions/Remote violence' events in Ethiopia over the 360 days preceding 2025-09-09.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 50.0,
+        "unit": "events per 30 days"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "target_period_explosions_count",
+        "description": "The total count of 'Explosions/Remote violence' events in Ethiopia recorded by ACLED for the 30-day period ending 2026-02-08.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 1000.0,
+        "unit": "events"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "active_major_insurgency_conflict",
+        "description": "Whether a major conflict or insurgency involving widespread drone strikes or artillery (e.g., in Amhara or Oromia) is active during January 2026.",
+        "type": "binary"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "E_baseline_remote_violence_avg_",
+        "estimate_type": "expectation",
+        "variable": "baseline_remote_violence_avg",
+        "expected_value": 18.5
+      },
+      {
+        "id": "P_ten_fold_increase_explosions = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "ten_fold_increase_explosions",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.08
+      },
+      {
+        "id": "E_target_period_explosions_count_activ",
+        "estimate_type": "conditional_expectation",
+        "variable": "target_period_explosions_count",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "active_major_insurgency_conflict",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 45.0
+      },
+      {
+        "id": "E_target_period_explosions_count_activ",
+        "estimate_type": "conditional_expectation",
+        "variable": "target_period_explosions_count",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "active_major_insurgency_conflict",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "expected_value": 8.0
+      },
+      {
+        "id": "P_active_major_insurgency_conflict = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "active_major_insurgency_conflict",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.65
+      },
+      {
+        "id": "P_target_period_explosions_count > 200.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "target_period_explosions_count",
+          "variable_type": "continuous",
+          "threshold": 200.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.05
+      },
+      {
+        "id": "P_ten_fold_increase_explosions = True_activ",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "ten_fold_increase_explosions",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "active_major_insurgency_conflict",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.12
+      },
+      {
+        "id": "E_target_period_explosions_count_",
+        "estimate_type": "expectation",
+        "variable": "target_period_explosions_count",
+        "expected_value": 32.0
+      },
+      {
+        "id": "P_baseline_remote_violence_avg > 5.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "baseline_remote_violence_avg",
+          "variable_type": "continuous",
+          "threshold": 5.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.9
+      },
+      {
+        "id": "P_ten_fold_increase_explosions = True_activ",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "ten_fold_increase_explosions",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "active_major_insurgency_conflict",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "probability": 0.01
+      }
+    ]
+  },
+  "faaeabfcb98f1c0d56b9d78df09baa6e69a75e0e284ab2288f64c4de369dbe0d": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "battles_exceed_threshold",
+        "description": "Will there be more than ten times as many 'Battles' in Belarus for the 30 days before 2026-02-08 compared to one plus the 360-day average baseline?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "baseline_30day_avg_battles",
+        "description": "The average number of 'Battles' in Belarus per 30-day period during the 360 days preceding 2025-09-09",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 5.0,
+        "unit": "battles per 30 days"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "belarus_direct_conflict_involvement",
+        "description": "Whether Belarus becomes a direct combatant in an interstate war (e.g., invasion of Ukraine or conflict with NATO) by January 2026",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "target_period_battle_count",
+        "description": "Total number of ACLED 'Battles' recorded in Belarus between 2026-01-09 and 2026-02-08",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 100.0,
+        "unit": "battles"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "E_baseline_30day_avg_battles_",
+        "estimate_type": "expectation",
+        "variable": "baseline_30day_avg_battles",
+        "expected_value": 0.2
+      },
+      {
+        "id": "P_belarus_direct_conflict_involvement = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "belarus_direct_conflict_involvement",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.12
+      },
+      {
+        "id": "E_target_period_battle_count_belar",
+        "estimate_type": "conditional_expectation",
+        "variable": "target_period_battle_count",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "belarus_direct_conflict_involvement",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "expected_value": 0.5
+      },
+      {
+        "id": "E_target_period_battle_count_belar",
+        "estimate_type": "conditional_expectation",
+        "variable": "target_period_battle_count",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "belarus_direct_conflict_involvement",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 45.0
+      },
+      {
+        "id": "P_battles_exceed_threshold = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "battles_exceed_threshold",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.08
+      },
+      {
+        "id": "P_battles_exceed_threshold = True_belar",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "battles_exceed_threshold",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "belarus_direct_conflict_involvement",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.6
+      },
+      {
+        "id": "P_battles_exceed_threshold = True_belar",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "battles_exceed_threshold",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "belarus_direct_conflict_involvement",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "probability": 0.01
+      },
+      {
+        "id": "E_target_period_battle_count_",
+        "estimate_type": "expectation",
+        "variable": "target_period_battle_count",
+        "expected_value": 5.8
+      },
+      {
+        "id": "P_baseline_30day_avg_battles < 1.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "baseline_30day_avg_battles",
+          "variable_type": "continuous",
+          "threshold": 1.0,
+          "is_lower_bound": false
+        },
+        "probability": 0.95
+      },
+      {
+        "id": "P_target_period_battle_count > 10.0_belar",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "target_period_battle_count",
+          "variable_type": "continuous",
+          "threshold": 10.0,
+          "is_lower_bound": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "belarus_direct_conflict_involvement",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.75
+      }
+    ]
+  },
+  "bf20dee9de8bc31a7d6d1f25098298cfa844d267c0c4b9a9cab993f593e63c5b": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "lux_strategic_developments_spike",
+        "description": "Will there be more than ten times as many 'Strategic developments' in Luxembourg for the 30 days before 2026-02-08 compared to one plus the 30-day average over the 360 days preceding 2025-09-09?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "baseline_30day_avg_lux",
+        "description": "The 30-day average number of 'Strategic developments' in Luxembourg during the 360 days preceding 2025-09-09.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 5.0,
+        "unit": "events"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "target_period_event_count",
+        "description": "The total number of 'Strategic developments' recorded in Luxembourg during the 30-day period ending on 2026-02-08.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 100.0,
+        "unit": "events"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "major_political_instability_lux",
+        "description": "Occurrence of a major political crisis or mass security event in Luxembourg during the target window that would cause a spike in strategic reporting (e.g., arrests of actors, troop movements).",
+        "type": "binary"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "E_baseline_30day_avg_lux_",
+        "estimate_type": "expectation",
+        "variable": "baseline_30day_avg_lux",
+        "expected_value": 0.05
+      },
+      {
+        "id": "P_lux_strategic_developments_spike = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "lux_strategic_developments_spike",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.02
+      },
+      {
+        "id": "E_target_period_event_count_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "target_period_event_count",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_political_instability_lux",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "expected_value": 0.1
+      },
+      {
+        "id": "P_lux_strategic_developments_spike = True_major",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "lux_strategic_developments_spike",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_political_instability_lux",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.65
+      },
+      {
+        "id": "P_major_political_instability_lux = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "major_political_instability_lux",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.015
+      },
+      {
+        "id": "P_baseline_30day_avg_lux < 1.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "baseline_30day_avg_lux",
+          "variable_type": "continuous",
+          "threshold": 1.0,
+          "is_lower_bound": false
+        },
+        "probability": 0.98
+      },
+      {
+        "id": "E_target_period_event_count_",
+        "estimate_type": "expectation",
+        "variable": "target_period_event_count",
+        "expected_value": 0.3
+      },
+      {
+        "id": "E_target_period_event_count_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "target_period_event_count",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_political_instability_lux",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 12.0
+      },
+      {
+        "id": "P_target_period_event_count > 11.0_lux_s",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "target_period_event_count",
+          "variable_type": "continuous",
+          "threshold": 11.0,
+          "is_lower_bound": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "lux_strategic_developments_spike",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.95
+      },
+      {
+        "id": "P_target_period_event_count > 0.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "target_period_event_count",
+          "variable_type": "continuous",
+          "threshold": 0.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.15
+      }
+    ]
+  },
+  "6ba82a24a777f0f1b9671c1f9c5b23fafffd492c2ee37ce547bc6ed4cb6b9ebc": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "french_polynesia_protest_surge",
+        "description": "Will there be more than ten times as many 'Protests' in French Polynesia for the 30 days before 2026-02-08 compared to the adjusted baseline?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "baseline_protest_average",
+        "description": "The average number of protests per 30-day period in French Polynesia over the 360 days preceding 2025-09-09.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 10.0,
+        "unit": "protests per 30 days"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "target_period_protest_count",
+        "description": "The total count of ACLED-recorded 'Protests' in French Polynesia during the 30 days prior to 2026-02-08.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 100.0,
+        "unit": "protests"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "major_constitutional_unrest",
+        "description": "Whether a major constitutional crisis, independence movement surge, or significant labor strike occurs in French Polynesia during early 2026.",
+        "type": "binary"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "E_baseline_protest_average_",
+        "estimate_type": "expectation",
+        "variable": "baseline_protest_average",
+        "expected_value": 0.4
+      },
+      {
+        "id": "E_target_period_protest_count_",
+        "estimate_type": "expectation",
+        "variable": "target_period_protest_count",
+        "expected_value": 1.5
+      },
+      {
+        "id": "P_french_polynesia_protest_surge = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "french_polynesia_protest_surge",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.08
+      },
+      {
+        "id": "P_major_constitutional_unrest = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "major_constitutional_unrest",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.15
+      },
+      {
+        "id": "P_french_polynesia_protest_surge = True_major",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "french_polynesia_protest_surge",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_constitutional_unrest",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.45
+      },
+      {
+        "id": "E_target_period_protest_count_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "target_period_protest_count",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_constitutional_unrest",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "expected_value": 0.5
+      },
+      {
+        "id": "E_target_period_protest_count_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "target_period_protest_count",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_constitutional_unrest",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 12.0
+      },
+      {
+        "id": "P_baseline_protest_average > 2.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "baseline_protest_average",
+          "variable_type": "continuous",
+          "threshold": 2.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.05
+      },
+      {
+        "id": "P_target_period_protest_count > 10.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "target_period_protest_count",
+          "variable_type": "continuous",
+          "threshold": 10.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.12
+      },
+      {
+        "id": "P_french_polynesia_protest_surge = True_targe",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "french_polynesia_protest_surge",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "target_period_protest_count",
+            "variable_type": "continuous",
+            "threshold": 15.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.85
+      }
+    ]
+  },
+  "DPCREDIT": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "discount_rate_increase",
+        "description": "Whether the primary credit discount rate on 2026-02-08 is higher than its value on 2025-09-09.",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "final_fomc_target_upper",
+        "description": "The upper bound of the Federal Open Market Committee's target range for the federal funds rate as of February 2026.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 7.0,
+        "unit": "percent"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "core_pce_inflation_rate",
+        "description": "The year-over-year Core PCE inflation rate reported in the most recent release prior to February 2026.",
+        "type": "continuous",
+        "lower_bound": 0.5,
+        "upper_bound": 5.0,
+        "unit": "percent"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "us_recession_indicator",
+        "description": "Whether the US economy is officially in a recession or has experienced negative GDP growth between September 2025 and February 2026.",
+        "type": "binary"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "P_discount_rate_increase = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "discount_rate_increase",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.12
+      },
+      {
+        "id": "E_final_fomc_target_upper_",
+        "estimate_type": "expectation",
+        "variable": "final_fomc_target_upper",
+        "expected_value": 3.65
+      },
+      {
+        "id": "E_core_pce_inflation_rate_",
+        "estimate_type": "expectation",
+        "variable": "core_pce_inflation_rate",
+        "expected_value": 2.3
+      },
+      {
+        "id": "P_us_recession_indicator = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "us_recession_indicator",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.25
+      },
+      {
+        "id": "P_discount_rate_increase = True_core_",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "discount_rate_increase",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "core_pce_inflation_rate",
+            "variable_type": "continuous",
+            "threshold": 3.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.55
+      },
+      {
+        "id": "E_final_fomc_target_upper_us_re",
+        "estimate_type": "conditional_expectation",
+        "variable": "final_fomc_target_upper",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "us_recession_indicator",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 2.25
+      },
+      {
+        "id": "E_final_fomc_target_upper_disco",
+        "estimate_type": "conditional_expectation",
+        "variable": "final_fomc_target_upper",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "discount_rate_increase",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 5.75
+      },
+      {
+        "id": "P_core_pce_inflation_rate < 2.0_us_re",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "core_pce_inflation_rate",
+          "variable_type": "continuous",
+          "threshold": 2.0,
+          "is_lower_bound": false
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "us_recession_indicator",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.65
+      },
+      {
+        "id": "P_final_fomc_target_upper > 4.5_disco",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "final_fomc_target_upper",
+          "variable_type": "continuous",
+          "threshold": 4.5,
+          "is_lower_bound": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "discount_rate_increase",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.9
+      },
+      {
+        "id": "P_discount_rate_increase = True_us_re",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "discount_rate_increase",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "us_recession_indicator",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.02
+      }
+    ]
+  },
+  "WM1NS": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "m1_supply_increase",
+        "description": "Will the M1 money supply (WM1NS) be higher on February 8, 2026, than on September 9, 2025?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "fed_funds_rate_change",
+        "description": "The net change in the target Federal Funds Rate between September 2025 and February 2026",
+        "type": "continuous",
+        "lower_bound": -3.0,
+        "upper_bound": 2.0,
+        "unit": "percentage points"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "m1_velocity_trend",
+        "description": "The percentage change in M1 velocity over the preceding 6-month period",
+        "type": "continuous",
+        "lower_bound": -10.0,
+        "upper_bound": 10.0,
+        "unit": "percent"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "quantitative_easing_status",
+        "description": "Whether the Federal Reserve is actively increasing its balance sheet (Quantitative Easing) as of January 2026",
+        "type": "binary"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "P_m1_supply_increase = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "m1_supply_increase",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.42
+      },
+      {
+        "id": "E_fed_funds_rate_change_",
+        "estimate_type": "expectation",
+        "variable": "fed_funds_rate_change",
+        "expected_value": -0.5
+      },
+      {
+        "id": "E_m1_velocity_trend_",
+        "estimate_type": "expectation",
+        "variable": "m1_velocity_trend",
+        "expected_value": 1.2
+      },
+      {
+        "id": "P_quantitative_easing_status = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "quantitative_easing_status",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.15
+      },
+      {
+        "id": "P_m1_supply_increase = True_quant",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "m1_supply_increase",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "quantitative_easing_status",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.85
+      },
+      {
+        "id": "P_m1_supply_increase = True_fed_f",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "m1_supply_increase",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "fed_funds_rate_change",
+            "variable_type": "continuous",
+            "threshold": -1.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.7
+      },
+      {
+        "id": "E_m1_velocity_trend_m1_su",
+        "estimate_type": "conditional_expectation",
+        "variable": "m1_velocity_trend",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "m1_supply_increase",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "expected_value": 2.5
+      },
+      {
+        "id": "P_m1_supply_increase = True_fed_f",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "m1_supply_increase",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "fed_funds_rate_change",
+            "variable_type": "continuous",
+            "threshold": 0.25,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.2
+      },
+      {
+        "id": "E_fed_funds_rate_change_quant",
+        "estimate_type": "conditional_expectation",
+        "variable": "fed_funds_rate_change",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "quantitative_easing_status",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": -1.25
+      },
+      {
+        "id": "P_m1_supply_increase = True_m1_ve",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "m1_supply_increase",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "m1_velocity_trend",
+            "variable_type": "continuous",
+            "threshold": 0.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.65
+      }
+    ]
+  },
+  "8858797caf705a63035ce385c7e41cb40f87b610063d4b00877e2dcf2beed9d5": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "higher_ranking_feb_2026",
+        "description": "Will Vaishali Rameshbabu have a FIDE ranking on 2026-02-08 as high or higher than on 2025-09-09?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "vaishali_fide_rating_feb_2026",
+        "description": "The Elo rating of Vaishali Rameshbabu on the February 2026 FIDE rating list",
+        "type": "continuous",
+        "lower_bound": 2300.0,
+        "upper_bound": 2650.0,
+        "unit": "Elo points"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "vaishali_world_rank_change",
+        "description": "The change in Vaishali's world ranking position (within the Women's Top 100) between Sep 2025 and Feb 2026",
+        "type": "continuous",
+        "lower_bound": -50.0,
+        "upper_bound": 50.0,
+        "unit": "ranking spots"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "remains_active_player",
+        "description": "Whether Vaishali Rameshbabu remains an active player on the FIDE rating list through February 2026",
+        "type": "binary"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "P_higher_ranking_feb_2026 = 1_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "higher_ranking_feb_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.52
+      },
+      {
+        "id": "E_vaishali_fide_rating_feb_2026_",
+        "estimate_type": "expectation",
+        "variable": "vaishali_fide_rating_feb_2026",
+        "expected_value": 2495.0
+      },
+      {
+        "id": "P_remains_active_player = 1_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "remains_active_player",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.98
+      },
+      {
+        "id": "E_vaishali_world_rank_change_",
+        "estimate_type": "expectation",
+        "variable": "vaishali_world_rank_change",
+        "expected_value": 1.5
+      },
+      {
+        "id": "P_higher_ranking_feb_2026 = 1_vaish",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "higher_ranking_feb_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "vaishali_fide_rating_feb_2026",
+            "variable_type": "continuous",
+            "threshold": 2510.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.85
+      },
+      {
+        "id": "P_higher_ranking_feb_2026 = 1_vaish",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "higher_ranking_feb_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "vaishali_fide_rating_feb_2026",
+            "variable_type": "continuous",
+            "threshold": 2470.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.15
+      },
+      {
+        "id": "E_vaishali_fide_rating_feb_2026_vaish",
+        "estimate_type": "conditional_expectation",
+        "variable": "vaishali_fide_rating_feb_2026",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "vaishali_world_rank_change",
+            "variable_type": "continuous",
+            "threshold": 5.0,
+            "is_lower_bound": true
+          }
+        ],
+        "expected_value": 2525.0
+      },
+      {
+        "id": "P_higher_ranking_feb_2026 = 1_remai",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "higher_ranking_feb_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "remains_active_player",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "probability": 0.05
+      },
+      {
+        "id": "E_vaishali_world_rank_change_highe",
+        "estimate_type": "conditional_expectation",
+        "variable": "vaishali_world_rank_change",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "higher_ranking_feb_2026",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 4.0
+      },
+      {
+        "id": "P_vaishali_fide_rating_feb_2026 > 2500.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "vaishali_fide_rating_feb_2026",
+          "variable_type": "continuous",
+          "threshold": 2500.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.45
+      }
+    ]
+  },
+  "03288caeb42fec07ed971589de97f4a580c64bc1b75a916af289fdb34a04da42": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "duda_higher_ranking_2026",
+        "description": "Whether Jan-Krzysztof Duda's FIDE ranking on 2026-02-08 is equal to or higher than his ranking on 2025-09-09",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "duda_elo_rating_change",
+        "description": "The net change in Duda's Elo rating between September 2025 and February 2026",
+        "type": "continuous",
+        "lower_bound": -100.0,
+        "upper_bound": 100.0,
+        "unit": "Elo points"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "competitor_rating_inflation",
+        "description": "The average change in Elo ratings of the other players in the top 20 during the period",
+        "type": "continuous",
+        "lower_bound": -50.0,
+        "upper_bound": 50.0,
+        "unit": "Elo points"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "duda_activity_level",
+        "description": "The number of rated classical games played by Duda between the two dates",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 120.0,
+        "unit": "games"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "P_duda_higher_ranking_2026 = 1_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "duda_higher_ranking_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.52
+      },
+      {
+        "id": "E_duda_elo_rating_change_",
+        "estimate_type": "expectation",
+        "variable": "duda_elo_rating_change",
+        "expected_value": -2.0
+      },
+      {
+        "id": "E_competitor_rating_inflation_",
+        "estimate_type": "expectation",
+        "variable": "competitor_rating_inflation",
+        "expected_value": -1.5
+      },
+      {
+        "id": "E_duda_activity_level_",
+        "estimate_type": "expectation",
+        "variable": "duda_activity_level",
+        "expected_value": 25.0
+      },
+      {
+        "id": "P_duda_higher_ranking_2026 = 1_duda_",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "duda_higher_ranking_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "duda_activity_level",
+            "variable_type": "continuous",
+            "threshold": 40.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.48
+      },
+      {
+        "id": "P_duda_higher_ranking_2026 = 1_duda_",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "duda_higher_ranking_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "duda_elo_rating_change",
+            "variable_type": "continuous",
+            "threshold": 5.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.85
+      },
+      {
+        "id": "P_duda_higher_ranking_2026 = 1_compe",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "duda_higher_ranking_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "competitor_rating_inflation",
+            "variable_type": "continuous",
+            "threshold": 5.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.35
+      },
+      {
+        "id": "E_duda_elo_rating_change_duda_",
+        "estimate_type": "conditional_expectation",
+        "variable": "duda_elo_rating_change",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "duda_activity_level",
+            "variable_type": "continuous",
+            "threshold": 10.0,
+            "is_lower_bound": false
+          }
+        ],
+        "expected_value": 0.0
+      },
+      {
+        "id": "P_duda_higher_ranking_2026 = 1_duda_",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "duda_higher_ranking_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "duda_elo_rating_change",
+            "variable_type": "continuous",
+            "threshold": -15.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.05
+      },
+      {
+        "id": "P_competitor_rating_inflation < 10.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "competitor_rating_inflation",
+          "variable_type": "continuous",
+          "threshold": 10.0,
+          "is_lower_bound": false
+        },
+        "probability": 0.9
+      }
+    ]
+  },
+  "c907f6c2f20d03900179318b2eb8027873677867b8b7f9d2d5766809237502d5": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "carlsen_ranking_parity_feb_2026",
+        "description": "Whether Magnus Carlsen's FIDE ranking on Feb 8, 2026, is as high or higher (numerically lower or equal rank) than his ranking on Sep 9, 2025.",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "carlsen_fide_elo_rating",
+        "description": "Magnus Carlsen's Elo rating on the February 2026 FIDE list.",
+        "type": "continuous",
+        "lower_bound": 2750.0,
+        "upper_bound": 2900.0,
+        "unit": "Elo points"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "carlsen_active_status",
+        "description": "Whether Magnus Carlsen remains listed as an 'active' player on the FIDE rating list in February 2026.",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "competitor_max_elo",
+        "description": "The highest Elo rating achieved by any player other than Carlsen (e.g., Hikaru Nakamura, Arjun Erigaisi) on the February 2026 list.",
+        "type": "continuous",
+        "lower_bound": 2780.0,
+        "upper_bound": 2860.0,
+        "unit": "Elo points"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "P_carlsen_ranking_parity_feb_2026 = 1_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "carlsen_ranking_parity_feb_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.96
+      },
+      {
+        "id": "E_carlsen_fide_elo_rating_",
+        "estimate_type": "expectation",
+        "variable": "carlsen_fide_elo_rating",
+        "expected_value": 2828.0
+      },
+      {
+        "id": "P_carlsen_active_status = 1_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "carlsen_active_status",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.99
+      },
+      {
+        "id": "E_competitor_max_elo_",
+        "estimate_type": "expectation",
+        "variable": "competitor_max_elo",
+        "expected_value": 2812.0
+      },
+      {
+        "id": "P_carlsen_ranking_parity_feb_2026 = 1_compe",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "carlsen_ranking_parity_feb_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "competitor_max_elo",
+            "variable_type": "continuous",
+            "threshold": 2830.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.75
+      },
+      {
+        "id": "P_carlsen_ranking_parity_feb_2026 = 1_carls",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "carlsen_ranking_parity_feb_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "carlsen_fide_elo_rating",
+            "variable_type": "continuous",
+            "threshold": 2800.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.45
+      },
+      {
+        "id": "P_carlsen_ranking_parity_feb_2026 = 1_carls",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "carlsen_ranking_parity_feb_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "carlsen_active_status",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "probability": 0.05
+      },
+      {
+        "id": "E_carlsen_fide_elo_rating_compe",
+        "estimate_type": "conditional_expectation",
+        "variable": "carlsen_fide_elo_rating",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "competitor_max_elo",
+            "variable_type": "continuous",
+            "threshold": 2820.0,
+            "is_lower_bound": true
+          }
+        ],
+        "expected_value": 2835.0
+      },
+      {
+        "id": "P_competitor_max_elo > 2840.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "competitor_max_elo",
+          "variable_type": "continuous",
+          "threshold": 2840.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.08
+      },
+      {
+        "id": "P_carlsen_fide_elo_rating > 2820.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "carlsen_fide_elo_rating",
+          "variable_type": "continuous",
+          "threshold": 2820.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.7
+      }
+    ]
+  },
+  "fa4d2a497c94285f4ec72ff280426a2a86bc41776a0e62658dd1bc72eaeb192a": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "le_quang_liem_ranking_improvement",
+        "description": "Will L\u00ea Quang Li\u00eam's FIDE ranking on 2026-02-08 be equal to or better (lower number) than his ranking on 2025-09-09?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "le_quang_liem_fide_rating",
+        "description": "L\u00ea Quang Li\u00eam's FIDE Elo rating as of February 2026",
+        "type": "continuous",
+        "lower_bound": 2650.0,
+        "upper_bound": 2800.0,
+        "unit": "Elo points"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "number_of_active_super_grandmasters",
+        "description": "The number of players with a rating higher than 2750 in February 2026, creating competition for top rankings",
+        "type": "continuous",
+        "lower_bound": 5.0,
+        "upper_bound": 25.0,
+        "unit": "players"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "activity_level_le_quang_liem",
+        "description": "The number of classical rated games played by L\u00ea Quang Li\u00eam between September 2025 and February 2026",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 50.0,
+        "unit": "games"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "P_le_quang_liem_ranking_improvement = 1_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "le_quang_liem_ranking_improvement",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.42
+      },
+      {
+        "id": "E_le_quang_liem_fide_rating_",
+        "estimate_type": "expectation",
+        "variable": "le_quang_liem_fide_rating",
+        "expected_value": 2742.0
+      },
+      {
+        "id": "E_number_of_active_super_grandmasters_",
+        "estimate_type": "expectation",
+        "variable": "number_of_active_super_grandmasters",
+        "expected_value": 12.5
+      },
+      {
+        "id": "E_activity_level_le_quang_liem_",
+        "estimate_type": "expectation",
+        "variable": "activity_level_le_quang_liem",
+        "expected_value": 12.0
+      },
+      {
+        "id": "P_le_quang_liem_ranking_improvement = 1_activ",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "le_quang_liem_ranking_improvement",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "activity_level_le_quang_liem",
+            "variable_type": "continuous",
+            "threshold": 20.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.35
+      },
+      {
+        "id": "P_le_quang_liem_ranking_improvement = 1_le_qu",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "le_quang_liem_ranking_improvement",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "le_quang_liem_fide_rating",
+            "variable_type": "continuous",
+            "threshold": 2750.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.85
+      },
+      {
+        "id": "P_le_quang_liem_ranking_improvement = 1_numbe",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "le_quang_liem_ranking_improvement",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "number_of_active_super_grandmasters",
+            "variable_type": "continuous",
+            "threshold": 15.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.28
+      },
+      {
+        "id": "E_le_quang_liem_fide_rating_activ",
+        "estimate_type": "conditional_expectation",
+        "variable": "le_quang_liem_fide_rating",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "activity_level_le_quang_liem",
+            "variable_type": "continuous",
+            "threshold": 5.0,
+            "is_lower_bound": false
+          }
+        ],
+        "expected_value": 2741.0
+      },
+      {
+        "id": "P_le_quang_liem_fide_rating > 2760.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "le_quang_liem_fide_rating",
+          "variable_type": "continuous",
+          "threshold": 2760.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.15
+      },
+      {
+        "id": "E_le_quang_liem_fide_rating_numbe",
+        "estimate_type": "conditional_expectation",
+        "variable": "le_quang_liem_fide_rating",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "number_of_active_super_grandmasters",
+            "variable_type": "continuous",
+            "threshold": 14.0,
+            "is_lower_bound": true
+          }
+        ],
+        "expected_value": 2745.0
+      }
+    ]
+  },
+  "a987eef385663d96115ba6c113ffb3dc7e83affdcaa8c53421220e4e9e1f95f8": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "praggnanandhaa_elo_increase_one_percent",
+        "description": "Whether R Praggnanandhaa's Elo rating on 2026-02-08 is at least 1% higher than his rating on 2025-09-09 according to Wikipedia.",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "september_2025_elo_rating",
+        "description": "R Praggnanandhaa's FIDE Elo rating as of September 2025.",
+        "type": "continuous",
+        "lower_bound": 2700.0,
+        "upper_bound": 2850.0,
+        "unit": "Elo points"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "february_2026_elo_rating",
+        "description": "R Praggnanandhaa's FIDE Elo rating as of February 2026.",
+        "type": "continuous",
+        "lower_bound": 2650.0,
+        "upper_bound": 2900.0,
+        "unit": "Elo points"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "games_played_in_period",
+        "description": "Total number of FIDE-rated classical games played by Praggnanandhaa between September 2025 and February 2026.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 60.0,
+        "unit": "games"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "P_praggnanandhaa_elo_increase_one_percent = 1_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "praggnanandhaa_elo_increase_one_percent",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.38
+      },
+      {
+        "id": "E_september_2025_elo_rating_",
+        "estimate_type": "expectation",
+        "variable": "september_2025_elo_rating",
+        "expected_value": 2762.0
+      },
+      {
+        "id": "E_february_2026_elo_rating_",
+        "estimate_type": "expectation",
+        "variable": "february_2026_elo_rating",
+        "expected_value": 2775.0
+      },
+      {
+        "id": "E_games_played_in_period_",
+        "estimate_type": "expectation",
+        "variable": "games_played_in_period",
+        "expected_value": 32.0
+      },
+      {
+        "id": "P_praggnanandhaa_elo_increase_one_percent = 1_games",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "praggnanandhaa_elo_increase_one_percent",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "games_played_in_period",
+            "variable_type": "continuous",
+            "threshold": 40.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.52
+      },
+      {
+        "id": "P_praggnanandhaa_elo_increase_one_percent = 1_septe",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "praggnanandhaa_elo_increase_one_percent",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "september_2025_elo_rating",
+            "variable_type": "continuous",
+            "threshold": 2740.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.48
+      },
+      {
+        "id": "E_february_2026_elo_rating_pragg",
+        "estimate_type": "conditional_expectation",
+        "variable": "february_2026_elo_rating",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "praggnanandhaa_elo_increase_one_percent",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 2802.0
+      },
+      {
+        "id": "P_games_played_in_period > 45.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "games_played_in_period",
+          "variable_type": "continuous",
+          "threshold": 45.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.15
+      },
+      {
+        "id": "P_praggnanandhaa_elo_increase_one_percent = 1_septe",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "praggnanandhaa_elo_increase_one_percent",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "september_2025_elo_rating",
+            "variable_type": "continuous",
+            "threshold": 2780.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.22
+      },
+      {
+        "id": "P_praggnanandhaa_elo_increase_one_percent = 1_febru",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "praggnanandhaa_elo_increase_one_percent",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "february_2026_elo_rating",
+            "variable_type": "continuous",
+            "threshold": 2750.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.05
+      }
+    ]
+  },
+  "975d02beef1ceddee5c08e950f851f87e0544a43acf3a0b2d21c2e2eac16c3c5": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "marburg_vaccine_wikipedia_listed",
+        "description": "Whether Wikipedia's 'List of infectious diseases' lists a vaccine for Marburg hemorrhagic fever by February 2026",
+        "type": "binary"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "fda_marburg_vaccine_approval",
+        "description": "Whether the US FDA or equivalent regulatory body (EMA) has approved a Marburg virus vaccine for general use",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "active_phase_3_trials",
+        "description": "The number of distinct Marburg vaccine candidates currently in or having completed Phase 3 clinical trials",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 10.0,
+        "unit": "vaccine candidates"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "outbreak_severity_index",
+        "description": "The number of confirmed Marburg cases reported globally between 2023 and 2025, which influences clinical trial speed",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 5000.0,
+        "unit": "confirmed cases"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "P_marburg_vaccine_wikipedia_listed = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "marburg_vaccine_wikipedia_listed",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.15
+      },
+      {
+        "id": "P_fda_marburg_vaccine_approval = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "fda_marburg_vaccine_approval",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.12
+      },
+      {
+        "id": "E_active_phase_3_trials_",
+        "estimate_type": "expectation",
+        "variable": "active_phase_3_trials",
+        "expected_value": 0.4
+      },
+      {
+        "id": "E_outbreak_severity_index_",
+        "estimate_type": "expectation",
+        "variable": "outbreak_severity_index",
+        "expected_value": 150.0
+      },
+      {
+        "id": "P_marburg_vaccine_wikipedia_listed = True_fda_m",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "marburg_vaccine_wikipedia_listed",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "fda_marburg_vaccine_approval",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.9
+      },
+      {
+        "id": "P_marburg_vaccine_wikipedia_listed = True_activ",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "marburg_vaccine_wikipedia_listed",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "active_phase_3_trials",
+            "variable_type": "continuous",
+            "threshold": 1.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.65
+      },
+      {
+        "id": "E_active_phase_3_trials_outbr",
+        "estimate_type": "conditional_expectation",
+        "variable": "active_phase_3_trials",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "outbreak_severity_index",
+            "variable_type": "continuous",
+            "threshold": 500.0,
+            "is_lower_bound": true
+          }
+        ],
+        "expected_value": 1.8
+      },
+      {
+        "id": "P_fda_marburg_vaccine_approval = True_activ",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "fda_marburg_vaccine_approval",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "active_phase_3_trials",
+            "variable_type": "continuous",
+            "threshold": 0.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.45
+      },
+      {
+        "id": "P_active_phase_3_trials > 0.0_outbr",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "active_phase_3_trials",
+          "variable_type": "continuous",
+          "threshold": 0.0,
+          "is_lower_bound": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "outbreak_severity_index",
+            "variable_type": "continuous",
+            "threshold": 50.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.1
+      },
+      {
+        "id": "P_marburg_vaccine_wikipedia_listed = True_fda_m",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "marburg_vaccine_wikipedia_listed",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "fda_marburg_vaccine_approval",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "probability": 0.05
+      }
+    ]
+  },
+  "e38d9036894c7574f34ae300dbac617e07c4b132111d06d5c0b2768b49c4612e": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "ffi_vaccine_developed_by_2026",
+        "description": "Whether Wikipedia's list of infectious diseases indicates a vaccine has been developed for FFI by Feb 8, 2026",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "current_ffi_clinical_trials",
+        "description": "The number of active Phase II or Phase III clinical trials for an FFI vaccine or immunotherapy",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 5.0,
+        "unit": "trials"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "prion_disease_cures_exist",
+        "description": "Whether any prion disease (like CJD or FFI) has a medically approved vaccine or definitive cure",
+        "type": "binary"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "wikipedia_ffi_status_change",
+        "description": "Whether the Wikipedia page for Fatal Familial Insomnia or the List of Infectious Diseases is updated to include a vaccine section",
+        "type": "binary"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "P_prion_disease_cures_exist = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "prion_disease_cures_exist",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.01
+      },
+      {
+        "id": "E_current_ffi_clinical_trials_",
+        "estimate_type": "expectation",
+        "variable": "current_ffi_clinical_trials",
+        "expected_value": 0.05
+      },
+      {
+        "id": "P_ffi_vaccine_developed_by_2026 = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "ffi_vaccine_developed_by_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.005
+      },
+      {
+        "id": "P_wikipedia_ffi_status_change = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "wikipedia_ffi_status_change",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.015
+      },
+      {
+        "id": "P_ffi_vaccine_developed_by_2026 = True_prion",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "ffi_vaccine_developed_by_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "prion_disease_cures_exist",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.15
+      },
+      {
+        "id": "P_ffi_vaccine_developed_by_2026 = True_curre",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "ffi_vaccine_developed_by_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "current_ffi_clinical_trials",
+            "variable_type": "continuous",
+            "threshold": 0.5,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.1
+      },
+      {
+        "id": "P_wikipedia_ffi_status_change = True_ffi_v",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "wikipedia_ffi_status_change",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "ffi_vaccine_developed_by_2026",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.9
+      },
+      {
+        "id": "P_ffi_vaccine_developed_by_2026 = True_curre",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "ffi_vaccine_developed_by_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "current_ffi_clinical_trials",
+            "variable_type": "continuous",
+            "threshold": 0.5,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.001
+      },
+      {
+        "id": "E_current_ffi_clinical_trials_prion",
+        "estimate_type": "conditional_expectation",
+        "variable": "current_ffi_clinical_trials",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "prion_disease_cures_exist",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 0.4
+      },
+      {
+        "id": "E_current_ffi_clinical_trials_wikip",
+        "estimate_type": "conditional_expectation",
+        "variable": "current_ffi_clinical_trials",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "wikipedia_ffi_status_change",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 1.5
+      }
+    ]
+  },
+  "b81664fe56316ef66ac51d058aabe540336665cafb8e75bef86c1a96db5ec1b1": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "vaccine_developed_tinea_pedis",
+        "description": "Whether Wikipedia's 'List of infectious diseases' indicates a vaccine has been developed for Tinea pedis by Feb 2026.",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "active_clinical_trials_count",
+        "description": "The number of ongoing or completed Phase III clinical trials for a Tinea pedis vaccine.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 5.0,
+        "unit": "trials"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "fda_approved_fungal_vaccines",
+        "description": "The total number of human fungal infection vaccines approved by the FDA as of late 2025.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 2.0,
+        "unit": "vaccines"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "tinea_pedis_vaccine_mentioned_wikipedia",
+        "description": "Whether the main Tinea pedis Wikipedia article mentions an experimental vaccine currently in human testing.",
+        "type": "binary"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "P_vaccine_developed_tinea_pedis = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "vaccine_developed_tinea_pedis",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.01
+      },
+      {
+        "id": "E_active_clinical_trials_count_",
+        "estimate_type": "expectation",
+        "variable": "active_clinical_trials_count",
+        "expected_value": 0.05
+      },
+      {
+        "id": "E_fda_approved_fungal_vaccines_",
+        "estimate_type": "expectation",
+        "variable": "fda_approved_fungal_vaccines",
+        "expected_value": 0.02
+      },
+      {
+        "id": "P_tinea_pedis_vaccine_mentioned_wikipedia = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "tinea_pedis_vaccine_mentioned_wikipedia",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.03
+      },
+      {
+        "id": "P_vaccine_developed_tinea_pedis = True_tinea",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "vaccine_developed_tinea_pedis",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "tinea_pedis_vaccine_mentioned_wikipedia",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.15
+      },
+      {
+        "id": "P_fda_approved_fungal_vaccines > 0.5_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "fda_approved_fungal_vaccines",
+          "variable_type": "continuous",
+          "threshold": 0.5,
+          "is_lower_bound": true
+        },
+        "probability": 0.02
+      },
+      {
+        "id": "P_tinea_pedis_vaccine_mentioned_wikipedia = True_activ",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "tinea_pedis_vaccine_mentioned_wikipedia",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "active_clinical_trials_count",
+            "variable_type": "continuous",
+            "threshold": 0.5,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.8
+      },
+      {
+        "id": "E_active_clinical_trials_count_vacci",
+        "estimate_type": "conditional_expectation",
+        "variable": "active_clinical_trials_count",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "vaccine_developed_tinea_pedis",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 1.2
+      },
+      {
+        "id": "P_vaccine_developed_tinea_pedis = True_fda_a",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "vaccine_developed_tinea_pedis",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "fda_approved_fungal_vaccines",
+            "variable_type": "continuous",
+            "threshold": 0.5,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.1
+      },
+      {
+        "id": "P_vaccine_developed_tinea_pedis = True_activ",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "vaccine_developed_tinea_pedis",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "active_clinical_trials_count",
+            "variable_type": "continuous",
+            "threshold": 1.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.25
+      }
+    ]
+  },
+  "f085362f8814ffa84888e2c01d4588fd1da934aaa8a0008cef17e62f2c118b2d": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "aids_vaccine_developed_wikipedia",
+        "description": "Whether Wikipedia's List of Infectious Diseases indicates a vaccine has been developed for AIDS/HIV by Feb 2026",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "fda_approved_hiv_vaccines",
+        "description": "The number of HIV vaccines that have received full FDA approval for general use",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 5.0,
+        "unit": "vaccines"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "active_phase_3_trials",
+        "description": "The number of HIV vaccine candidates currently in Phase 3 clinical trials",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 10.0,
+        "unit": "trials"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "mrna_hiv_efficacy_milestone",
+        "description": "Whether any mRNA-based HIV vaccine candidate has demonstrated over 50% efficacy in a large-scale trial",
+        "type": "binary"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "P_aids_vaccine_developed_wikipedia = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "aids_vaccine_developed_wikipedia",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.02
+      },
+      {
+        "id": "E_fda_approved_hiv_vaccines_",
+        "estimate_type": "expectation",
+        "variable": "fda_approved_hiv_vaccines",
+        "expected_value": 0.01
+      },
+      {
+        "id": "E_active_phase_3_trials_",
+        "estimate_type": "expectation",
+        "variable": "active_phase_3_trials",
+        "expected_value": 0.2
+      },
+      {
+        "id": "P_mrna_hiv_efficacy_milestone = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "mrna_hiv_efficacy_milestone",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.05
+      },
+      {
+        "id": "P_aids_vaccine_developed_wikipedia = True_mrna_",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "aids_vaccine_developed_wikipedia",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "mrna_hiv_efficacy_milestone",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.35
+      },
+      {
+        "id": "P_aids_vaccine_developed_wikipedia = True_fda_a",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "aids_vaccine_developed_wikipedia",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "fda_approved_hiv_vaccines",
+            "variable_type": "continuous",
+            "threshold": 0.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.95
+      },
+      {
+        "id": "E_fda_approved_hiv_vaccines_activ",
+        "estimate_type": "conditional_expectation",
+        "variable": "fda_approved_hiv_vaccines",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "active_phase_3_trials",
+            "variable_type": "continuous",
+            "threshold": 0.0,
+            "is_lower_bound": true
+          }
+        ],
+        "expected_value": 0.15
+      },
+      {
+        "id": "P_active_phase_3_trials > 0.0_mrna_",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "active_phase_3_trials",
+          "variable_type": "continuous",
+          "threshold": 0.0,
+          "is_lower_bound": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "mrna_hiv_efficacy_milestone",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.8
+      },
+      {
+        "id": "P_aids_vaccine_developed_wikipedia = True_activ",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "aids_vaccine_developed_wikipedia",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "active_phase_3_trials",
+            "variable_type": "continuous",
+            "threshold": 0.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.1
+      }
+    ]
+  },
+  "6b5ae258d99205be0f8e1e4396d34caa191b640b860ce569345d93f7f4634adc": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "vaccine_developed_by_2026",
+        "description": "Whether the Wikipedia 'List of infectious diseases' page indicates a vaccine for Mycoplasma pneumonia exists by February 8, 2026.",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "current_clinical_phase",
+        "description": "The highest clinical trial phase currently reached by any Mycoplasma pneumoniae vaccine candidate.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 3.0,
+        "unit": "phase"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "fda_approved_vaccines",
+        "description": "The number of FDA-approved vaccines for Mycoplasma pneumoniae as of late 2025.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 2.0,
+        "unit": "vaccines"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "wikipedia_page_edit_activity",
+        "description": "Whether there has been a significant update to the 'Vaccine' column for Mycoplasma pneumonia on the target Wikipedia list in the last 12 months.",
+        "type": "binary"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "P_vaccine_developed_by_2026 = 1_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "vaccine_developed_by_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.05
+      },
+      {
+        "id": "E_current_clinical_phase_",
+        "estimate_type": "expectation",
+        "variable": "current_clinical_phase",
+        "expected_value": 0.4
+      },
+      {
+        "id": "E_fda_approved_vaccines_",
+        "estimate_type": "expectation",
+        "variable": "fda_approved_vaccines",
+        "expected_value": 0.02
+      },
+      {
+        "id": "P_wikipedia_page_edit_activity = 1_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "wikipedia_page_edit_activity",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.12
+      },
+      {
+        "id": "P_vaccine_developed_by_2026 = 1_curre",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "vaccine_developed_by_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "current_clinical_phase",
+            "variable_type": "continuous",
+            "threshold": 2.5,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.45
+      },
+      {
+        "id": "P_vaccine_developed_by_2026 = 1_fda_a",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "vaccine_developed_by_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "fda_approved_vaccines",
+            "variable_type": "continuous",
+            "threshold": 0.5,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.95
+      },
+      {
+        "id": "E_current_clinical_phase_wikip",
+        "estimate_type": "conditional_expectation",
+        "variable": "current_clinical_phase",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "wikipedia_page_edit_activity",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 1.2
+      },
+      {
+        "id": "P_vaccine_developed_by_2026 = 1_fda_a",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "vaccine_developed_by_2026",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "fda_approved_vaccines",
+            "variable_type": "continuous",
+            "threshold": 0.5,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.01
+      },
+      {
+        "id": "P_fda_approved_vaccines > 0.5_curre",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "fda_approved_vaccines",
+          "variable_type": "continuous",
+          "threshold": 0.5,
+          "is_lower_bound": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "current_clinical_phase",
+            "variable_type": "continuous",
+            "threshold": 2.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.15
+      },
+      {
+        "id": "E_fda_approved_vaccines_curre",
+        "estimate_type": "conditional_expectation",
+        "variable": "fda_approved_vaccines",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "current_clinical_phase",
+            "variable_type": "continuous",
+            "threshold": 1.0,
+            "is_lower_bound": false
+          }
+        ],
+        "expected_value": 0.001
+      }
+    ]
+  }
+}

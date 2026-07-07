@@ -1,0 +1,2531 @@
+{
+  "0x7d5d324974fd30f5b011c0c7e041e50d3cb8af7a5483eb5e69fae955bfe3cc8f": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "daniels_wins_opoy",
+        "description": "Will Jayden Daniels be named the 2025-26 NFL Offensive Player of the Year?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "games_started_by_daniels",
+        "description": "The number of regular season games Jayden Daniels starts in the 2025-26 NFL season. A high number is a necessary precondition for winning.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 17.0,
+        "unit": "games"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "total_offensive_yards",
+        "description": "Jayden Daniels' combined total passing and rushing yards in the 2025-26 NFL regular season.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 6500.0,
+        "unit": "yards"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "total_touchdowns",
+        "description": "Jayden Daniels' combined total passing and rushing touchdowns in the 2025-26 NFL regular season.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 60.0,
+        "unit": "touchdowns"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "commanders_playoff_berth",
+        "description": "Will the Washington Commanders make the playoffs in the 2025-26 season? Team success is highly correlated with individual awards.",
+        "type": "binary"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "P_daniels_wins_opoy = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "daniels_wins_opoy",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.02
+      },
+      {
+        "id": "E_games_started_by_daniels_",
+        "estimate_type": "expectation",
+        "variable": "games_started_by_daniels",
+        "expected_value": 14.5
+      },
+      {
+        "id": "E_total_offensive_yards_",
+        "estimate_type": "expectation",
+        "variable": "total_offensive_yards",
+        "expected_value": 4100.0
+      },
+      {
+        "id": "E_total_touchdowns_",
+        "estimate_type": "expectation",
+        "variable": "total_touchdowns",
+        "expected_value": 28.0
+      },
+      {
+        "id": "P_commanders_playoff_berth = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "commanders_playoff_berth",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.2
+      },
+      {
+        "id": "P_daniels_wins_opoy = True_comma",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "daniels_wins_opoy",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "commanders_playoff_berth",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.08
+      },
+      {
+        "id": "P_daniels_wins_opoy = True_total",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "daniels_wins_opoy",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "total_offensive_yards",
+            "variable_type": "continuous",
+            "threshold": 5000.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.25
+      },
+      {
+        "id": "P_daniels_wins_opoy = True_total",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "daniels_wins_opoy",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "total_touchdowns",
+            "variable_type": "continuous",
+            "threshold": 45.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.3
+      },
+      {
+        "id": "P_daniels_wins_opoy = True_games",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "daniels_wins_opoy",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "games_started_by_daniels",
+            "variable_type": "continuous",
+            "threshold": 15.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.001
+      },
+      {
+        "id": "E_total_offensive_yards_games",
+        "estimate_type": "conditional_expectation",
+        "variable": "total_offensive_yards",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "games_started_by_daniels",
+            "variable_type": "continuous",
+            "threshold": 16.0,
+            "is_lower_bound": true
+          }
+        ],
+        "expected_value": 4700.0
+      },
+      {
+        "id": "E_total_touchdowns_games",
+        "estimate_type": "conditional_expectation",
+        "variable": "total_touchdowns",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "games_started_by_daniels",
+            "variable_type": "continuous",
+            "threshold": 16.0,
+            "is_lower_bound": true
+          }
+        ],
+        "expected_value": 33.0
+      },
+      {
+        "id": "E_games_started_by_daniels_danie",
+        "estimate_type": "conditional_expectation",
+        "variable": "games_started_by_daniels",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "daniels_wins_opoy",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 16.8
+      },
+      {
+        "id": "P_commanders_playoff_berth = True_total",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "commanders_playoff_berth",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "total_offensive_yards",
+            "variable_type": "continuous",
+            "threshold": 4500.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.5
+      },
+      {
+        "id": "P_total_offensive_yards > 4000.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "total_offensive_yards",
+          "variable_type": "continuous",
+          "threshold": 4000.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.55
+      },
+      {
+        "id": "P_total_touchdowns > 30.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "total_touchdowns",
+          "variable_type": "continuous",
+          "threshold": 30.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.45
+      },
+      {
+        "id": "P_games_started_by_daniels > 16.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "games_started_by_daniels",
+          "variable_type": "continuous",
+          "threshold": 16.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.7
+      },
+      {
+        "id": "E_total_offensive_yards_comma",
+        "estimate_type": "conditional_expectation",
+        "variable": "total_offensive_yards",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "commanders_playoff_berth",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 4800.0
+      },
+      {
+        "id": "E_total_touchdowns_comma",
+        "estimate_type": "conditional_expectation",
+        "variable": "total_touchdowns",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "commanders_playoff_berth",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 35.0
+      },
+      {
+        "id": "P_total_touchdowns > 40.0_total",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "total_touchdowns",
+          "variable_type": "continuous",
+          "threshold": 40.0,
+          "is_lower_bound": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "total_offensive_yards",
+            "variable_type": "continuous",
+            "threshold": 5000.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.75
+      },
+      {
+        "id": "P_daniels_wins_opoy = True_total_comma",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "daniels_wins_opoy",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "total_offensive_yards",
+            "variable_type": "continuous",
+            "threshold": 5000.0,
+            "is_lower_bound": true
+          },
+          {
+            "proposition_type": "equality",
+            "variable": "commanders_playoff_berth",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.4
+      },
+      {
+        "id": "P_games_started_by_daniels < 10.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "games_started_by_daniels",
+          "variable_type": "continuous",
+          "threshold": 10.0,
+          "is_lower_bound": false
+        },
+        "probability": 0.1
+      },
+      {
+        "id": "E_total_offensive_yards_games",
+        "estimate_type": "conditional_expectation",
+        "variable": "total_offensive_yards",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "games_started_by_daniels",
+            "variable_type": "continuous",
+            "threshold": 10.0,
+            "is_lower_bound": false
+          }
+        ],
+        "expected_value": 1800.0
+      },
+      {
+        "id": "P_commanders_playoff_berth = True_games",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "commanders_playoff_berth",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "games_started_by_daniels",
+            "variable_type": "continuous",
+            "threshold": 15.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.05
+      },
+      {
+        "id": "P_total_offensive_yards > 5500.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "total_offensive_yards",
+          "variable_type": "continuous",
+          "threshold": 5500.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.03
+      },
+      {
+        "id": "P_total_touchdowns > 20.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "total_touchdowns",
+          "variable_type": "continuous",
+          "threshold": 20.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.8
+      }
+    ]
+  },
+  "8c78cf46f01e1f9ebf6b20b1a84836184bc3beafd8b343f0c4e2e334e6d3f1ad": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "more_riots_than_average",
+        "description": "Will the number of 'Riots' in Finland for the 30 days before {resolution_date} be greater than the 30-day average of 'Riots' over the 360 days preceding {forecast_due_date}?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "baseline_riot_average",
+        "description": "The 30-day average number of 'Riots' in Finland over the 360 days preceding {forecast_due_date}, calculated as (total riots in 360 days) / 12.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 5.0,
+        "unit": "riots per 30 days"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "riots_in_forecast_period",
+        "description": "The total number of 'Riots' in Finland during the 30 days leading up to {resolution_date}.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 20.0,
+        "unit": "riots"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "protests_in_forecast_period",
+        "description": "The total number of 'Protests' in Finland during the 30 days leading up to {resolution_date}, as recorded by ACLED.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 50.0,
+        "unit": "protests"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "major_political_controversy",
+        "description": "Will a major political controversy or policy (e.g., significant labor reforms, austerity measures, contentious immigration law) be a primary topic of public debate and media coverage in Finland during the forecast period?",
+        "type": "binary"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "E_baseline_riot_average_",
+        "estimate_type": "expectation",
+        "variable": "baseline_riot_average",
+        "expected_value": 0.15
+      },
+      {
+        "id": "E_riots_in_forecast_period_",
+        "estimate_type": "expectation",
+        "variable": "riots_in_forecast_period",
+        "expected_value": 0.18
+      },
+      {
+        "id": "P_more_riots_than_average = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "more_riots_than_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.15
+      },
+      {
+        "id": "E_protests_in_forecast_period_",
+        "estimate_type": "expectation",
+        "variable": "protests_in_forecast_period",
+        "expected_value": 8.0
+      },
+      {
+        "id": "P_major_political_controversy = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "major_political_controversy",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.4
+      },
+      {
+        "id": "E_riots_in_forecast_period_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "riots_in_forecast_period",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_political_controversy",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 0.4
+      },
+      {
+        "id": "E_riots_in_forecast_period_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "riots_in_forecast_period",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_political_controversy",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "expected_value": 0.05
+      },
+      {
+        "id": "E_protests_in_forecast_period_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "protests_in_forecast_period",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_political_controversy",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 15.0
+      },
+      {
+        "id": "E_protests_in_forecast_period_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "protests_in_forecast_period",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_political_controversy",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "expected_value": 3.0
+      },
+      {
+        "id": "P_more_riots_than_average = True_major",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "more_riots_than_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_political_controversy",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.3
+      },
+      {
+        "id": "P_riots_in_forecast_period > 0_prote",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "riots_in_forecast_period",
+          "variable_type": "continuous",
+          "threshold": 0.0,
+          "is_lower_bound": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "protests_in_forecast_period",
+            "variable_type": "continuous",
+            "threshold": 10.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.25
+      },
+      {
+        "id": "P_riots_in_forecast_period > 0_prote",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "riots_in_forecast_period",
+          "variable_type": "continuous",
+          "threshold": 0.0,
+          "is_lower_bound": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "protests_in_forecast_period",
+            "variable_type": "continuous",
+            "threshold": 5.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.05
+      },
+      {
+        "id": "P_riots_in_forecast_period > 2_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "riots_in_forecast_period",
+          "variable_type": "continuous",
+          "threshold": 2.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.01
+      },
+      {
+        "id": "P_baseline_riot_average > 0.5_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "baseline_riot_average",
+          "variable_type": "continuous",
+          "threshold": 0.5,
+          "is_lower_bound": true
+        },
+        "probability": 0.05
+      },
+      {
+        "id": "E_riots_in_forecast_period_basel",
+        "estimate_type": "conditional_expectation",
+        "variable": "riots_in_forecast_period",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "baseline_riot_average",
+            "variable_type": "continuous",
+            "threshold": 0.5,
+            "is_lower_bound": true
+          }
+        ],
+        "expected_value": 0.6
+      },
+      {
+        "id": "P_protests_in_forecast_period > 20_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "protests_in_forecast_period",
+          "variable_type": "continuous",
+          "threshold": 20.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.15
+      },
+      {
+        "id": "P_major_political_controversy = True_prote",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "major_political_controversy",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "protests_in_forecast_period",
+            "variable_type": "continuous",
+            "threshold": 15.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.8
+      },
+      {
+        "id": "P_baseline_riot_average < 0.1_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "baseline_riot_average",
+          "variable_type": "continuous",
+          "threshold": 0.1,
+          "is_lower_bound": false
+        },
+        "probability": 0.4
+      },
+      {
+        "id": "P_more_riots_than_average = True_major_prote",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "more_riots_than_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_political_controversy",
+            "variable_type": "binary",
+            "value": true
+          },
+          {
+            "proposition_type": "inequality",
+            "variable": "protests_in_forecast_period",
+            "variable_type": "continuous",
+            "threshold": 15.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.45
+      },
+      {
+        "id": "P_more_riots_than_average = True_major_prote",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "more_riots_than_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_political_controversy",
+            "variable_type": "binary",
+            "value": false
+          },
+          {
+            "proposition_type": "inequality",
+            "variable": "protests_in_forecast_period",
+            "variable_type": "continuous",
+            "threshold": 5.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.04
+      },
+      {
+        "id": "E_riots_in_forecast_period_prote",
+        "estimate_type": "conditional_expectation",
+        "variable": "riots_in_forecast_period",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "protests_in_forecast_period",
+            "variable_type": "continuous",
+            "threshold": 20.0,
+            "is_lower_bound": true
+          }
+        ],
+        "expected_value": 0.7
+      },
+      {
+        "id": "P_riots_in_forecast_period > 0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "riots_in_forecast_period",
+          "variable_type": "continuous",
+          "threshold": 0.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.15
+      },
+      {
+        "id": "P_protests_in_forecast_period > 5_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "protests_in_forecast_period",
+          "variable_type": "continuous",
+          "threshold": 5.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.6
+      },
+      {
+        "id": "P_riots_in_forecast_period = 0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "riots_in_forecast_period",
+          "variable_type": "binary",
+          "value": false
+        },
+        "probability": 0.85
+      },
+      {
+        "id": "P_more_riots_than_average = True_basel",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "more_riots_than_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "baseline_riot_average",
+            "variable_type": "continuous",
+            "threshold": 0.25,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.2
+      }
+    ]
+  },
+  "8874a023aa61d69330babc004208ae1977c6cb54c4bebb2c92e09017b4a0e53c": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "protest_surge_occurs",
+        "description": "Will there be more than ten times as many 'Protests' in Russia for the 30 days before the resolution date compared to one plus the 30-day average of 'Protests' over the 360 days preceding the forecast due date?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "protest_threshold",
+        "description": "The specific number of 'Protests' in the 30-day resolution period required for the question to resolve positively. This is calculated as 10 * (1 + (Total Protests in 360 days preceding forecast_due_date / 12)).",
+        "type": "continuous",
+        "lower_bound": 10.0,
+        "upper_bound": 2000.0,
+        "unit": "protests"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "major_destabilizing_event",
+        "description": "Will a major political, military, or economic event occur in Russia during the forecast period that is widely expected to trigger mass public discontent (e.g., a new general mobilization, a significant military defeat, assassination of a major political figure, severe economic collapse)?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "state_repression_level",
+        "description": "The average severity and scope of state repression against dissent during the 30-day resolution period, on a scale of 1 (business as usual) to 10 (draconian crackdown, complete suppression of any public gathering).",
+        "type": "continuous",
+        "lower_bound": 1.0,
+        "upper_bound": 10.0,
+        "unit": "repression_index_1_to_10"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "opposition_mobilization_capability",
+        "description": "The perceived capability of Russian opposition movements to organize and mobilize large-scale protests during the resolution period, on a scale of 1 (no capability) to 10 (highly effective and coordinated).",
+        "type": "continuous",
+        "lower_bound": 1.0,
+        "upper_bound": 10.0,
+        "unit": "capability_index_1_to_10"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "P_protest_surge_occurs = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "protest_surge_occurs",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.02
+      },
+      {
+        "id": "E_protest_threshold_",
+        "estimate_type": "expectation",
+        "variable": "protest_threshold",
+        "expected_value": 310.0
+      },
+      {
+        "id": "P_major_destabilizing_event = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "major_destabilizing_event",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.08
+      },
+      {
+        "id": "E_state_repression_level_",
+        "estimate_type": "expectation",
+        "variable": "state_repression_level",
+        "expected_value": 7.5
+      },
+      {
+        "id": "E_opposition_mobilization_capability_",
+        "estimate_type": "expectation",
+        "variable": "opposition_mobilization_capability",
+        "expected_value": 1.8
+      },
+      {
+        "id": "P_protest_surge_occurs = True_major",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "protest_surge_occurs",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_destabilizing_event",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.25
+      },
+      {
+        "id": "P_protest_surge_occurs = True_major",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "protest_surge_occurs",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_destabilizing_event",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "probability": 0.005
+      },
+      {
+        "id": "E_state_repression_level_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "state_repression_level",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_destabilizing_event",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 9.2
+      },
+      {
+        "id": "E_state_repression_level_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "state_repression_level",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_destabilizing_event",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "expected_value": 7.3
+      },
+      {
+        "id": "P_protest_surge_occurs = True_state",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "protest_surge_occurs",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "state_repression_level",
+            "variable_type": "continuous",
+            "threshold": 9.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.01
+      },
+      {
+        "id": "P_protest_surge_occurs = True_oppos",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "protest_surge_occurs",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "opposition_mobilization_capability",
+            "variable_type": "continuous",
+            "threshold": 4.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.15
+      },
+      {
+        "id": "P_protest_surge_occurs = True_major_oppos",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "protest_surge_occurs",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_destabilizing_event",
+            "variable_type": "binary",
+            "value": true
+          },
+          {
+            "proposition_type": "inequality",
+            "variable": "opposition_mobilization_capability",
+            "variable_type": "continuous",
+            "threshold": 4.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.4
+      },
+      {
+        "id": "E_state_repression_level_oppos",
+        "estimate_type": "conditional_expectation",
+        "variable": "state_repression_level",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "opposition_mobilization_capability",
+            "variable_type": "continuous",
+            "threshold": 4.0,
+            "is_lower_bound": true
+          }
+        ],
+        "expected_value": 8.5
+      },
+      {
+        "id": "E_opposition_mobilization_capability_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "opposition_mobilization_capability",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_destabilizing_event",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 2.5
+      },
+      {
+        "id": "E_protest_threshold_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "protest_threshold",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_destabilizing_event",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 310.0
+      },
+      {
+        "id": "P_protest_surge_occurs = True_prote",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "protest_surge_occurs",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "protest_threshold",
+            "variable_type": "continuous",
+            "threshold": 200.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.04
+      },
+      {
+        "id": "P_protest_surge_occurs = True_prote",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "protest_surge_occurs",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "protest_threshold",
+            "variable_type": "continuous",
+            "threshold": 500.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.01
+      },
+      {
+        "id": "P_protest_surge_occurs = True_major_state",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "protest_surge_occurs",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_destabilizing_event",
+            "variable_type": "binary",
+            "value": true
+          },
+          {
+            "proposition_type": "inequality",
+            "variable": "state_repression_level",
+            "variable_type": "continuous",
+            "threshold": 8.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.35
+      },
+      {
+        "id": "E_state_repression_level_prote",
+        "estimate_type": "conditional_expectation",
+        "variable": "state_repression_level",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "protest_surge_occurs",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 9.5
+      },
+      {
+        "id": "P_major_destabilizing_event = True_state",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "major_destabilizing_event",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "state_repression_level",
+            "variable_type": "continuous",
+            "threshold": 9.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.4
+      },
+      {
+        "id": "P_major_destabilizing_event = True_oppos",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "major_destabilizing_event",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "opposition_mobilization_capability",
+            "variable_type": "continuous",
+            "threshold": 4.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.12
+      },
+      {
+        "id": "E_opposition_mobilization_capability_state",
+        "estimate_type": "conditional_expectation",
+        "variable": "opposition_mobilization_capability",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "state_repression_level",
+            "variable_type": "continuous",
+            "threshold": 9.0,
+            "is_lower_bound": true
+          }
+        ],
+        "expected_value": 1.2
+      },
+      {
+        "id": "P_protest_threshold > 400.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "protest_threshold",
+          "variable_type": "continuous",
+          "threshold": 400.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.3
+      },
+      {
+        "id": "P_state_repression_level > 8.5_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "state_repression_level",
+          "variable_type": "continuous",
+          "threshold": 8.5,
+          "is_lower_bound": true
+        },
+        "probability": 0.25
+      },
+      {
+        "id": "P_opposition_mobilization_capability > 3.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "opposition_mobilization_capability",
+          "variable_type": "continuous",
+          "threshold": 3.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.1
+      }
+    ]
+  },
+  "4702616e60cebe34795f35986ddf402e41abb78c19636d1c27274d77eee1d087": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "more_battles_than_average",
+        "description": "Will the number of 'Battles' in eSwatini in the 30 days before the resolution date be greater than the 30-day average of 'Battles' over the 360 days preceding the forecast due date?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "recent_battles_trend",
+        "description": "The total number of 'Battles' events in eSwatini in the 90 days immediately preceding the forecast period.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 20.0,
+        "unit": "events"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "preceding_unrest_events",
+        "description": "The total number of 'Protests' and 'Riots' events in eSwatini in the 30 days immediately preceding the forecast period.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 50.0,
+        "unit": "events"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "significant_political_date",
+        "description": "Does the 30-day forecast period contain a major national election, a significant political anniversary (e.g., 2021 pro-democracy protests), or a major planned political gathering?",
+        "type": "binary"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "regional_instability_spillover",
+        "description": "Is there a significant increase in violent conflict or military activity in neighboring regions of South Africa or Mozambique (e.g., KwaZulu-Natal, Mpumalanga, Maputo Province) in the 90 days preceding the forecast period?",
+        "type": "binary"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "P_more_battles_than_average = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "more_battles_than_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.15
+      },
+      {
+        "id": "E_recent_battles_trend_",
+        "estimate_type": "expectation",
+        "variable": "recent_battles_trend",
+        "expected_value": 0.5
+      },
+      {
+        "id": "E_preceding_unrest_events_",
+        "estimate_type": "expectation",
+        "variable": "preceding_unrest_events",
+        "expected_value": 2.5
+      },
+      {
+        "id": "P_significant_political_date = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "significant_political_date",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.25
+      },
+      {
+        "id": "P_regional_instability_spillover = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "regional_instability_spillover",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.1
+      },
+      {
+        "id": "P_more_battles_than_average = True_recen",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "more_battles_than_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "recent_battles_trend",
+            "variable_type": "continuous",
+            "threshold": 0.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.4
+      },
+      {
+        "id": "P_more_battles_than_average = True_prece",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "more_battles_than_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "preceding_unrest_events",
+            "variable_type": "continuous",
+            "threshold": 5.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.3
+      },
+      {
+        "id": "P_more_battles_than_average = True_signi",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "more_battles_than_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "significant_political_date",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.35
+      },
+      {
+        "id": "P_more_battles_than_average = True_recen",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "more_battles_than_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "recent_battles_trend",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "probability": 0.1
+      },
+      {
+        "id": "P_more_battles_than_average = True_prece",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "more_battles_than_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "preceding_unrest_events",
+            "variable_type": "continuous",
+            "threshold": 1.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.08
+      },
+      {
+        "id": "P_more_battles_than_average = True_signi_prece",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "more_battles_than_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "significant_political_date",
+            "variable_type": "binary",
+            "value": true
+          },
+          {
+            "proposition_type": "inequality",
+            "variable": "preceding_unrest_events",
+            "variable_type": "continuous",
+            "threshold": 5.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.5
+      },
+      {
+        "id": "P_recent_battles_trend > 0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "recent_battles_trend",
+          "variable_type": "continuous",
+          "threshold": 0.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.2
+      },
+      {
+        "id": "P_recent_battles_trend > 2_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "recent_battles_trend",
+          "variable_type": "continuous",
+          "threshold": 2.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.05
+      },
+      {
+        "id": "E_recent_battles_trend_regio",
+        "estimate_type": "conditional_expectation",
+        "variable": "recent_battles_trend",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "regional_instability_spillover",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 1.5
+      },
+      {
+        "id": "E_preceding_unrest_events_recen",
+        "estimate_type": "conditional_expectation",
+        "variable": "preceding_unrest_events",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "recent_battles_trend",
+            "variable_type": "continuous",
+            "threshold": 0.0,
+            "is_lower_bound": true
+          }
+        ],
+        "expected_value": 4.0
+      },
+      {
+        "id": "P_preceding_unrest_events > 0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "preceding_unrest_events",
+          "variable_type": "continuous",
+          "threshold": 0.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.6
+      },
+      {
+        "id": "P_preceding_unrest_events > 10_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "preceding_unrest_events",
+          "variable_type": "continuous",
+          "threshold": 10.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.1
+      },
+      {
+        "id": "E_preceding_unrest_events_signi",
+        "estimate_type": "conditional_expectation",
+        "variable": "preceding_unrest_events",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "significant_political_date",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 6.0
+      },
+      {
+        "id": "P_more_battles_than_average = False_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "more_battles_than_average",
+          "variable_type": "binary",
+          "value": false
+        },
+        "probability": 0.85
+      },
+      {
+        "id": "P_recent_battles_trend > 0_regio",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "recent_battles_trend",
+          "variable_type": "continuous",
+          "threshold": 0.0,
+          "is_lower_bound": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "regional_instability_spillover",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.45
+      },
+      {
+        "id": "P_significant_political_date = False_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "significant_political_date",
+          "variable_type": "binary",
+          "value": false
+        },
+        "probability": 0.75
+      },
+      {
+        "id": "E_preceding_unrest_events_regio",
+        "estimate_type": "conditional_expectation",
+        "variable": "preceding_unrest_events",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "regional_instability_spillover",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 3.5
+      },
+      {
+        "id": "P_regional_instability_spillover = False_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "regional_instability_spillover",
+          "variable_type": "binary",
+          "value": false
+        },
+        "probability": 0.9
+      },
+      {
+        "id": "P_preceding_unrest_events > 2_signi",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "preceding_unrest_events",
+          "variable_type": "continuous",
+          "threshold": 2.0,
+          "is_lower_bound": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "significant_political_date",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.7
+      },
+      {
+        "id": "P_more_battles_than_average = True_regio",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "more_battles_than_average",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "regional_instability_spillover",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.25
+      }
+    ]
+  },
+  "49dba3f6f7c5ca3332d34d40c12fc0db07347519a039307af49daea8798947f3": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "is_spike_over_10x",
+        "description": "Will the number of 'Strategic developments' in the Czech Republic in the 30 days before the resolution date be more than ten times the threshold value (one plus the 30-day average from the 360 days preceding the forecast due date)?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "target_period_developments",
+        "description": "The total number of 'Strategic developments' events recorded by ACLED in the Czech Republic in the 30 days prior to the resolution date.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 50.0,
+        "unit": "events"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "baseline_value_threshold",
+        "description": "The calculated threshold value which the number of 'Strategic developments' in the target period must exceed. This is calculated as: 10 * (1 + [30-day average of 'Strategic developments' over the 360 days preceding the forecast date]).",
+        "type": "continuous",
+        "lower_bound": 10.0,
+        "upper_bound": 50.0,
+        "unit": "events"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "major_regional_security_escalation",
+        "description": "Will there be a major escalation in the conflict in Ukraine or another regional security crisis that directly prompts a national security response from the Czech government (e.g., troop mobilization, state of emergency) during the target period?",
+        "type": "binary"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "czech_government_crisis",
+        "description": "Will the Czech government face a formal no-confidence vote, or will the Prime Minister resign or be dismissed, leading to a significant cabinet crisis during the target period?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "protest_and_riot_count",
+        "description": "The total number of 'Protest' and 'Riot' events recorded by ACLED in the Czech Republic in the 60 days prior to the target period, as an indicator of social unrest.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 100.0,
+        "unit": "events"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "P_is_spike_over_10x = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "is_spike_over_10x",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.03
+      },
+      {
+        "id": "E_target_period_developments_",
+        "estimate_type": "expectation",
+        "variable": "target_period_developments",
+        "expected_value": 1.5
+      },
+      {
+        "id": "E_baseline_value_threshold_",
+        "estimate_type": "expectation",
+        "variable": "baseline_value_threshold",
+        "expected_value": 16.0
+      },
+      {
+        "id": "P_major_regional_security_escalation = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "major_regional_security_escalation",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.08
+      },
+      {
+        "id": "P_czech_government_crisis = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "czech_government_crisis",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.05
+      },
+      {
+        "id": "E_protest_and_riot_count_",
+        "estimate_type": "expectation",
+        "variable": "protest_and_riot_count",
+        "expected_value": 8.0
+      },
+      {
+        "id": "E_target_period_developments_major",
+        "estimate_type": "conditional_expectation",
+        "variable": "target_period_developments",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_regional_security_escalation",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 20.0
+      },
+      {
+        "id": "E_target_period_developments_czech",
+        "estimate_type": "conditional_expectation",
+        "variable": "target_period_developments",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "czech_government_crisis",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 25.0
+      },
+      {
+        "id": "P_is_spike_over_10x = True_major",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "is_spike_over_10x",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_regional_security_escalation",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.4
+      },
+      {
+        "id": "P_is_spike_over_10x = True_czech",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "is_spike_over_10x",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "czech_government_crisis",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.55
+      },
+      {
+        "id": "P_is_spike_over_10x = True_major_czech",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "is_spike_over_10x",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_regional_security_escalation",
+            "variable_type": "binary",
+            "value": true
+          },
+          {
+            "proposition_type": "equality",
+            "variable": "czech_government_crisis",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.85
+      },
+      {
+        "id": "P_czech_government_crisis = True_prote",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "czech_government_crisis",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "protest_and_riot_count",
+            "variable_type": "continuous",
+            "threshold": 40.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.2
+      },
+      {
+        "id": "E_protest_and_riot_count_czech",
+        "estimate_type": "conditional_expectation",
+        "variable": "protest_and_riot_count",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "czech_government_crisis",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 30.0
+      },
+      {
+        "id": "P_czech_government_crisis = True_major",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "czech_government_crisis",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_regional_security_escalation",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.15
+      },
+      {
+        "id": "P_is_spike_over_10x = True_major_czech",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "is_spike_over_10x",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_regional_security_escalation",
+            "variable_type": "binary",
+            "value": false
+          },
+          {
+            "proposition_type": "equality",
+            "variable": "czech_government_crisis",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "probability": 0.005
+      },
+      {
+        "id": "P_is_spike_over_10x = True_targe",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "is_spike_over_10x",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "target_period_developments",
+            "variable_type": "continuous",
+            "threshold": 15.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.9
+      },
+      {
+        "id": "E_target_period_developments_prote",
+        "estimate_type": "conditional_expectation",
+        "variable": "target_period_developments",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "protest_and_riot_count",
+            "variable_type": "continuous",
+            "threshold": 5.0,
+            "is_lower_bound": false
+          }
+        ],
+        "expected_value": 0.8
+      },
+      {
+        "id": "P_target_period_developments > 10.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "target_period_developments",
+          "variable_type": "continuous",
+          "threshold": 10.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.05
+      },
+      {
+        "id": "E_target_period_developments_basel",
+        "estimate_type": "conditional_expectation",
+        "variable": "target_period_developments",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "baseline_value_threshold",
+            "variable_type": "continuous",
+            "threshold": 20.0,
+            "is_lower_bound": true
+          }
+        ],
+        "expected_value": 2.5
+      },
+      {
+        "id": "P_is_spike_over_10x = True_basel",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "is_spike_over_10x",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "baseline_value_threshold",
+            "variable_type": "continuous",
+            "threshold": 20.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.02
+      },
+      {
+        "id": "E_target_period_developments_prote_czech",
+        "estimate_type": "conditional_expectation",
+        "variable": "target_period_developments",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "protest_and_riot_count",
+            "variable_type": "continuous",
+            "threshold": 30.0,
+            "is_lower_bound": true
+          },
+          {
+            "proposition_type": "equality",
+            "variable": "czech_government_crisis",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "expected_value": 3.5
+      },
+      {
+        "id": "P_target_period_developments < 2.0_major_czech",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "target_period_developments",
+          "variable_type": "continuous",
+          "threshold": 2.0,
+          "is_lower_bound": false
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "major_regional_security_escalation",
+            "variable_type": "binary",
+            "value": false
+          },
+          {
+            "proposition_type": "equality",
+            "variable": "czech_government_crisis",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "probability": 0.75
+      },
+      {
+        "id": "P_major_regional_security_escalation = True_czech",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "major_regional_security_escalation",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "czech_government_crisis",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.09
+      },
+      {
+        "id": "P_baseline_value_threshold > 20.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "baseline_value_threshold",
+          "variable_type": "continuous",
+          "threshold": 20.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.15
+      }
+    ]
+  },
+  "faaeabfcb98f1c0d56b9d78df09baa6e69a75e0e284ab2288f64c4de369dbe0d": {
+    "variables": [
+      {
+        "__class__": "BinaryVariable",
+        "name": "battle_spike_occurs",
+        "description": "Will there be more than ten times as many 'Battles' in Belarus for the 30 days before the resolution date compared to one plus the 30-day average of 'Battles' over the 360 days preceding the forecast due date?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "historical_battle_average",
+        "description": "The 30-day average of 'Battles' in Belarus over the 360 days preceding the forecast due date. This value determines the threshold for a positive resolution.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 5.0,
+        "unit": "battles_per_30_days"
+      },
+      {
+        "__class__": "BinaryVariable",
+        "name": "belarus_joins_ukraine_war",
+        "description": "Will the armed forces of Belarus be formally and overtly deployed in direct combat operations against Ukraine during the forecast period?",
+        "type": "binary"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "russian_troop_buildup",
+        "description": "The peak number of Russian military personnel stationed in Belarus during the forecast period.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 100000.0,
+        "unit": "personnel"
+      },
+      {
+        "__class__": "ContinuousVariable",
+        "name": "ukrainian_strikes_in_belarus",
+        "description": "The total number of confirmed Ukrainian military strikes (e.g., drone, missile, artillery) on targets within Belarusian territory during the forecast period.",
+        "type": "continuous",
+        "lower_bound": 0.0,
+        "upper_bound": 50.0,
+        "unit": "strikes"
+      }
+    ],
+    "estimates": [
+      {
+        "id": "E_historical_battle_average_",
+        "estimate_type": "expectation",
+        "variable": "historical_battle_average",
+        "expected_value": 0.05
+      },
+      {
+        "id": "P_battle_spike_occurs = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "battle_spike_occurs",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.01
+      },
+      {
+        "id": "P_belarus_joins_ukraine_war = True_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "belarus_joins_ukraine_war",
+          "variable_type": "binary",
+          "value": true
+        },
+        "probability": 0.02
+      },
+      {
+        "id": "E_russian_troop_buildup_",
+        "estimate_type": "expectation",
+        "variable": "russian_troop_buildup",
+        "expected_value": 8000.0
+      },
+      {
+        "id": "E_ukrainian_strikes_in_belarus_",
+        "estimate_type": "expectation",
+        "variable": "ukrainian_strikes_in_belarus",
+        "expected_value": 0.1
+      },
+      {
+        "id": "P_battle_spike_occurs = True_belar",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "battle_spike_occurs",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "belarus_joins_ukraine_war",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.95
+      },
+      {
+        "id": "E_russian_troop_buildup_belar",
+        "estimate_type": "conditional_expectation",
+        "variable": "russian_troop_buildup",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "belarus_joins_ukraine_war",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 60000.0
+      },
+      {
+        "id": "E_ukrainian_strikes_in_belarus_belar",
+        "estimate_type": "conditional_expectation",
+        "variable": "ukrainian_strikes_in_belarus",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "belarus_joins_ukraine_war",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 15.0
+      },
+      {
+        "id": "P_belarus_joins_ukraine_war = True_russi",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "belarus_joins_ukraine_war",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "russian_troop_buildup",
+            "variable_type": "continuous",
+            "threshold": 50000.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.75
+      },
+      {
+        "id": "P_battle_spike_occurs = True_russi",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "battle_spike_occurs",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "russian_troop_buildup",
+            "variable_type": "continuous",
+            "threshold": 50000.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.7
+      },
+      {
+        "id": "P_belarus_joins_ukraine_war = True_ukrai",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "belarus_joins_ukraine_war",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "ukrainian_strikes_in_belarus",
+            "variable_type": "continuous",
+            "threshold": 5.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.6
+      },
+      {
+        "id": "P_battle_spike_occurs = True_ukrai",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "battle_spike_occurs",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "ukrainian_strikes_in_belarus",
+            "variable_type": "continuous",
+            "threshold": 5.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.65
+      },
+      {
+        "id": "P_belarus_joins_ukraine_war = True_battl",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "belarus_joins_ukraine_war",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "battle_spike_occurs",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "probability": 0.9
+      },
+      {
+        "id": "E_russian_troop_buildup_battl",
+        "estimate_type": "conditional_expectation",
+        "variable": "russian_troop_buildup",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "battle_spike_occurs",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 55000.0
+      },
+      {
+        "id": "E_ukrainian_strikes_in_belarus_battl",
+        "estimate_type": "conditional_expectation",
+        "variable": "ukrainian_strikes_in_belarus",
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "battle_spike_occurs",
+            "variable_type": "binary",
+            "value": true
+          }
+        ],
+        "expected_value": 12.0
+      },
+      {
+        "id": "P_historical_battle_average > 0.5_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "historical_battle_average",
+          "variable_type": "continuous",
+          "threshold": 0.5,
+          "is_lower_bound": true
+        },
+        "probability": 0.01
+      },
+      {
+        "id": "P_russian_troop_buildup > 50000.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "russian_troop_buildup",
+          "variable_type": "continuous",
+          "threshold": 50000.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.03
+      },
+      {
+        "id": "P_ukrainian_strikes_in_belarus > 5.0_",
+        "estimate_type": "probability",
+        "proposition": {
+          "proposition_type": "inequality",
+          "variable": "ukrainian_strikes_in_belarus",
+          "variable_type": "continuous",
+          "threshold": 5.0,
+          "is_lower_bound": true
+        },
+        "probability": 0.015
+      },
+      {
+        "id": "P_battle_spike_occurs = True_belar",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "battle_spike_occurs",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "belarus_joins_ukraine_war",
+            "variable_type": "binary",
+            "value": false
+          }
+        ],
+        "probability": 0.001
+      },
+      {
+        "id": "P_belarus_joins_ukraine_war = True_russi",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "belarus_joins_ukraine_war",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "russian_troop_buildup",
+            "variable_type": "continuous",
+            "threshold": 10000.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.005
+      },
+      {
+        "id": "E_ukrainian_strikes_in_belarus_russi",
+        "estimate_type": "conditional_expectation",
+        "variable": "ukrainian_strikes_in_belarus",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "russian_troop_buildup",
+            "variable_type": "continuous",
+            "threshold": 50000.0,
+            "is_lower_bound": true
+          }
+        ],
+        "expected_value": 8.0
+      },
+      {
+        "id": "E_russian_troop_buildup_ukrai",
+        "estimate_type": "conditional_expectation",
+        "variable": "russian_troop_buildup",
+        "conditions": [
+          {
+            "proposition_type": "inequality",
+            "variable": "ukrainian_strikes_in_belarus",
+            "variable_type": "continuous",
+            "threshold": 5.0,
+            "is_lower_bound": true
+          }
+        ],
+        "expected_value": 45000.0
+      },
+      {
+        "id": "P_battle_spike_occurs = True_belar_russi",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "battle_spike_occurs",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "belarus_joins_ukraine_war",
+            "variable_type": "binary",
+            "value": true
+          },
+          {
+            "proposition_type": "inequality",
+            "variable": "russian_troop_buildup",
+            "variable_type": "continuous",
+            "threshold": 50000.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.98
+      },
+      {
+        "id": "P_battle_spike_occurs = True_belar_russi",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "battle_spike_occurs",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "belarus_joins_ukraine_war",
+            "variable_type": "binary",
+            "value": true
+          },
+          {
+            "proposition_type": "inequality",
+            "variable": "russian_troop_buildup",
+            "variable_type": "continuous",
+            "threshold": 10000.0,
+            "is_lower_bound": false
+          }
+        ],
+        "probability": 0.3
+      },
+      {
+        "id": "P_battle_spike_occurs = True_belar_ukrai",
+        "estimate_type": "conditional_probability",
+        "proposition": {
+          "proposition_type": "equality",
+          "variable": "battle_spike_occurs",
+          "variable_type": "binary",
+          "value": true
+        },
+        "conditions": [
+          {
+            "proposition_type": "equality",
+            "variable": "belarus_joins_ukraine_war",
+            "variable_type": "binary",
+            "value": false
+          },
+          {
+            "proposition_type": "inequality",
+            "variable": "ukrainian_strikes_in_belarus",
+            "variable_type": "continuous",
+            "threshold": 5.0,
+            "is_lower_bound": true
+          }
+        ],
+        "probability": 0.05
+      }
+    ]
+  }
+}

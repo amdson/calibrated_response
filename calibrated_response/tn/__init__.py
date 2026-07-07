@@ -7,9 +7,11 @@ with continuous<->discrete handled in :mod:`discretize`.
 """
 
 from .discretize import ContinuousVar, Discretizer, latent_var, belief_var
-from .chain import TensorChain, FIT_BACKENDS
+from .chain import TensorChain, FIT_BACKENDS, reusable_adam
+from .tree import TensorTree, path_edges, star_edges
 from .plotting import plot_pairwise
 from . import losses
 
 __all__ = ["ContinuousVar", "Discretizer", "latent_var", "belief_var",
-           "TensorChain", "FIT_BACKENDS", "plot_pairwise", "losses"]
+           "TensorChain", "TensorTree", "path_edges", "star_edges",
+           "FIT_BACKENDS", "reusable_adam", "plot_pairwise", "losses"]

@@ -51,7 +51,11 @@ pandas groupby.
 ## Extending
 
 - New engine: implement `fit(enc, bag, seed) -> fitted` with
-  `log_prob_rows / marginal / pair_marginal`, register in `ENGINES`
-  (`GaussianEngine` and `PCEngine` are stubs awaiting ports of the existing
-  implementations).
+  `log_prob_rows / marginal / pair_marginal`, register in `ENGINES`.
+  Available: `independent`, `tn`, `flow` (invertible flow maxent — exact
+  density via the inverse pass), `gaussian` (single joint Gaussian; weak here
+  by construction — quantile encoding makes marginals uniform, which a
+  Gaussian is misspecified for), `copula` (Gaussian copula: exact histogram
+  marginals + one correlation matrix, the strong linear baseline).
+  `PCEngine` is a stub awaiting a port.
 - New dataset: add a loader to `DATASETS` returning `(train_df, test_df)`.

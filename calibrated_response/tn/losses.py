@@ -17,6 +17,7 @@ All take ``(model, params) -> scalar`` (lower = better), so they compose:
 
 from __future__ import annotations
 
+import jax
 import jax.numpy as jnp
 
 _EPS = 1e-12
@@ -50,6 +51,11 @@ def neg_marginal_entropy(model, params):
 
 def neg_renyi2_entropy(model, params):
     """``-H2(p)/n`` — minimise to *maximise* the joint Rényi-2 entropy.
+
+    .. deprecated::
+        **Deprecated for now** along with :meth:`TensorChain.renyi2_entropy` (which
+        it calls) — kept working but unmaintained, to be reworked later. Calling it
+        emits a :class:`DeprecationWarning`.
 
     The joint counterpart of :func:`neg_marginal_entropy` (and the ``-beta*H2``
     entropy-pressure term of ``smothing_notes.md``): ``H2 = -log sum_x p(x)^2``
@@ -105,8 +111,11 @@ def marginal_curvature(model, params):
 
 
 def _phys_axis(i, n):
-    """Physical (bin) axis of core i: (d,r)->0, (r,d,r)->1, (r,d)->1."""
-    return 0 if i == 0 else 1
+    """Physical (bin) axis of core i. The tree stores every node core
+    physical-axis-first — ``(d, r)`` / ``(d, r_L, r_R)`` / ``(d, r)`` — so the
+    bin axis is always ``0`` (this was ``1`` under the old standalone-chain
+    ``(r, d, r)`` layout)."""
+    return 0
 
 
 def core_tv(model, params):
@@ -573,6 +582,161 @@ def projection_entropy(n_dirs=4, seed=0, n_grid=161):
         return tot / n_dirs                                      # minimise => max entropy
 
     return reg
+
+
+# ---------------------------------------------------------------------------
+# batched / reusable constraint loss  (compile once, refit many)
+# ---------------------------------------------------------------------------
+#
+# ``combined_loss`` bakes every constraint *target* into the traced graph as a
+# Python constant, so a solver that re-fits the same constraint *structure* with
+# different target values (a noise sweep, a robustness sweep, an outer loop that
+# updates estimates) pays the full XLA compile on every fit. It also unrolls one
+# independent chain contraction per constraint, so the compiled graph — and thus
+# the compile time — grows linearly in the number of constraints.
+#
+# ``batched_constraint_loss`` fixes both:
+#   * targets are lifted to a *traced argument* ``targets`` -> one compiled
+#     executable is reused across every same-structure fit (structure = which
+#     sites / bins each constraint touches; only the numbers change).
+#   * same-type constraints are evaluated by a single ``vmap``-ed contraction
+#     instead of N unrolled ones -> a far smaller graph, so even the one-time
+#     compile is much cheaper.
+#
+# It consumes the same constraint-tuple format as :func:`combined_loss` /
+# :meth:`TensorChain.constraint_loss` (``("prob"|"cond"|"cond_expect"|"kl", …)``),
+# and returns ``(loss_fn, pack_targets)`` where ``loss_fn(params, targets)`` is
+# jittable and ``pack_targets(constraints2)`` extracts the ``targets`` pytree from
+# any constraint list sharing the first list's structure.
+
+_EPS_CHAIN = 1e-30            # match TensorChain's event-contraction epsilon
+
+
+def _event_logcontract(cores, masks, n, dims, born):
+    """log of the (nonnegative) masked chain contraction — the standalone,
+    ``vmap``-friendly twin of :meth:`TensorChain._log_event_contract`.
+
+    ``masks`` is a length-``n`` tuple of ``(d_s,)`` bin weights (all-ones on
+    untouched sites). Mapped over a batch of constraints with ``jax.vmap``.
+    """
+    c = cores[0]
+    m = masks[0]
+    L = (jnp.einsum("xa,x,xb->ab", c, m, c) if born
+         else jnp.einsum("xa,x->a", c, m))
+    nrm = jnp.sqrt(jnp.sum(L * L)) + _EPS_CHAIN
+    logc = jnp.log(nrm)
+    L = L / nrm
+    for i in range(1, n - 1):
+        c = cores[i]
+        m = masks[i]
+        L = (jnp.einsum("ab,axc,x,bxd->cd", L, c, m, c) if born
+             else jnp.einsum("a,axc,x->c", L, c, m))
+        nrm = jnp.sqrt(jnp.sum(L * L)) + _EPS_CHAIN
+        L = L / nrm
+        logc = logc + jnp.log(nrm)
+    c = cores[-1]
+    m = masks[-1]
+    val = (jnp.einsum("ab,ax,x,bx->", L, c, m, c) if born
+           else jnp.einsum("a,ax,x->", L, c, m))
+    return logc + jnp.log(val + _EPS_CHAIN)
+
+
+def _stack_masks(events, n, dims):
+    """List of event dicts -> tuple over sites of ``(len(events), d_s)`` masks."""
+    import numpy as np
+    per_site = []
+    for s in range(n):
+        rows = [np.asarray(ev.get(s, np.ones(dims[s], np.float32)), np.float32)
+                for ev in events]
+        per_site.append(jnp.asarray(np.stack(rows)))
+    return tuple(per_site)
+
+
+def batched_constraint_loss(model, constraints, regularizers=()):
+    """Compile-once, refit-many constraint loss (see section comment above).
+
+    Returns ``(loss_fn, pack_targets)``:
+
+    - ``loss_fn(params, targets)`` — the SSE + regularizer loss, with ``targets``
+      a traced pytree (so ``jax.jit(loss_fn)`` compiles once and is reused for
+      every target value). Numerically matches :meth:`TensorChain.constraint_loss`
+      + regularizers for the same ``constraints``.
+    - ``pack_targets(constraints2)`` — extract the ``targets`` pytree from a
+      constraint list with the *same structure* (same ordering / event supports)
+      but possibly different target values.
+
+    Supports the ``prob`` / ``cond`` / ``cond_expect`` / ``kl`` constraint kinds
+    (those emitted by the benchmark encoder). ``prob`` and ``cond`` — usually the
+    bulk — are evaluated batched via ``vmap``; the handful of ``cond_expect`` /
+    ``kl`` terms stay unrolled (they open a variable site, which does not batch as
+    cleanly, and there are few of them).
+    """
+    n, dims, born = model.n, model.dims, model.kind == "born"
+
+    prob = [(c[1], c[2]) for c in constraints if c[0] == "prob"]
+    cond = [(c[1], c[2], c[3]) for c in constraints if c[0] == "cond"]
+    cexp = [(c[1], c[2]) for c in constraints if c[0] == "cond_expect"]
+    kls = [(c[1], (c[3] if len(c) > 3 else 1.0)) for c in constraints if c[0] == "kl"]
+    known = {"prob", "cond", "cond_expect", "kl"}
+    other = [c[0] for c in constraints if c[0] not in known]
+    if other:
+        raise NotImplementedError(
+            f"batched_constraint_loss does not support kinds {sorted(set(other))}; "
+            "use combined_loss for those.")
+
+    ones = tuple(jnp.ones(dims[s], jnp.float32) for s in range(n))
+    prob_masks = _stack_masks([ev for ev, _ in prob], n, dims) if prob else None
+    if cond:
+        merged = []
+        given = []
+        for ev, gv, _ in cond:
+            m = dict(gv)
+            for s, msk in ev.items():
+                m[s] = m[s] * msk if s in m else msk
+            merged.append(m)
+            given.append(gv)
+        cond_merged = _stack_masks(merged, n, dims)
+        cond_given = _stack_masks(given, n, dims)
+
+    regs = [(REGULARIZERS[f] if isinstance(f, str) else f, w) for f, w in regularizers]
+
+    def loss(params, targets):
+        cores = model._cores(params)
+        contract = lambda ms: _event_logcontract(cores, ms, n, dims, born)
+        tot = 0.0
+        if prob:
+            logZ = contract(ones)
+            pv = jnp.exp(jax.vmap(contract)(prob_masks) - logZ)
+            tot = tot + jnp.sum((pv - targets["prob"]) ** 2)
+        if cond:
+            cv = jnp.exp(jax.vmap(contract)(cond_merged)
+                         - jax.vmap(contract)(cond_given))
+            tot = tot + jnp.sum((cv - targets["cond"]) ** 2)
+        for k, (site, gv) in enumerate(cexp):
+            tot = tot + (model.cond_expectation(params, site, gv) - targets["cexp"][k]) ** 2
+        for k, (site, w) in enumerate(kls):
+            tot = tot + w * model.marginal_kl(params, site, targets["kl"][k])
+        for fn, w in regs:
+            tot = tot + w * fn(model, params)
+        return tot
+
+    def pack_targets(constraints2):
+        out = {}
+        if prob:
+            out["prob"] = jnp.asarray([c[2] for c in constraints2 if c[0] == "prob"],
+                                      jnp.float32)
+        if cond:
+            out["cond"] = jnp.asarray([c[3] for c in constraints2 if c[0] == "cond"],
+                                      jnp.float32)
+        if cexp:
+            out["cexp"] = jnp.asarray([c[3] for c in constraints2 if c[0] == "cond_expect"],
+                                      jnp.float32)
+        if kls:
+            out["kl"] = [jnp.asarray(c[2], jnp.float32)
+                         for c in constraints2 if c[0] == "kl"]
+        return out
+
+    return loss, pack_targets
 
 
 # ---------------------------------------------------------------------------
