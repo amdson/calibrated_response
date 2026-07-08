@@ -98,6 +98,11 @@ def main(argv=None):
                     help="drop CorrelationEstimate (information-diet ablation)")
     ap.add_argument("--robust", action="store_true")
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--shard", default=None,
+                    help="'i/n': process every n-th todo entry starting at i. "
+                         "Poor-man's parallelism across sessions — each shard "
+                         "MUST write to its own --out file; merge afterwards "
+                         "(the files are plain {key: row} dicts).")
     args = ap.parse_args(argv)
 
     _, entries = load_dataset(args.dataset)
@@ -112,8 +117,12 @@ def main(argv=None):
               "robust": args.robust, "seed": args.seed}
 
     todo = [k for k in cache if k in by_key and k not in preds]
+    if args.shard:
+        i, n = (int(x) for x in args.shard.split("/"))
+        todo = todo[i::n]
     print(f"cache: {len(cache)}  already predicted: {len(preds)}  "
-          f"todo: {len(todo)}  config: {config}")
+          f"todo: {len(todo)}{f'  (shard {args.shard})' if args.shard else ''}"
+          f"  config: {config}")
 
     n_done = 0
     for key in todo:
