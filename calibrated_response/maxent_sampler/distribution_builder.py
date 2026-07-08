@@ -35,6 +35,7 @@ from calibrated_response.models.distribution import (
 from calibrated_response.models.query import (
     ConditionalExpectationEstimate,
     ConditionalProbabilityEstimate,
+    CorrelationEstimate,
     EqualityProposition,
     EstimateUnion,
     ExpectationEstimate,
@@ -100,6 +101,9 @@ class DistributionBuilder:
     value_rel_sd : float
         Belief width for expectation targets, as a *fraction of the variable's
         span* (keeps the squared residuals unit-free across mixed domains).
+    corr_sd : float
+        Belief width for correlation targets (weight ``1 / (2 corr_sd²)``);
+        correlations are scale-free so no span normalisation is needed.
     sharpness : float
         Soft-indicator sharpness in span-normalised units — the effective
         sigmoid slope at a threshold on variable ``i`` is ``sharpness / span_i``.
@@ -122,6 +126,7 @@ class DistributionBuilder:
         estimates: Sequence[EstimateUnion],
         prob_sd: float = 0.05,
         value_rel_sd: float = 0.05,
+        corr_sd: float = 0.15,
         sharpness: float = 20.0,
         robust: bool = False,
         p_broken: float = 0.05,
@@ -134,6 +139,7 @@ class DistributionBuilder:
         self.estimates = list(estimates)
         self.prob_sd = float(prob_sd)
         self.value_rel_sd = float(value_rel_sd)
+        self.corr_sd = float(corr_sd)
         self.sharpness = float(sharpness)
         self.robust = bool(robust)
         self.p_broken = float(p_broken)
@@ -172,8 +178,10 @@ class DistributionBuilder:
 
         # ---- estimates → constraints + evaluation rows -----------------------
         self.constraints: list = []
-        # report rows: (est_id, description, target, eval_fn, hard_cond_or_None)
+        # report rows: (est_id, description, target, eval_fn,
+        #               hard_cond_or_None, gate_idx_or_None)
         self._report_rows: list = []
+        self._n_gates = 0            # onoff gates appended so far (robust mode)
         self._build_constraints()
 
         self.params = None
@@ -228,16 +236,25 @@ class DistributionBuilder:
                 f"[{cv.lower}, {cv.upper}] of {cv.name!r}; clipped to {clipped}")
         return clipped
 
-    def _add(self, f, cond, target, sd, est_id, desc, eval_fn, hard_cond):
-        """Append one constraint (plain or robust) plus its report row."""
+    def _add(self, f, cond, target, sd, est_id, desc, eval_fn, hard_cond,
+             scale: float = 1.0):
+        """Append one constraint (plain or robust) plus its report row.
+
+        ``scale`` is the natural unit of the residual (the variable span for
+        expectation targets, 1 for probabilities/correlations) so report
+        errors are comparable across mixed-unit constraints."""
+        gate = None
         if self.robust:
             self.constraints.append(("onoff", f, cond, target, sd, self.p_broken))
+            gate = self._n_gates
+            self._n_gates += 1
         elif cond is None:
             self.constraints.append(("expect", f, target, 1.0 / (2.0 * sd * sd)))
         else:
             self.constraints.append(
                 ("cond_expect", f, cond, target, 1.0 / (2.0 * sd * sd)))
-        self._report_rows.append((est_id, desc, target, eval_fn, hard_cond))
+        self._report_rows.append(
+            (est_id, desc, target, eval_fn, hard_cond, gate, scale))
 
     def _build_constraints(self) -> None:
         for est in self.estimates:
@@ -253,7 +270,8 @@ class DistributionBuilder:
                     tg = self._clip_target(est.id, idx, float(est.expected_value))
                     self._add(f, None, tg, self.value_rel_sd * self._span(idx),
                               est.id, est.to_query_estimate(),
-                              lambda x, f=f: float(np.mean(f(x))), None)
+                              lambda x, f=f: float(np.mean(f(x))), None,
+                              scale=self._span(idx))
 
                 elif isinstance(est, ConditionalProbabilityEstimate):
                     if not est.conditions:
@@ -280,7 +298,34 @@ class DistributionBuilder:
                         c = hc(x)
                         return float(np.sum(f(x) * c) / (np.sum(c) + _EPS))
                     self._add(f, soft_c, tg, self.value_rel_sd * self._span(idx),
-                              est.id, est.to_query_estimate(), ev, hard_c)
+                              est.id, est.to_query_estimate(), ev, hard_c,
+                              scale=self._span(idx))
+
+                elif isinstance(est, CorrelationEstimate):
+                    fa, ia = self._moment_events(est.variable_a)
+                    fb, ib = self._moment_events(est.variable_b)
+                    tg = float(est.correlation)
+                    # scale-free "corr" constraint; the loss correlates raw
+                    # site values (binary sites live on [0,1]), the report
+                    # uses thresholded binaries for consistency with
+                    # sample_dict semantics
+                    self.constraints.append(
+                        ("corr", fa, fb, tg,
+                         1.0 / (2.0 * self.corr_sd * self.corr_sd)))
+                    if self.robust:
+                        self.warnings.append(
+                            f"{est.id}: correlation constraints are not gated "
+                            f"in robust mode (no credence)")
+
+                    def ev(x, ia=ia, ib=ib):
+                        a = ((x[:, ia] > 0.5).astype(float)
+                             if self.is_binary[ia] else x[:, ia])
+                        b = ((x[:, ib] > 0.5).astype(float)
+                             if self.is_binary[ib] else x[:, ib])
+                        return float(np.corrcoef(a, b)[0, 1])
+                    self._report_rows.append(
+                        (est.id, est.to_query_estimate(), tg, ev, None, None,
+                         1.0))
 
                 else:
                     self.skipped.append(
@@ -362,7 +407,7 @@ class DistributionBuilder:
         x = self.sample(n_samples, seed=seed)
         creds = self.model.credences(self.params) if self.robust else None
         rows = []
-        for k, (eid, desc, target, ev, hard_cond) in enumerate(self._report_rows):
+        for eid, desc, target, ev, hard_cond, gate, scale in self._report_rows:
             fitted = ev(x)
             rows.append({
                 "id": eid,
@@ -370,9 +415,14 @@ class DistributionBuilder:
                 "target": target,
                 "fitted": fitted,
                 "error": fitted - target,
+                # residual in span-normalised units — comparable across
+                # probabilities (scale 1) and raw-unit expectations
+                "error_rel": (fitted - target) / scale,
                 "p_cond": (float(np.mean(hard_cond(x)))
                            if hard_cond is not None else None),
-                "credence": float(creds[k]) if creds is not None else None,
+                "credence": (float(creds[gate])
+                             if creds is not None and gate is not None
+                             else None),
             })
         return rows
 
