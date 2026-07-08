@@ -1,0 +1,686 @@
+{
+ "WALCL@2026-02-15": {
+  "variables": [
+   {
+    "__class__": "BinaryVariable",
+    "name": "target",
+    "description": "The literal answer to the main question: Will the total dollar amount of assets held by all US Federal Reserve banks have increased by 2026-02-22 as compared to its value on 2026-02-15?",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "fed_balance_sheet_trend",
+    "description": "The average weekly change in total assets (WALCL) over the preceding 4 weeks leading up to February 15, 2026",
+    "type": "continuous",
+    "lower_bound": -100000.0,
+    "upper_bound": 100000.0,
+    "unit": "millions of USD"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "qt_is_active",
+    "description": "Whether the Federal Reserve is actively pursuing a policy of Quantitative Tightening (reducing its balance sheet) as of February 2026",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "emergency_liquidity_usage",
+    "description": "The total value of loans extended by the Fed through liquidity facilities (like the Discount Window or Bank Term Funding Program) in the week ending February 22",
+    "type": "continuous",
+    "lower_bound": 0.0,
+    "upper_bound": 500000.0,
+    "unit": "millions of USD"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "treasury_securities_roll_off",
+    "description": "The estimated value of U.S. Treasury securities maturing and rolling off the Fed's balance sheet during the specific week of February 15-22, 2026",
+    "type": "continuous",
+    "lower_bound": 0.0,
+    "upper_bound": 95000.0,
+    "unit": "millions of USD"
+   }
+  ],
+  "estimates": [
+   {
+    "id": "P_target = 1_",
+    "estimate_type": "probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.35
+   },
+   {
+    "id": "E_fed_balance_sheet_trend_",
+    "estimate_type": "expectation",
+    "variable": "fed_balance_sheet_trend",
+    "expected_value": -15000.0
+   },
+   {
+    "id": "P_qt_is_active = 1_",
+    "estimate_type": "probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "qt_is_active",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.65
+   },
+   {
+    "id": "E_emergency_liquidity_usage_",
+    "estimate_type": "expectation",
+    "variable": "emergency_liquidity_usage",
+    "expected_value": 2000.0
+   },
+   {
+    "id": "E_treasury_securities_roll_off_qt_is",
+    "estimate_type": "conditional_expectation",
+    "variable": "treasury_securities_roll_off",
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "qt_is_active",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "expected_value": 15000.0
+   },
+   {
+    "id": "P_target = 1_qt_is",
+    "estimate_type": "conditional_probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "qt_is_active",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.15
+   },
+   {
+    "id": "P_target = 1_emerg",
+    "estimate_type": "conditional_probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "emergency_liquidity_usage",
+      "variable_type": "continuous",
+      "threshold": 50000.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.85
+   },
+   {
+    "id": "E_treasury_securities_roll_off_",
+    "estimate_type": "expectation",
+    "variable": "treasury_securities_roll_off",
+    "expected_value": 10000.0
+   },
+   {
+    "id": "E_fed_balance_sheet_trend_qt_is",
+    "estimate_type": "conditional_expectation",
+    "variable": "fed_balance_sheet_trend",
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "qt_is_active",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "expected_value": -25000.0
+   },
+   {
+    "id": "P_target = 1_fed_b",
+    "estimate_type": "conditional_probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "fed_balance_sheet_trend",
+      "variable_type": "continuous",
+      "threshold": 0.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.8
+   }
+  ],
+  "model": "google/gemini-3-flash-preview",
+  "elicited_at": "2026-07-08T12:07:11",
+  "seconds": 64.9,
+  "attempts": 3
+ },
+ "GASREGW@2026-05-10": {
+  "variables": [
+   {
+    "__class__": "BinaryVariable",
+    "name": "target",
+    "description": "The literal answer to the main question: Will the average price of regular gas in the US have increased by 2026-05-17 as compared to its value on 2026-05-10?",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "crude_oil_price_change",
+    "description": "The percentage change in the price of WTI Crude oil between May 10 and May 17, 2026",
+    "type": "continuous",
+    "lower_bound": -20.0,
+    "upper_bound": 20.0,
+    "unit": "percentage"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "refinery_utilization_rate",
+    "description": "The national average refinery utilization rate as reported by the EIA for the week ending May 15, 2026",
+    "type": "continuous",
+    "lower_bound": 70.0,
+    "upper_bound": 100.0,
+    "unit": "percentage"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "gasoline_inventory_drawdown",
+    "description": "Whether US total motor gasoline stocks decreased during the measurement week",
+    "type": "binary"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "major_supply_disruption",
+    "description": "Occurrence of a major pipeline shutdown or refinery outage in the US Gulf Coast or East Coast during this week",
+    "type": "binary"
+   }
+  ],
+  "estimates": [
+   {
+    "id": "P_target = 1_",
+    "estimate_type": "probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.62
+   },
+   {
+    "id": "P_target = 1_crude",
+    "estimate_type": "conditional_probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "crude_oil_price_change",
+      "variable_type": "continuous",
+      "threshold": 1.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.85
+   },
+   {
+    "id": "E_crude_oil_price_change_",
+    "estimate_type": "expectation",
+    "variable": "crude_oil_price_change",
+    "expected_value": 0.4
+   },
+   {
+    "id": "E_refinery_utilization_rate_",
+    "estimate_type": "expectation",
+    "variable": "refinery_utilization_rate",
+    "expected_value": 91.5
+   },
+   {
+    "id": "P_target = 1_refin",
+    "estimate_type": "conditional_probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "refinery_utilization_rate",
+      "variable_type": "continuous",
+      "threshold": 93.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.52
+   },
+   {
+    "id": "P_gasoline_inventory_drawdown = 1_",
+    "estimate_type": "probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "gasoline_inventory_drawdown",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.58
+   },
+   {
+    "id": "P_target = 1_gasol",
+    "estimate_type": "conditional_probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "gasoline_inventory_drawdown",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.78
+   },
+   {
+    "id": "P_major_supply_disruption = 1_",
+    "estimate_type": "probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "major_supply_disruption",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.05
+   },
+   {
+    "id": "P_target = 1_major",
+    "estimate_type": "conditional_probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "major_supply_disruption",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.95
+   },
+   {
+    "id": "P_target = 1_crude",
+    "estimate_type": "conditional_probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "crude_oil_price_change",
+      "variable_type": "continuous",
+      "threshold": -2.0,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.15
+   }
+  ],
+  "model": "google/gemini-3-flash-preview",
+  "elicited_at": "2026-07-08T12:08:52",
+  "seconds": 54.9,
+  "attempts": 2
+ },
+ "1bf36264e4dd1b5888ab63799964466399ff5b54b8a2dfab336fc2b6b93e214c@2026-03-29": {
+  "variables": [
+   {
+    "__class__": "BinaryVariable",
+    "name": "target",
+    "description": "The literal answer to the main question: According to Wikipedia, will a vaccine have been developed for BK virus infection by 2026-04-05?",
+    "type": "binary"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "phase_3_trials_completed",
+    "description": "Whether a Phase 3 clinical trial for a BK virus vaccine has been completed and published by the resolution date.",
+    "type": "binary"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "fda_approval_status",
+    "description": "Whether the FDA or an equivalent regulatory body has granted approval for a BK virus vaccine.",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "current_clinical_phase",
+    "description": "The highest clinical trial phase reached by any BK virus vaccine candidate (0 to 3).",
+    "type": "continuous",
+    "lower_bound": 0.0,
+    "upper_bound": 3.0,
+    "unit": "phase level"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "wikipedia_vaccine_mentions",
+    "description": "The number of distinct vaccine candidates mentioned in the Wikipedia article for 'BK virus' or 'BK virus infection'.",
+    "type": "continuous",
+    "lower_bound": 0.0,
+    "upper_bound": 10.0,
+    "unit": "candidates"
+   }
+  ],
+  "estimates": [
+   {
+    "id": "P_target = 1_",
+    "estimate_type": "probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.08
+   },
+   {
+    "id": "P_phase_3_trials_completed = 1_",
+    "estimate_type": "probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "phase_3_trials_completed",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.05
+   },
+   {
+    "id": "P_fda_approval_status = 1_",
+    "estimate_type": "probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "fda_approval_status",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.03
+   },
+   {
+    "id": "E_current_clinical_phase_",
+    "estimate_type": "expectation",
+    "variable": "current_clinical_phase",
+    "expected_value": 1.2
+   },
+   {
+    "id": "E_wikipedia_vaccine_mentions_",
+    "estimate_type": "expectation",
+    "variable": "wikipedia_vaccine_mentions",
+    "expected_value": 0.4
+   },
+   {
+    "id": "P_target = 1_fda_a",
+    "estimate_type": "conditional_probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "fda_approval_status",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.95
+   },
+   {
+    "id": "P_target = 1_phase",
+    "estimate_type": "conditional_probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "phase_3_trials_completed",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.75
+   },
+   {
+    "id": "C_target_wikipedia_va",
+    "estimate_type": "correlation",
+    "variable_a": "target",
+    "variable_b": "wikipedia_vaccine_mentions",
+    "correlation": 0.65
+   },
+   {
+    "id": "E_wikipedia_vaccine_mentions_phase",
+    "estimate_type": "conditional_expectation",
+    "variable": "wikipedia_vaccine_mentions",
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "phase_3_trials_completed",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "expected_value": 1.8
+   },
+   {
+    "id": "C_current_clin_fda_approval",
+    "estimate_type": "correlation",
+    "variable_a": "current_clinical_phase",
+    "variable_b": "fda_approval_status",
+    "correlation": 0.55
+   }
+  ],
+  "model": "google/gemini-3-flash-preview",
+  "elicited_at": "2026-07-08T12:19:40",
+  "seconds": 12.8,
+  "attempts": 1
+ },
+ "DEXCAUS@2026-03-29": {
+  "variables": [
+   {
+    "__class__": "BinaryVariable",
+    "name": "target",
+    "description": "The literal answer to the main question: Will the spot exchange rate of Canadian dollars to US dollars have increased by 2026-04-05 as compared to its value on 2026-03-29?",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "wti_crude_oil_price_change",
+    "description": "The percentage change in the price of West Texas Intermediate crude oil over the forecast period, as oil exports significantly influence the Canadian dollar.",
+    "type": "continuous",
+    "lower_bound": -15.0,
+    "upper_bound": 15.0,
+    "unit": "percent"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "us_canada_yield_spread_change",
+    "description": "The change in the basis point spread between the 10-year US Treasury yield and the 10-year Government of Canada bond yield.",
+    "type": "continuous",
+    "lower_bound": -50.0,
+    "upper_bound": 50.0,
+    "unit": "basis points"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "bank_of_canada_rate_hike",
+    "description": "Whether the Bank of Canada announces an unexpected increase in the target overnight rate during the observation week.",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "vix_index_volatility_level",
+    "description": "The level of the CBOE Volatility Index (VIX), representing global risk sentiment which often drives investors toward the US dollar during uncertainty.",
+    "type": "continuous",
+    "lower_bound": 10.0,
+    "upper_bound": 50.0,
+    "unit": "index points"
+   }
+  ],
+  "estimates": [
+   {
+    "id": "P_target = 1_",
+    "estimate_type": "probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.53
+   },
+   {
+    "id": "C_target_wti_crude_oi",
+    "estimate_type": "correlation",
+    "variable_a": "target",
+    "variable_b": "wti_crude_oil_price_change",
+    "correlation": -0.45
+   },
+   {
+    "id": "P_target = 1_us_ca",
+    "estimate_type": "conditional_probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "us_canada_yield_spread_change",
+      "variable_type": "continuous",
+      "threshold": 10.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.72
+   },
+   {
+    "id": "P_target = 1_bank_",
+    "estimate_type": "conditional_probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "bank_of_canada_rate_hike",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.15
+   },
+   {
+    "id": "E_wti_crude_oil_price_change_",
+    "estimate_type": "expectation",
+    "variable": "wti_crude_oil_price_change",
+    "expected_value": 0.2
+   },
+   {
+    "id": "E_us_canada_yield_spread_change_",
+    "estimate_type": "expectation",
+    "variable": "us_canada_yield_spread_change",
+    "expected_value": 2.0
+   },
+   {
+    "id": "P_bank_of_canada_rate_hike = 1_",
+    "estimate_type": "probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "bank_of_canada_rate_hike",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.05
+   },
+   {
+    "id": "E_vix_index_volatility_level_",
+    "estimate_type": "expectation",
+    "variable": "vix_index_volatility_level",
+    "expected_value": 16.5
+   },
+   {
+    "id": "P_target = 1_vix_i",
+    "estimate_type": "conditional_probability",
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "vix_index_volatility_level",
+      "variable_type": "continuous",
+      "threshold": 25.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.68
+   },
+   {
+    "id": "C_vix_index_vo_wti_crude_oi",
+    "estimate_type": "correlation",
+    "variable_a": "vix_index_volatility_level",
+    "variable_b": "wti_crude_oil_price_change",
+    "correlation": -0.35
+   }
+  ],
+  "model": "google/gemini-3-flash-preview",
+  "elicited_at": "2026-07-08T12:20:12",
+  "seconds": 44.4,
+  "attempts": 1
+ }
+}
