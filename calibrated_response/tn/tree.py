@@ -37,9 +37,11 @@ every loss in :mod:`losses` that is defined purely on marginals / expectations
 (constraint SSE, the robust / belief / on-off constraints, KL regularizers, ...).
 
 **Not ported yet** (the "complicated" losses): joint Rényi-2 / H2 entropy, the
-gauge-invariant ``amplitude_roughness``, ``linear_moments`` and the projection PMF,
-and the core-difference smoothness penalties. Calling those against a tree will
-raise ``AttributeError`` until they are added.
+gauge-invariant ``amplitude_roughness``, and ``linear_moments`` / the projection
+PMF. Calling those against a tree will raise ``AttributeError`` until they are
+added. The core-difference smoothness penalties (``core_tv`` / ``core_curvature``)
+*do* work here — cores are physical-axis-first on both models, and dim-1 latent
+junctions are skipped (differencing them is empty -> NaN).
 """
 
 from __future__ import annotations

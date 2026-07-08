@@ -134,6 +134,71 @@ class _TensorChainFit:
 
 
 # ======================================================================
+# Tensor tree (variables at the leaves of a balanced binary latent tree)
+# ======================================================================
+
+class TensorTreeEngine(TensorChainEngine):
+    """Born (or nonneg) TensorTree fit to the bag — the tree counterpart of
+    :class:`TensorChainEngine`. Identical bag grammar, loss, and scoring surface;
+    the only change is topology: the data variables sit at the **leaves** of a
+    balanced binary latent tree (dim-1 junctions, max degree 3) rather than in a
+    line. Leaf site indices are ``0..n-1`` (matching ``enc.site``), so the reused
+    ``_convert`` / ``_TensorChainFit`` need no changes.
+
+    Defaults to ``kind="nonneg"``: on a uniform-leaf-dim tree this routes
+    constraint scoring through the batched ``SteinerMarginals`` / ``BPPlan`` path
+    (one level-synchronous BP sweep, ``O(1)`` in the constraint count); with mixed
+    leaf dims it uses the exact per-node fallback. ``kind="born"`` gives the
+    apples-to-apples topology comparison against ``tn``'s born chain.
+    """
+
+    def __init__(self, bond_dim: int = 8, kind: str = "nonneg",
+                 regularizers=(("entropy", 1e-3),), marginal_weight: float = 1.0,
+                 backend: str = "adam", steps: int = 2000, lr: float = 2e-2,
+                 init: str = "uniform"):
+        super().__init__(bond_dim=bond_dim, kind=kind, regularizers=regularizers,
+                         marginal_weight=marginal_weight, backend=backend,
+                         steps=steps, lr=lr, init=init)
+        self.name = f"tree_{kind}_r{bond_dim}"
+
+    def _build_tree(self, enc: TableEncoder):
+        """(vars_incl_latents, edges) for a balanced binary latent tree over the
+        ``n`` data variables: leaves ``0..n-1`` are the observables (kept in
+        ``enc`` order so site indices are unchanged), internal junctions are dim-1
+        latents appended after them."""
+        from calibrated_response.tn.discretize import ContinuousVar
+        n = len(enc.names)
+        frontier = list(range(n)); nxt = n; edges = []
+        while len(frontier) > 1:
+            new = []
+            for k in range(0, len(frontier), 2):
+                if k + 1 < len(frontier):
+                    lat = nxt; nxt += 1
+                    edges += [(lat, frontier[k]), (lat, frontier[k + 1])]
+                    new.append(lat)
+                else:
+                    new.append(frontier[k])
+            frontier = new
+        vars_ = enc.tn_vars() + [ContinuousVar(f"__lat{k}", 0.0, 1.0, 1)
+                                 for k in range(nxt - n)]
+        return vars_, edges
+
+    def fit(self, enc: TableEncoder, bag, seed: int = 0):
+        from calibrated_response.tn.tree import TensorTree
+        from calibrated_response.tn.losses import combined_loss
+
+        vars_, edges = self._build_tree(enc)
+        model = TensorTree(vars_, edges=edges, bond_dim=self.bond_dim,
+                           kind=self.kind)
+        loss = combined_loss(model, self._convert(enc, bag), self.regularizers)
+        kw = dict(steps=self.steps, lr=self.lr) if self.backend == "adam" else {}
+        params, history = model.optimize(
+            loss, backend=self.backend, seed=seed,
+            init=model.init_params(seed=seed, init=self.init), **kw)
+        return _TensorChainFit(enc, model, params, history)
+
+
+# ======================================================================
 # Flow sampler (invertible RealNVP — exact entropy, exact density)
 # ======================================================================
 
@@ -664,6 +729,7 @@ class PCEngine:
 ENGINES = {
     "independent": IndependentEngine,
     "tn": TensorChainEngine,
+    "tree": TensorTreeEngine,
     "flow": FlowEngine,
     "gaussian": GaussianEngine,
     "copula": GaussianCopulaEngine,

@@ -30,6 +30,7 @@ can only do so by exploiting the correlation constraints.
 
 ```
 python -m benchmarks.run --dataset synthetic_chain            # fast smoke
+python -m benchmarks.run --dataset synthetic_chain --engines independent tn tree
 python -m benchmarks.run --dataset adult --engines independent tn \
     --n-pair 20 40 80 --noise 0.0 0.3 1.0 --conflict 0.0 0.2
 ```
@@ -52,10 +53,19 @@ pandas groupby.
 
 - New engine: implement `fit(enc, bag, seed) -> fitted` with
   `log_prob_rows / marginal / pair_marginal`, register in `ENGINES`.
-  Available: `independent`, `tn`, `flow` (invertible flow maxent — exact
+  Available: `independent`, `tn` (born tensor *chain*), `tree` (tensor *tree* —
+  variables at the leaves of a balanced binary latent tree; defaults to
+  `kind="nonneg"`, which scores constraints through the batched
+  `SteinerMarginals`/`BPPlan` sweep), `flow` (invertible flow maxent — exact
   density via the inverse pass), `gaussian` (single joint Gaussian; weak here
   by construction — quantile encoding makes marginals uniform, which a
   Gaussian is misspecified for), `copula` (Gaussian copula: exact histogram
   marginals + one correlation matrix, the strong linear baseline).
   `PCEngine` is a stub awaiting a port.
+
+  `tn` vs `tree` isolates *topology* (a line vs a balanced binary latent tree)
+  at fixed constraint machinery; set the same `kind` on both for an
+  apples-to-apples comparison. Unlike `tn`, `tree` has no compile-once fast
+  sweep (`sweep_tn_fast` walks a linear chain), so each `tree` cell pays its own
+  compile via `run_cell`.
 - New dataset: add a loader to `DATASETS` returning `(train_df, test_df)`.

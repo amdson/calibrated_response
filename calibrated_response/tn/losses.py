@@ -132,12 +132,26 @@ def core_tv(model, params):
     freedom means the same ``p`` can have rougher/smoother cores, so unlike
     :func:`marginal_curvature` it is not a pure function of the density (it also
     biases toward a smooth-amplitude gauge). Cheap and effective in practice.
+
+    Works on both :class:`TensorChain` and :class:`TensorTree` — every node core
+    is stored physical-axis-first. Cores whose physical dim is too small to
+    difference (the tree's dim-1 latent junctions) are skipped: differencing
+    them yields an empty array whose mean is NaN, which would poison the whole
+    fit, and there is no bin adjacency to smooth there anyway.
     """
+    return _core_diff_penalty(params, order=1)
+
+
+def _core_diff_penalty(params, order):
     cores = params["cores"]
-    tot = 0.0
+    tot, smoothed = 0.0, 0
     for i, c in enumerate(cores):
-        tot = tot + jnp.mean(jnp.diff(c, axis=_phys_axis(i, model.n)) ** 2)
-    return tot / len(cores)
+        ax = _phys_axis(i, len(cores))
+        if c.shape[ax] <= order:            # nothing to difference (latent junction)
+            continue
+        tot = tot + jnp.mean(jnp.diff(c, n=order, axis=ax) ** 2)
+        smoothed += 1
+    return tot / max(smoothed, 1)
 
 
 def core_curvature(model, params):
@@ -147,13 +161,9 @@ def core_curvature(model, params):
     :func:`core_tv`**: the second difference is easy to zero out under the MPS gauge
     without smoothing the density (the roughness hides in signs / bond structure),
     so it barely moves the marginals. Prefer ``core_tv`` for a direct-weight
-    smoother; kept here for comparison.
+    smoother; kept here for comparison. Skips undersized cores like :func:`core_tv`.
     """
-    cores = params["cores"]
-    tot = 0.0
-    for i, c in enumerate(cores):
-        tot = tot + jnp.mean(jnp.diff(c, n=2, axis=_phys_axis(i, model.n)) ** 2)
-    return tot / len(cores)
+    return _core_diff_penalty(params, order=2)
 
 
 REGULARIZERS = {
