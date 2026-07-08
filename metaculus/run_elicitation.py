@@ -277,6 +277,17 @@ def main(argv=None):
                     estimates = await est_gen.agenerate(
                         question=entry_context(e), variables=variables,
                         num_estimates=args.n_estimates)
+                    # binary-binary correlations are ill-posed as elicited
+                    # (about half violate the phi bound of the LLM's own
+                    # marginals) — the prompt forbids them; drop any that
+                    # slip through BEFORE the coverage check so a retry
+                    # regenerates a compliant set
+                    binaries = {v.name for v in variables
+                                if isinstance(v, BinaryVariable)}
+                    estimates = [x for x in estimates
+                                 if not (x.estimate_type == "correlation"
+                                         and x.variable_a in binaries
+                                         and x.variable_b in binaries)]
                     # salvage validators may legally drop items; an empty
                     # result is a retryable failure, not a cacheable answer
                     if not ctx_vars:

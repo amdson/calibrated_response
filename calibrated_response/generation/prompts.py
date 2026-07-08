@@ -155,6 +155,9 @@ RULES:
 - Probabilities must be between 0 and 1
 - For binary variables use = True or = False
 - For continuous variables use > or < with thresholds
+- Corr(...) is Pearson correlation and is ONLY allowed when at least one of the
+  two variables is continuous. To relate two binary variables, use a
+  conditional probability instead: P(a = True | b = True) = value.
 - Variable names must exactly match those provided
 - Include a brief "logic" explanation for each estimate""",
         
@@ -168,7 +171,9 @@ Generate {num_estimates} estimates. Include a mix of:
 - Unconditional expectations: E[var] = value
 - Conditional probabilities: P(var > threshold | other_var > value) = prob
 - Conditional expectations: E[var | other_var = True] = value
-- Correlations: Corr(var1, var2) = value in [-1, 1]
+- Correlations: Corr(var1, var2) = value in [-1, 1] (only when at least one
+  variable is continuous; relate two binary variables with a conditional
+  probability instead)
 
 For each estimate, include a brief "logic" field explaining your reasoning.
 
