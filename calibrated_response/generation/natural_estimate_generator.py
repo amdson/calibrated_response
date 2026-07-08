@@ -59,8 +59,41 @@ class NaturalEstimateGenerator:
         Returns:
             List of typed Estimate objects (ProbabilityEstimate, ExpectationEstimate, etc.)
         """
+        user_prompt, kwargs = self._build_request(question, variables, num_estimates)
+        try:
+            result = self.llm.query_structured(prompt=user_prompt, **kwargs)
+            self.last_result = result
+            # Convert natural estimates to structured format
+            return result.convert_all()
+        except Exception as e:
+            raise ValueError(f"Failed to generate natural estimates: {e}")
+
+    async def agenerate(
+        self,
+        question: str,
+        variables: Sequence[Variable],
+        num_estimates: int = 15,
+        max_tokens_scale: float = 1.0,
+    ) -> Sequence[EstimateUnion]:
+        """Async twin of :meth:`generate` (same prompt and parsing).
+
+        ``max_tokens_scale`` multiplies the token budget — retry loops should
+        escalate it, since reasoning models occasionally spend the whole
+        budget thinking and return truncated JSON."""
+        user_prompt, kwargs = self._build_request(question, variables, num_estimates)
+        kwargs["max_tokens"] = int(kwargs["max_tokens"] * max_tokens_scale)
+        try:
+            result = await self.llm.aquery_structured(prompt=user_prompt, **kwargs)
+            self.last_result = result
+            return result.convert_all()
+        except Exception as e:
+            raise ValueError(f"Failed to generate natural estimates: {e}")
+
+    @staticmethod
+    def _build_request(question: str, variables: Sequence[Variable],
+                       num_estimates: int):
         prompts = PROMPTS["natural_estimate_generation"]
-        
+
         # Format variables for the prompt
         var_info = []
         for v in variables:
@@ -76,29 +109,20 @@ class NaturalEstimateGenerator:
             if hasattr(v, 'unit'):
                 info['unit'] = v.unit
             var_info.append(info)
-        
+
         variables_text = format_variables_for_prompt(var_info)
-        
+
         user_prompt = prompts["user"].format(
             question=question,
             variables=variables_text,
             num_estimates=num_estimates,
         )
-
-        try:
-            result = self.llm.query_structured(
-                prompt=user_prompt,
-                response_model=NaturalEstimateList, 
-                system_prompt=prompts["system"],
-                temperature=0.7,
-                max_tokens=200 * num_estimates + 500,  # Much smaller token budget
-            )
-            self.last_result = result
-            # print(f"LLM returned {len(result.estimates)} natural estimates.")
-            # for est in result.estimates:
-            #     print(f" - {est.expression}")
-            # Convert natural estimates to structured format
-            return result.convert_all()
-            
-        except Exception as e:
-            raise ValueError(f"Failed to generate natural estimates: {e}")
+        kwargs = dict(
+            response_model=NaturalEstimateList,
+            system_prompt=prompts["system"],
+            temperature=0.7,
+            # headroom for reasoning tokens (counted against max_tokens by
+            # thinking models); truncated JSON fails the whole call
+            max_tokens=500 * num_estimates + 6000,
+        )
+        return user_prompt, kwargs

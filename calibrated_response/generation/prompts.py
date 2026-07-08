@@ -35,7 +35,7 @@ Focus on variables that are:
 2. Potentially influential on the outcome
 3. Not perfectly correlated with each other
 
-- The first variable should be a literal answer to the main question (e.g., "Will it rain tomorrow?" -> variable: "will_rain_tomorrow", type: binary)
+- A binary variable named 'target' (the literal answer to the main question) already exists and is added automatically — do NOT generate a variable that merely restates the main question. Generate the context/driver variables that would help predict it.
 """,
         
         "user": """Question to forecast: {question}
@@ -53,7 +53,7 @@ IMPORTANT:
 - Variable descriptions should be clear and concise
 - Variable types must be binary or continuous
 - The plausible range for continuous variables must be very conservative, covering all realistic outcomes.
-- The first variable should be a literal answer to the main question (e.g., "Will it rain tomorrow?" -> variable: "will_rain_tomorrow", type: binary)
+- Do NOT include a variable restating the main question — a binary variable named 'target' for the question outcome is added automatically; generate the context/driver variables around it.
 - Pick intuitive numerical answers which scale variables to the (0.1-10) range when possible for better calibration
 - Put a particular emphasis on variables that are necessary preconditions for the main question's outcome, 
     for instance, if the question is "Will candidate X win the election?", a necessary precondition variable could be "Will candidate X secure the nomination?"
@@ -145,9 +145,10 @@ ESTIMATE FORMATS:
 - Expectation: E[variable] = value
 - Conditional Probability: P(variable > threshold | condition) = value
 - Conditional Expectation: E[variable | condition] = value
+- Correlation: Corr(variable_1, variable_2) = value between -1 and 1
 
 RULES:
-- Use P(...) for probabilities, E[...] for expectations
+- Use P(...) for probabilities, E[...] for expectations, Corr(...) for correlations
 - Use parentheses () for P, square brackets [] for E
 - Conditions come after | (pipe symbol)
 - Multiple conditions separated by commas: P(X > 5 | Y = True, Z > 10) = 0.3
@@ -164,17 +165,20 @@ AVAILABLE VARIABLES:
 
 Generate {num_estimates} estimates. Include a mix of:
 - Unconditional probabilities: P(var > threshold) = value
-- Unconditional expectations: E[var] = value  
+- Unconditional expectations: E[var] = value
 - Conditional probabilities: P(var > threshold | other_var > value) = prob
 - Conditional expectations: E[var | other_var = True] = value
+- Correlations: Corr(var1, var2) = value in [-1, 1]
 
-For each estimate, include a brief "logic" field explaining your reasoning. 
+For each estimate, include a brief "logic" field explaining your reasoning.
 
 IMPORTANT:
 - All variable names must EXACTLY match the variable names above
 - Use > or < for continuous variables, = True/False for binary variables
 - Include a variety of estimates that capture different relationships between the variables, not just direct predictions of the main question.
 - Include a direct prediction of each variable as either a probability or expectation estimate.
+- REQUIRED: include the direct unconditional estimate P(target = True) = value.
+- REQUIRED: at least 3 estimates must LINK 'target' to other variables — conditional estimates with 'target' on either side of the |, or Corr(target, other_var). Without these, the other variables cannot inform the target.
 
 Respond with JSON:
 {{

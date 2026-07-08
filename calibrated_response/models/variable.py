@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Optional, Union
+from typing import Any, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, TypeAdapter, model_validator
 
 
 class VariableType(str, Enum):
@@ -26,7 +26,10 @@ class Variable(BaseModel):
     
     name: str = Field(..., description="Short identifier for the variable")
     description: str = Field(..., description="What this variable represents")
-    type: VariableType = Field(VariableType.CONTINUOUS, description="Type: binary, continuous, discrete, or ordinal")
+    # NOTE: the description feeds the JSON schema the LLM sees — only advertise
+    # the types the elicitation pipeline accepts (VariableList validates
+    # binary | continuous; a 'discrete' item would be dropped).
+    type: VariableType = Field(VariableType.CONTINUOUS, description="Type: 'binary' or 'continuous'")
 
     def to_query_variable(self) -> str: 
         """Get a string representation suitable for queries."""
@@ -34,12 +37,14 @@ class Variable(BaseModel):
 
 class BinaryVariable(Variable):
     """A binary (yes/no) variable."""
-    type: VariableType = VariableType.BINARY
+    # Literal, not the open enum: otherwise a hallucinated type ('discrete')
+    # validates as a pseudo-binary instead of being rejected by the union.
+    type: Literal[VariableType.BINARY] = VariableType.BINARY
 
 class ContinuousVariable(Variable):
     """A continuous (real-valued) variable."""
-    
-    type: VariableType = VariableType.CONTINUOUS
+
+    type: Literal[VariableType.CONTINUOUS] = VariableType.CONTINUOUS
     
     # Domain bounds
     lower_bound: float = Field(0, description="Lower bound of domain")
@@ -58,9 +63,45 @@ class DiscreteVariable(Variable):
     # Possible values
     categories: list[str] = Field(default_factory=list, description="List of possible values")
 
+_VARIABLE_ITEM_ADAPTER = TypeAdapter(Union[BinaryVariable, ContinuousVariable])
+
+
 class VariableList(BaseModel):
     """A list of variables."""
     model_config = ConfigDict(frozen=True)
     variables: list[Union[BinaryVariable, ContinuousVariable]] = Field(default_factory=list, description="List of variables")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _salvage_items(cls, data):
+        """LLM-boundary leniency: validate items individually and drop the
+        invalid ones (one hallucinated 'discrete' variable must not void the
+        rest of the list). Raises only when nothing survives, so callers'
+        retry logic still triggers on genuinely bad responses."""
+        if not (isinstance(data, dict) and isinstance(data.get("variables"), list)):
+            return data
+        kept, dropped = [], []
+        for item in data["variables"]:
+            try:
+                v = _VARIABLE_ITEM_ADAPTER.validate_python(item)
+                if isinstance(v, ContinuousVariable) and \
+                        not v.upper_bound > v.lower_bound:
+                    # bounds default to (0, 0) when omitted — such a variable
+                    # would be silently unusable downstream (solvers need a
+                    # real domain); reject it HERE so the caller's retry can
+                    # fix it while the LLM is still on the line
+                    raise ValueError(
+                        f"degenerate domain [{v.lower_bound}, {v.upper_bound}]"
+                        " — continuous variables need lower_bound < upper_bound")
+                kept.append(v)
+            except Exception as e:
+                name = item.get("name", "?") if isinstance(item, dict) else "?"
+                dropped.append(f"{name}: {str(e).splitlines()[0][:120]}")
+        if dropped:
+            print(f"VariableList: dropped {len(dropped)} invalid variable(s): "
+                  f"{'; '.join(dropped)}")
+        if not kept and dropped:
+            raise ValueError(f"no valid variables ({len(dropped)} dropped)")
+        return {**data, "variables": kept}
 
 

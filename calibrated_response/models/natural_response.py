@@ -1,30 +1,43 @@
 import re
 import uuid
 from typing import Literal, Union, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from calibrated_response.models.query import (
     Proposition, PropositionUnion, EqualityProposition, InequalityProposition,
-    Estimate, EstimateUnion, ProbabilityEstimate, ExpectationEstimate, 
-    ConditionalExpectationEstimate, ConditionalProbabilityEstimate)
+    Estimate, EstimateUnion, ProbabilityEstimate, ExpectationEstimate,
+    ConditionalExpectationEstimate, ConditionalProbabilityEstimate,
+    CorrelationEstimate)
+
+# One grammar, shared by the pydantic field pattern (what the LLM is told and
+# validated against) and parse_natural_syntax (how it is parsed) so they can
+# never drift apart. Deliberately whitespace-tolerant: `P(x>5|y=True)=0.3`
+# and `P(x > 5 | y = True) = 0.3` both match.
+#
+# Breakdown:
+#   ^\s*([PE])\s*        -> P or E (group 1)
+#   [\[\(](.+?)          -> opening ( or [, then the main term (group 2)
+#   (?:\s*\|\s*(.+?))?   -> optional | conditions, any spacing (group 3)
+#   [\]\)]\s*=\s*        -> closing ) or ], equals sign
+#   (.+?)\s*$            -> the value (group 4)
+PE_PATTERN = (
+    r"^\s*([PE])\s*[\[\(](.+?)(?:\s*\|\s*(.+?))?[\]\)]\s*=\s*(.+?)\s*$"
+)
+# Corr(X, Y) = r  — scale-free pairwise dependence
+CORR_PATTERN = r"^\s*Corr\s*\(\s*([^,|]+?)\s*,\s*([^,|]+?)\s*\)\s*=\s*(.+?)\s*$"
+# What the pydantic field admits: either form.
+EXPRESSION_PATTERN = f"(?:{PE_PATTERN})|(?:{CORR_PATTERN})"
+
 
 class NaturalEstimate(BaseModel):
     """
-    The interface for the LLM. 
+    The interface for the LLM.
     It only asks for a strictly formatted string, minimizing token overhead.
     """
     logic: str = Field(..., description="Concise natural language explanation of the estimate.")
-    # Regex breakdown:
-    # ^([PE])             -> Starts with P or E (Group 1)
-    # [\[\(]              -> Opening bracket [ or (
-    # (.+?)               -> The main term (Variable or Proposition) (Group 2)
-    # (?: \|\ (.+?))?     -> Optional: " | " followed by conditions (Group 3)
-    # [\]\)]              -> Closing bracket ] or )
-    # \s*=\s* -> Equals sign with optional whitespace
-    # (.+)$               -> The result value (Group 4)
     expression: str = Field(
-        ..., 
-        pattern=r"^([PE])[\[\(](.+?)(?: \| (.+?))?[\]\)]\s*=\s*(.+)$",
+        ...,
+        pattern=EXPRESSION_PATTERN,
         description="Format: 'P(A > 10 | B = True) = 0.5' or 'E[Cost | Tax = True] = 100.0'",
         examples=["E[battery_cost | growth > 40.0] = 125.0"]
     )
@@ -40,7 +53,30 @@ class NaturalEstimateList(BaseModel):
         default_factory=list,
         description="List of estimates in natural language format"
     )
-    
+
+    @model_validator(mode="before")
+    @classmethod
+    def _salvage_items(cls, data):
+        """LLM-boundary leniency: drop items whose expression fails the
+        grammar instead of failing the whole list (one `Corr(X,Y)=0.5` must
+        not void nine good estimates). Raises only when nothing survives, so
+        callers' retry logic still triggers on genuinely bad responses."""
+        if not (isinstance(data, dict) and isinstance(data.get("estimates"), list)):
+            return data
+        kept, dropped = [], []
+        for item in data["estimates"]:
+            try:
+                kept.append(NaturalEstimate.model_validate(item))
+            except Exception:
+                expr = item.get("expression", item) if isinstance(item, dict) else item
+                dropped.append(str(expr)[:80])
+        if dropped:
+            print(f"NaturalEstimateList: dropped {len(dropped)} invalid "
+                  f"expression(s): {dropped}")
+        if not kept and dropped:
+            raise ValueError(f"no valid estimates ({len(dropped)} dropped)")
+        return {**data, "estimates": kept}
+
     def convert_all(self) -> List[EstimateUnion]:
         """Convert all natural estimates to structured format."""
         l = []
@@ -98,17 +134,26 @@ def parse_natural_syntax(expression: str) -> EstimateUnion:
     """
     Converts a natural language math string into the complex EstimateUnion structure.
     """
-    # 1. Regex Extraction
-    pattern = r"^([PE])[\[\(](.+?)(?: \| (.+?))?[\]\)]\s*=\s*(.+)$"
-    match = re.match(pattern, expression.strip())
-    
+    # 1. Regex Extraction (same grammar the pydantic field validates against)
+    corr = re.match(CORR_PATTERN, expression)
+    if corr:
+        var_a, var_b, value_str = corr.groups()
+        return CorrelationEstimate(
+            id=f"C_{var_a.strip()[:12]}_{var_b.strip()[:12]}",
+            variable_a=var_a.strip(),
+            variable_b=var_b.strip(),
+            correlation=float(value_str.strip().rstrip(".")),
+        )
+
+    match = re.match(PE_PATTERN, expression)
+
     if not match:
         raise ValueError(f"Invalid syntax: {expression}")
 
     type_char, main_term, condition_str, value_str = match.groups()
-    
-    # 2. Parse Value
-    est_value = float(value_str)
+
+    # 2. Parse Value (tolerate a trailing period / percent phrasing slip)
+    est_value = float(value_str.strip().rstrip("."))
     
     # 3. Parse Conditions (if any)
     conditions = []

@@ -52,7 +52,7 @@ class Estimate(BaseModel):
     """Base class for likelihood estimates."""
     model_config = ConfigDict(frozen=True)
     id: str = Field(..., description="Unique identifier for the estimate")
-    estimate_type: Literal["probability", "expectation", "conditional_probability", "conditional_expectation"] = Field(..., description="Type of likelihood estimate")
+    estimate_type: Literal["probability", "expectation", "conditional_probability", "conditional_expectation", "correlation"] = Field(..., description="Type of likelihood estimate")
 
     def to_query_estimate(self) -> str:
         """Get a string representation suitable for queries."""
@@ -98,13 +98,31 @@ class ConditionalExpectationEstimate(Estimate):
         conditions_str = ", ".join([cond.to_query_proposition() for cond in self.conditions])
         return f"E[{self.variable} | {conditions_str}] = {self.expected_value}"
     
+class CorrelationEstimate(Estimate):
+    """Estimate for the Pearson correlation Corr(X, Y).
+
+    Scale-free dependence information: unlike conditional estimates it does
+    not hinge on a conditioning event being sampled often enough, which makes
+    it a cheap way for the LLM to couple variables. Binary variables are
+    treated as their 0/1 indicator."""
+    estimate_type: Literal["correlation"] = "correlation"
+    variable_a: str = Field(..., description="Name of the first variable")
+    variable_b: str = Field(..., description="Name of the second variable")
+    correlation: float = Field(..., ge=-1.0, le=1.0,
+                               description="Estimated Pearson correlation")
+
+    def to_query_estimate(self) -> str:
+        return f"Corr({self.variable_a}, {self.variable_b}) = {self.correlation}"
+
+
 # Discriminated union for estimates
 EstimateUnion = Annotated[
     Union[
         ProbabilityEstimate,
         ExpectationEstimate,
         ConditionalProbabilityEstimate,
-        ConditionalExpectationEstimate
+        ConditionalExpectationEstimate,
+        CorrelationEstimate
     ],
     Field(discriminator='estimate_type')
 ]

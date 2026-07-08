@@ -42,23 +42,46 @@ class VariableGenerator:
         Returns:
             List of typed Variable objects (BinaryVariable, ContinuousVariable, or DiscreteVariable)
         """
+        user_prompt, kwargs = self._build_request(question, n_variables)
+        try:
+            result = self.llm.query_structured(prompt=user_prompt, **kwargs)
+        except Exception as e:
+            raise ValueError(f"Failed to generate variables: {e}")
+        return result.variables
+
+    async def agenerate(
+        self,
+        question: str,
+        n_variables: int = 5,
+        max_tokens_scale: float = 1.0,
+    ) -> list[Union[BinaryVariable, ContinuousVariable]]:
+        """Async twin of :meth:`generate` (same prompt and parsing).
+
+        ``max_tokens_scale`` multiplies the token budget — retry loops should
+        escalate it, since reasoning models occasionally spend the whole
+        budget thinking and return truncated JSON."""
+        user_prompt, kwargs = self._build_request(question, n_variables)
+        kwargs["max_tokens"] = int(kwargs["max_tokens"] * max_tokens_scale)
+        try:
+            result = await self.llm.aquery_structured(prompt=user_prompt, **kwargs)
+        except Exception as e:
+            raise ValueError(f"Failed to generate variables: {e}")
+        return result.variables
+
+    @staticmethod
+    def _build_request(question: str, n_variables: int):
         prompts = PROMPTS["variable_generation"]
-        
         user_prompt = prompts["user"].format(
             question=question,
             n_variables=n_variables,
         )
-
-        try:
-            result = self.llm.query_structured(
-                prompt=user_prompt,
-                response_model=VariableList, 
-                system_prompt=prompts["system"],
-                temperature=0.7,
-                max_tokens=1000*n_variables+2500,
-            )
-            
-        except Exception as e:
-            raise ValueError(f"Failed to generate variables: {e}")
-        
-        return result.variables
+        kwargs = dict(
+            response_model=VariableList,
+            system_prompt=prompts["system"],
+            temperature=0.7,
+            # generous headroom: reasoning models spend their thinking budget
+            # from max_tokens too, and a long think + truncated JSON fails the
+            # whole call (billing is per token used, not per token allowed)
+            max_tokens=2000 * n_variables + 8000,
+        )
+        return user_prompt, kwargs
