@@ -21,6 +21,10 @@ ARMS = [
     ("arm_abs.json", ["--prob-penalty", "abs"]),
     ("arm_logit.json", ["--prob-penalty", "logit"]),
     ("arm_logit_robust.json", ["--prob-penalty", "logit", "--robust"]),
+    # estimate-density fork (same variables, 20 estimates) — enable once
+    # llm_cache_n20.json is elicited and pushed:
+    # ("arm_logit_n20.json", ["--prob-penalty", "logit",
+    #                         "--cache", str(HERE / "llm_cache_n20.json")]),
 ]
 
 

@@ -58,7 +58,10 @@ from calibrated_response.generation.variable_generator import VariableGenerator
 from calibrated_response.generation.natural_estimate_generator import (
     NaturalEstimateGenerator,
 )
-from calibrated_response.models.variable import BinaryVariable
+from calibrated_response.models.variable import (
+    BinaryVariable,
+    ContinuousVariable,
+)
 
 TARGET_NAME = "target"
 
@@ -138,6 +141,15 @@ def _serialize_estimates(estimates):
     return [x.model_dump() for x in estimates]
 
 
+_VAR_CLASSES = {"BinaryVariable": BinaryVariable,
+                "ContinuousVariable": ContinuousVariable}
+
+
+def _deserialize_variables(dicts):
+    return [_VAR_CLASSES[d["__class__"]](
+        **{k: v for k, v in d.items() if k != "__class__"}) for d in dicts]
+
+
 # ---------------------------------------------------------------------------
 
 def select_entries(entries: list[dict], args) -> list[dict]:
@@ -183,6 +195,13 @@ def main(argv=None):
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--n-variables", type=int, default=4)
     ap.add_argument("--n-estimates", type=int, default=10)
+    ap.add_argument("--variables-from", default=None,
+                    help="reuse the variables cached in this file (same entry "
+                         "keys) and only elicit fresh estimates — isolates "
+                         "estimate-battery levers (e.g. --n-estimates) from "
+                         "variable-extraction variance, and halves the LLM "
+                         "calls. Entries missing from the file fall back to "
+                         "fresh variable extraction.")
     ap.add_argument("--limit", type=int, default=None,
                     help="stop after this many NEW elicitations")
     ap.add_argument("--only-resolved", action="store_true",
@@ -232,6 +251,10 @@ def main(argv=None):
         if fail_path.exists() else {}
     if args.retry_failures:
         failures = {}
+    vcache = None
+    if args.variables_from:
+        vcache = json.loads(Path(args.variables_from).read_text(
+            encoding="utf-8"))
 
     todo = [e for e in entries
             if entry_key(e) not in cache and entry_key(e) not in failures]
@@ -267,13 +290,25 @@ def main(argv=None):
                 name=TARGET_NAME,
                 description=f"The literal answer to the main question: "
                             f"{entry_question(e)}")
+            fixed_vars = None
+            if vcache is not None and entry_key(e) in vcache:
+                fixed_vars = _deserialize_variables(
+                    vcache[entry_key(e)]["variables"])
             for attempt in range(args.retries + 1):
                 try:
-                    ctx_vars = list(await var_gen.agenerate(
-                        question=entry_context(e),
-                        n_variables=args.n_variables))
-                    variables = [target] + [v for v in ctx_vars
-                                            if v.name != TARGET_NAME]
+                    if fixed_vars is not None:
+                        variables = fixed_vars
+                    else:
+                        ctx_vars = list(await var_gen.agenerate(
+                            question=entry_context(e),
+                            n_variables=args.n_variables))
+                        # salvage validators may legally drop items; an empty
+                        # result is a retryable failure, not a cacheable answer
+                        if not ctx_vars:
+                            raise ValueError("no context variables survived "
+                                             "validation")
+                        variables = [target] + [v for v in ctx_vars
+                                                if v.name != TARGET_NAME]
                     estimates = await est_gen.agenerate(
                         question=entry_context(e), variables=variables,
                         num_estimates=args.n_estimates)
@@ -288,11 +323,6 @@ def main(argv=None):
                                  if not (x.estimate_type == "correlation"
                                          and x.variable_a in binaries
                                          and x.variable_b in binaries)]
-                    # salvage validators may legally drop items; an empty
-                    # result is a retryable failure, not a cacheable answer
-                    if not ctx_vars:
-                        raise ValueError("no context variables survived "
-                                         "validation")
                     if not estimates:
                         raise ValueError("no estimates survived parsing")
                     # coverage failures raise INSIDE the bounded retry loop:
@@ -313,6 +343,8 @@ def main(argv=None):
                         "seconds": round(time.time() - t1, 1),
                         "attempts": attempt + 1,
                     }
+                    if fixed_vars is not None:
+                        payload["variables_from"] = str(args.variables_from)
                     return e, payload, None
                 except Exception as ex:
                     if attempt >= args.retries:

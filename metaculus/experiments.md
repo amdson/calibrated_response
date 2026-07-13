@@ -1,24 +1,12 @@
 # Experiment plan: getting flow > direct
 
-Working doc, 2026-07-12. Supersedes/absorbs `todo.txt`.
-
-## Cost structure (drives the ordering)
-
-- **Solver arms are free**: ~4 s/fit on Colab GPU, reuse the cached pilot
-  elicitations. Sweep aggressively.
-- **Elicitation variants cost money and fork the cache**: ~$2–4 per
-  150-question pilot re-elicitation. Run only when a solver-side result
-  demands it, one variant at a time.
-- **The full 3,599-question run happens once**, with the recipe that won
-  the pilot.
-
 ## Fixed readout panel (every experiment reports the same numbers)
 
 From `pilot_diagnostics.py` + `move_analysis`:
 1. paired dBrier vs **direct** (primary), vs **market** (reference only —
    the no-retrieval knowledge ceiling is structural)
 2. dBrier on the **LTP-violation subset** (n≈18 in pilot) vs consistent
-   subset — the joint's only theoretical edge lives here
+   subset — the joint's only theoretical edge lives here 
 3. calibration table; move-size distribution (|p_flow − p_direct|)
 4. fit health: span-normalised residuals, min p_cond, entropy, credences
    (robust arms), fit seconds
@@ -29,7 +17,7 @@ From `pilot_diagnostics.py` + `move_analysis`:
 
 | lever | values | status / hypothesis |
 |---|---|---|
-| `--prob-penalty` | abs / logit (`prob_logit_sd` 0.2/0.3/0.5) | **running** — kills rare-event inflation |
+| `--prob-penalty` | abs / logit (`prob_logit_sd` 0.2/0.3/0.5) | **done 2026-07-12, logit wins** — see results log |
 | `--robust` (`p_broken` 0.05/0.15) | on/off | gates should win on LTP subset |
 | `entropy_reg` | 1.0 / 0.3 / 0.1 | [todo#3] lower = weaker drift, weaker maxent story |
 | `sharpness` | logit: 40/80/160; abs: 20/50 | [todo#3] 80 validated for logit on synthetic |
@@ -45,7 +33,7 @@ From `pilot_diagnostics.py` + `move_analysis`:
 |---|---|---|
 | `--reasoning-effort` | none / low / high | [todo#1] does thinking improve estimate quality & consistency? (LTP-violation rate is the cheap proxy metric) |
 | repeat elicitation | k=3 × 50 questions | [todo#2] elicitation-variance vs question-variance → do we need ensembling in the full run? |
-| `--n-estimates` | 10 / 15 / 20 | denser coupling; watch LTP rate and p_cond tail |
+| `--n-estimates` | 10 / 15 / 20 | denser coupling; watch LTP rate and p_cond tail. Use `--variables-from llm_cache_full.json` to hold variables fixed (isolates the density lever, halves the cost): `python metaculus/run_elicitation.py --dataset metaculus/full_dataset.json --ids-file metaculus/pilot_ids.txt --variables-from metaculus/llm_cache_full.json --n-estimates 20 --cache metaculus/llm_cache_n20.json` |
 | `--n-variables` | 4 / 6 | more structure vs more noise |
 | model | gemini-flash / gemini-pro | quality ladder; pro ≈ 5–10× cost |
 | prompt: probability-scale nudge | on/off | deferred earlier; only worth testing if tails still dominate Brier after logit fix |
@@ -65,6 +53,29 @@ From `pilot_diagnostics.py` + `move_analysis`:
   engine there after the logit change to confirm no regression
 - variance decomposition (A.fit-seed + B.repeat-elicitation) → sample-size
   math for the full run
+
+## Results log
+
+### 2026-07-12 — penalty arms (147 pilot questions, steps 1500, seed 0)
+
+| arm | Brier | ΔBrier vs direct (paired) | mean move | LTP subset (n=18) | consistent (n=129) |
+|---|---|---|---|---|---|
+| direct LLM | 0.1592 | — | — | — | — |
+| abs | 0.1609 | +0.0017 ± 0.0014 | +0.0145 | −0.0016 ± 0.0069 | +0.0022 ± 0.0013 |
+| **logit** | **0.1584** | **−0.0008 ± 0.0017** | +0.0082 | **−0.0067 ± 0.0064** | +0.0000 ± 0.0017 |
+| logit+robust | 0.1590 | −0.0002 ± 0.0018 | +0.0085 | −0.0051 ± 0.0075 | +0.0005 ± 0.0017 |
+
+Read: the logit penalty removed the abs arm's systematic inflation tax
+(mean move halved, p90 |move| 0.040 → 0.021, unjustified tail moves gone
+— the 3 remaining |move| > 0.05 all helped, incl. dzuCO2pcpu 0.55 → 0.89
+resolved yes). Flow is now inert on consistent questions and ~1σ better
+on the LTP-violation subset — which at the full run's n≈400 would be a
+real signal if the effect size holds. Robust adds nothing over plain
+logit yet (fewer moves toward outcome; gates convict mildly-useful
+constraints — retry after a p_broken sweep). No arm passes the 2σ gate:
+the solver no longer destroys value, so the binding constraint is that
+only 18/147 questions give the joint something to correct → estimate
+density (B) is the next lever.
 
 ## Sequence
 
