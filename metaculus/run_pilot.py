@@ -17,14 +17,20 @@ from pathlib import Path
 HERE = Path(__file__).parent
 
 # (out_name, extra run_flow_solver.py args) — equal steps across arms.
+# The three penalty arms are done and committed, so they skip instantly
+# (resume-safe) and stay in the diagnostics printout for comparison.
+N20 = str(HERE / "llm_cache_n20.json")
 ARMS = [
     ("arm_abs.json", ["--prob-penalty", "abs"]),
     ("arm_logit.json", ["--prob-penalty", "logit"]),
     ("arm_logit_robust.json", ["--prob-penalty", "logit", "--robust"]),
-    # estimate-density fork (same variables, 20 estimates) — enable once
-    # llm_cache_n20.json is elicited and pushed:
-    # ("arm_logit_n20.json", ["--prob-penalty", "logit",
-    #                         "--cache", str(HERE / "llm_cache_n20.json")]),
+    # estimate-density sweep: one n=20 elicitation (same variables as the
+    # main cache), solver sees the first 5 / 12 / all 20 estimates
+    ("arm_n20_e5.json", ["--prob-penalty", "logit", "--cache", N20,
+                         "--max-estimates", "5"]),
+    ("arm_n20_e12.json", ["--prob-penalty", "logit", "--cache", N20,
+                          "--max-estimates", "12"]),
+    ("arm_n20_e20.json", ["--prob-penalty", "logit", "--cache", N20]),
 ]
 
 

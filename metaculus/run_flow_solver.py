@@ -94,6 +94,11 @@ def main(argv=None):
     ap.add_argument("--n-samples", type=int, default=2048)
     ap.add_argument("--entropy-reg", type=float, default=1.0)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--max-estimates", type=int, default=None,
+                    help="give the solver only the first N estimates (elicited "
+                         "order, direct target estimate always kept) — an "
+                         "information-density sweep over one cache, so arms "
+                         "differ only in how much the solver sees")
     ap.add_argument("--no-corr", action="store_true",
                     help="drop CorrelationEstimate (information-diet ablation)")
     ap.add_argument("--prob-penalty", default="logit", choices=["logit", "abs"],
@@ -126,7 +131,8 @@ def main(argv=None):
               "prob_penalty": args.prob_penalty,
               "prob_logit_sd": args.prob_logit_sd,
               "robust": args.robust, "protect_anchor": args.protect_anchor,
-              "seed": args.seed}
+              "max_estimates": args.max_estimates,
+              "cache": Path(args.cache).name, "seed": args.seed}
 
     todo = [k for k in cache if k in by_key and k not in preds]
     if args.shard:
@@ -148,6 +154,14 @@ def main(argv=None):
             if args.no_corr:
                 estimates = [x for x in estimates
                              if not isinstance(x, CorrelationEstimate)]
+            if args.max_estimates is not None and \
+                    len(estimates) > args.max_estimates:
+                di = next((i for i, x in enumerate(estimates)
+                           if isinstance(x, ProbabilityEstimate)
+                           and x.proposition.variable == TARGET_NAME), None)
+                keep = [] if di is None else [estimates[di]]
+                rest = [x for i, x in enumerate(estimates) if i != di]
+                estimates = keep + rest[:args.max_estimates - len(keep)]
             builder = DistributionBuilder(variables, estimates,
                                           prob_penalty=args.prob_penalty,
                                           prob_logit_sd=args.prob_logit_sd,
