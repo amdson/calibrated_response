@@ -77,6 +77,36 @@ the solver no longer destroys value, so the binding constraint is that
 only 18/147 questions give the joint something to correct → estimate
 density (B) is the next lever.
 
+### 2026-07-13 — estimate-density sweep (n20 cache, 135 questions, logit)
+
+One n=20 elicitation (variables reused from the main cache via
+`--variables-from`); solver sees the first 5 / 12 / all 20 estimates
+(`--max-estimates`, direct always kept). arm_logit (n=10, other cache)
+shown on the 133 common keys for reference.
+
+| arm | ΔBrier vs direct | mean \|move\| | max-resid median/p90 | LTP subset (n=19) |
+|---|---|---|---|---|
+| logit n10 (ref) | −0.0008 ± 0.0019 | 0.0132 | 0.073 / 0.218 | −0.0009 ± 0.0027 |
+| n20, first 5 | +0.0014 ± 0.0006 | 0.0069 | 0.019 / 0.051 | +0.0001 ± 0.0018 |
+| n20, first 12 | +0.0010 ± 0.0015 | 0.0125 | 0.096 / 0.256 | +0.0063 ± 0.0036 |
+| n20, all 20 | +0.0052 ± 0.0033 | 0.0164 | 0.131 / 0.494 | +0.0105 ± 0.0047 |
+
+Read: **naive density hurts, monotonically.** Constraint conflict grows
+with count (median max-residual 0.019 → 0.131; p90 0.494 at e20 means
+heavily self-contradictory batteries), and the solver propagates the
+contradictions into the target — worst case ECBESTRVOLWGTTRMDMNRT
+0.45 → 0.17 on a resolved-yes (dBrier +0.38, maxres 0.46, ≈ half the
+e20 loss). Crucially the LTP subset — where the joint is supposed to
+earn — *degrades* with density: the extra estimates are noise, not
+signal, so resolving the inconsistencies no longer points anywhere
+useful. Also measured: the direct estimate itself varies mean |diff|
+0.033 (max 0.67!) between the two elicitations of the same questions —
+elicitation variance dwarfs every solver effect measured so far, which
+makes repeat-elicitation ensembling (B.2) the headline lever.
+Follow-ups: robust gates on the e20 arm (conflict is exactly what gates
+are for); estimate *quality* devices over count (both-arms conditionals,
+critique pass, per-estimate confidence).
+
 ## Sequence
 
 **Phase 1 — solver sweep on the existing cache (free, this week)**

@@ -31,6 +31,10 @@ ARMS = [
     ("arm_n20_e12.json", ["--prob-penalty", "logit", "--cache", N20,
                           "--max-estimates", "12"]),
     ("arm_n20_e20.json", ["--prob-penalty", "logit", "--cache", N20]),
+    # gates vs conflict: the e20 batteries are heavily self-contradictory
+    # (median max-resid 0.131) — exactly the case robust mode is for
+    ("arm_n20_e20_robust.json", ["--prob-penalty", "logit", "--robust",
+                                 "--cache", N20]),
 ]
 
 
