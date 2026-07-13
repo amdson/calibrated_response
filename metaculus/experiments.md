@@ -103,9 +103,16 @@ useful. Also measured: the direct estimate itself varies mean |diff|
 0.033 (max 0.67!) between the two elicitations of the same questions —
 elicitation variance dwarfs every solver effect measured so far, which
 makes repeat-elicitation ensembling (B.2) the headline lever.
-Follow-ups: robust gates on the e20 arm (conflict is exactly what gates
-are for); estimate *quality* devices over count (both-arms conditionals,
-critique pass, per-estimate confidence).
+Follow-up ran: **robust gates do NOT rescue e20** (+0.0056 ± 0.0035,
+identical to plain e20; max-resid unchanged). Mechanism: the conflict is
+*diffuse* — on the worst question zero of 15 gates convicted (credences
+min 0.74, mean 0.91); no single estimate carries enough residual (~0.7
+log-odds needed at p_broken 0.05) to pay the ~3-nat conviction price, so
+gates sag uniformly and soften everything without picking a villain.
+Gates handle "one broken estimate", not battery-wide sloppiness.
+Conclusion: density is closed as a lever at current estimate quality.
+Fix at the source — repeat-elicitation ensembling with pre-aggregation
+(median + spread-derived sd), both-arms conditionals, critique pass.
 
 ## Sequence
 
