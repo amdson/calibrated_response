@@ -33,7 +33,7 @@ From `pilot_diagnostics.py` + `move_analysis`:
 | `--robust` (`p_broken` 0.05/0.15) | on/off | gates should win on LTP subset |
 | `entropy_reg` | 1.0 / 0.3 / 0.1 | [todo#3] lower = weaker drift, weaker maxent story |
 | `sharpness` | logit: 40/80/160; abs: 20/50 | [todo#3] 80 validated for logit on synthetic |
-| anchor asymmetry | direct-target sd × {0.5, 1, 2} vs other estimates | anchor is now **ungated in robust mode** (`anchor_variable`); sd asymmetry still open |
+| anchor protection | `--protect-anchor` on/off (default **off**) | ungates the direct estimate in robust mode; off by default — if the method is useful the joint should occasionally outweigh the anchor. sd asymmetry (direct-target sd × {0.5, 1, 2}) still open |
 | certainty clip | logit targets clipped to 0.99 / 0.95 | elicited p=1.0 couplings clip at ±logit(0.99)=4.6; tighter clip = weaker overconfident pulls (dzuCO2pcpu case: raw 1.0 targets drove 0.55→0.98) |
 | `corr_sd` | 0.1/0.15/0.3 + `--no-corr` | corr currently a no-op; retest after logit |
 | fit budget | steps 800/3000, n_samples 2048/8192 | 8192 helps rare-p_cond conditionals |

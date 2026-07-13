@@ -102,6 +102,10 @@ def main(argv=None):
                          "or 'abs' (legacy absolute)")
     ap.add_argument("--prob-logit-sd", type=float, default=0.3)
     ap.add_argument("--robust", action="store_true")
+    ap.add_argument("--protect-anchor", action="store_true",
+                    help="keep the direct target estimate ungated in robust "
+                         "mode (off by default: the joint should be allowed "
+                         "to outweigh the anchor)")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--shard", default=None,
                     help="'i/n': process every n-th todo entry starting at i. "
@@ -121,7 +125,8 @@ def main(argv=None):
               "entropy_reg": args.entropy_reg, "no_corr": args.no_corr,
               "prob_penalty": args.prob_penalty,
               "prob_logit_sd": args.prob_logit_sd,
-              "robust": args.robust, "seed": args.seed}
+              "robust": args.robust, "protect_anchor": args.protect_anchor,
+              "seed": args.seed}
 
     todo = [k for k in cache if k in by_key and k not in preds]
     if args.shard:
@@ -147,7 +152,9 @@ def main(argv=None):
                                           prob_penalty=args.prob_penalty,
                                           prob_logit_sd=args.prob_logit_sd,
                                           robust=args.robust,
-                                          anchor_variable=TARGET_NAME)
+                                          anchor_variable=(
+                                              TARGET_NAME if args.protect_anchor
+                                              else None))
             dist, info = builder.build(
                 target_variable=TARGET_NAME, steps=args.steps,
                 n_samples=args.n_samples, entropy_reg=args.entropy_reg,
