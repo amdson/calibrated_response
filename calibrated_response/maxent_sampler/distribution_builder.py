@@ -322,6 +322,25 @@ class DistributionBuilder:
             return self.prob_logit_sd, "logit"
         return self.prob_sd, "abs"
 
+    def _prob_sd(self, est, default_sd: float) -> float:
+        """Per-estimate probability belief width, else the global default.
+
+        ``est.sd`` is only honoured under the logit penalty (that is the space
+        ``collapse_repeats`` measures the spread in — a log-odds width);
+        under the legacy abs penalty its units would be wrong, so fall back."""
+        sd = getattr(est, "sd", None)
+        if sd is not None and self.prob_penalty == "logit":
+            return float(sd)
+        return default_sd
+
+    def _value_sd(self, est, idx: int) -> float:
+        """Per-estimate expectation belief width (value units), else the
+        span-scaled global default."""
+        sd = getattr(est, "sd", None)
+        if sd is not None:
+            return float(sd)
+        return self.value_rel_sd * self._span(idx)
+
     def _build_constraints(self) -> None:
         p_sd, p_space = self._prob_belief()
         for est in self.estimates:
@@ -332,7 +351,7 @@ class DistributionBuilder:
                     is_anchor = (self.anchor_variable is not None and
                                  getattr(est.proposition, "variable", None)
                                  == self.anchor_variable)
-                    self._add(soft, None, tg, p_sd,
+                    self._add(soft, None, tg, self._prob_sd(est, p_sd),
                               est.id, est.to_query_estimate(),
                               lambda x, h=hard: float(np.mean(h(x))), None,
                               space=p_space, gated=not is_anchor)
@@ -340,7 +359,7 @@ class DistributionBuilder:
                 elif isinstance(est, ExpectationEstimate):
                     f, idx = self._moment_events(est.variable)
                     tg = self._clip_target(est.id, idx, float(est.expected_value))
-                    self._add(f, None, tg, self.value_rel_sd * self._span(idx),
+                    self._add(f, None, tg, self._value_sd(est, idx),
                               est.id, est.to_query_estimate(),
                               lambda x, f=f: float(np.mean(f(x))), None,
                               scale=self._span(idx))
@@ -356,7 +375,7 @@ class DistributionBuilder:
                         c = hc(x)
                         return float(np.sum(h(x) * c) / (np.sum(c) + _EPS))
                     tg = self._clip_prob_target(est.id, float(est.probability))
-                    self._add(soft, soft_c, tg, p_sd,
+                    self._add(soft, soft_c, tg, self._prob_sd(est, p_sd),
                               est.id, est.to_query_estimate(), ev, hard_c,
                               space=p_space)
 
@@ -371,7 +390,7 @@ class DistributionBuilder:
                     def ev(x, f=f, hc=hard_c):
                         c = hc(x)
                         return float(np.sum(f(x) * c) / (np.sum(c) + _EPS))
-                    self._add(f, soft_c, tg, self.value_rel_sd * self._span(idx),
+                    self._add(f, soft_c, tg, self._value_sd(est, idx),
                               est.id, est.to_query_estimate(), ev, hard_c,
                               scale=self._span(idx))
 

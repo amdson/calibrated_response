@@ -1,8 +1,14 @@
-"""Colab payload: run the current pilot arms + diagnostics.
+"""Colab payload: benchmark each elicitation protocol through the solver.
 
 The Colab notebook never changes — it just resyncs the repo and runs this.
 Edit ARMS here (locally), `git commit -am wip && git push`, rerun the
 resync + payload cells.
+
+Elicitation (run_protocol_pilot.sh) runs locally and produces one cache per
+protocol; this fits each cache through the winning (logit) solver arm on
+GPU and prints one diagnostics table. Each arm differs ONLY in its
+elicitation cache — same solver config — so the comparison isolates the
+multi-pass protocol.
 
 Each arm is resume-safe: rerunning skips entries already in its --out file.
 Delete the arm's json (or bump its name) after a change that invalidates
@@ -16,26 +22,23 @@ from pathlib import Path
 
 HERE = Path(__file__).parent
 
-# (out_name, extra run_flow_solver.py args) — equal steps across arms.
-# The three penalty arms are done and committed, so they skip instantly
-# (resume-safe) and stay in the diagnostics printout for comparison.
-N20 = str(HERE / "llm_cache_n20.json")
+# (out_name, extra run_flow_solver.py args) — one arm per elicitation
+# protocol, same logit solver config across all of them. The cache files
+# come from run_protocol_pilot.sh (committed + pushed before running this).
+PROTOCOLS = ["baseline", "v1", "v1x2", "v1_fermi"]
 ARMS = [
-    ("arm_abs.json", ["--prob-penalty", "abs"]),
-    ("arm_logit.json", ["--prob-penalty", "logit"]),
-    ("arm_logit_robust.json", ["--prob-penalty", "logit", "--robust"]),
-    # estimate-density sweep: one n=20 elicitation (same variables as the
-    # main cache), solver sees the first 5 / 12 / all 20 estimates
-    ("arm_n20_e5.json", ["--prob-penalty", "logit", "--cache", N20,
-                         "--max-estimates", "5"]),
-    ("arm_n20_e12.json", ["--prob-penalty", "logit", "--cache", N20,
-                          "--max-estimates", "12"]),
-    ("arm_n20_e20.json", ["--prob-penalty", "logit", "--cache", N20]),
-    # gates vs conflict: the e20 batteries are heavily self-contradictory
-    # (median max-resid 0.131) — exactly the case robust mode is for
-    ("arm_n20_e20_robust.json", ["--prob-penalty", "logit", "--robust",
-                                 "--cache", N20]),
+    (f"pred_{p}.json", ["--cache", str(HERE / f"llm_cache_{p}.json"),
+                        "--prob-penalty", "logit"])
+    for p in PROTOCOLS
 ]
+# v1x2's whole point is repeated fills. Plain, k repeats just sharpen the
+# belief by sqrt(k) whether or not they agree (anti-calibration); the
+# collapsed arm folds each repeat group into one estimate with a
+# spread-derived sd, so disagreement widens instead. Compare the two.
+ARMS.append(
+    ("pred_v1x2_collapsed.json", ["--cache", str(HERE / "llm_cache_v1x2.json"),
+                                  "--prob-penalty", "logit",
+                                  "--collapse-repeats"]))
 
 
 def run(cmd: list[str]) -> None:
@@ -57,8 +60,10 @@ def main() -> None:
              "--out", str(out), *args, *extra])
     done = [o for o in outs if o.exists()]
     if not suffix and done:  # diagnostics only make sense on complete files
+        # --common: score every arm on the keys fit in ALL of them, so a
+        # protocol that failed on different entries doesn't skew the compare
         run([sys.executable, str(HERE / "pilot_diagnostics.py"),
-             "--predictions", *(str(o) for o in done)])
+             "--common", "--predictions", *(str(o) for o in done)])
 
 
 if __name__ == "__main__":

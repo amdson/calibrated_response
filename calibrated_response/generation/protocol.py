@@ -29,6 +29,8 @@ is len(llm nodes) * (retries + 1), readable off the protocol before launch.
 
 from __future__ import annotations
 
+import math
+import statistics
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -80,6 +82,70 @@ def quantity_key(est: EstimateUnion) -> tuple:
 def key_of_request(expr: str) -> tuple:
     """Key of a rendered quantity string (parse it with a dummy value)."""
     return quantity_key(parse_natural_syntax(f"{expr} = 0.5"))
+
+
+def _logit(p: float) -> float:
+    p = min(max(p, 1e-4), 1.0 - 1e-4)
+    return math.log(p / (1.0 - p))
+
+
+def collapse_repeats(estimates, prob_logit_sd: float = 0.3):
+    """Fold repeated estimates of one quantity into a single estimate whose
+    ``sd`` reflects the spread across the repeats.
+
+    Why this is needed: k plain quadratic penalties on the same quantity sum
+    to ONE penalty at their mean with weight k*w — i.e. effective sd/sqrt(k),
+    a sqrt(k) sharpening that ignores whether the repeats agree. So naive
+    repeats (v1x2's extra fill) always *increase* confidence, even when the
+    fills contradict each other. That is anti-calibration.
+
+    Instead, each group of k repeats becomes one estimate at the logit-space
+    median with belief width
+
+        sd = max(prob_logit_sd / sqrt(k),  std(logit(p_i)))
+
+    so agreeing repeats still sharpen (down to the base trust / sqrt(k)) while
+    disagreeing repeats WIDEN past a single estimate's trust — high-uncertainty
+    quantities are down-weighted. Requires ``Estimate.sd`` support in the
+    solver (``DistributionBuilder`` honours it under the logit penalty).
+
+    Pure, order-preserving (first occurrence wins the slot); singletons pass
+    through untouched (``sd`` stays None -> solver global default).
+    """
+    groups: dict = {}
+    order: list = []
+    for e in estimates:
+        k = quantity_key(e)
+        if k not in groups:
+            groups[k] = []
+            order.append(k)
+        groups[k].append(e)
+
+    out = []
+    for key in order:
+        grp = groups[key]
+        if len(grp) == 1:
+            out.append(grp[0])
+            continue
+        rep, k, t = grp[0], len(grp), grp[0].estimate_type
+        if t in ("probability", "conditional_probability"):
+            ls = [_logit(g.probability) for g in grp]
+            sd = max(prob_logit_sd / math.sqrt(k), statistics.pstdev(ls))
+            center = 1.0 / (1.0 + math.exp(-statistics.median(ls)))
+            out.append(rep.model_copy(update={"probability": center, "sd": sd}))
+        elif t in ("expectation", "conditional_expectation"):
+            vs = [g.expected_value for g in grp]
+            spread = statistics.pstdev(vs)
+            out.append(rep.model_copy(update={
+                "expected_value": statistics.median(vs),
+                "sd": spread if spread > 0 else None}))
+        elif t == "correlation":
+            cs = [g.correlation for g in grp]
+            out.append(rep.model_copy(update={
+                "correlation": statistics.median(cs)}))
+        else:
+            out.append(rep)
+    return out
 
 
 def negate(prop):

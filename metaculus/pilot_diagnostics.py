@@ -153,6 +153,10 @@ def main(argv=None):
     ap.add_argument("--cache", default=str(here / "llm_cache_full.json"))
     ap.add_argument("--predictions", nargs="*", default=None,
                     help="run_flow_solver output file(s); compared side by side")
+    ap.add_argument("--common", action="store_true",
+                    help="score every predictions file on the SHARED set of "
+                         "keys fit in ALL of them — the fair comparison when "
+                         "arms fail on different entries")
     args = ap.parse_args(argv)
 
     cache_path = Path(args.cache)
@@ -167,9 +171,22 @@ def main(argv=None):
     if pred_paths is None:
         default = here / "flow_predictions.json"
         pred_paths = [str(default)] if default.exists() else []
-    for p in pred_paths:
-        preds = json.loads(Path(p).read_text(encoding="utf-8"))
-        scoring_report(Path(p).stem, preds)
+
+    loaded = [(Path(p).stem, json.loads(Path(p).read_text(encoding="utf-8")))
+              for p in pred_paths]
+    if args.common and len(loaded) > 1:
+        fit_keys = [{k for k, v in preds.items() if "p_target" in v}
+                    for _, preds in loaded]
+        common = set.intersection(*fit_keys) if fit_keys else set()
+        union = set.union(*fit_keys) if fit_keys else set()
+        print("=" * 72)
+        print(f"COMMON KEY SET: {len(common)} fit in all {len(loaded)} arms "
+              f"(union {len(union)}); each arm dropped "
+              f"{ {lbl: len(ks - common) for (lbl, _), ks in zip(loaded, fit_keys)} }")
+        loaded = [(lbl, {k: v for k, v in preds.items() if k in common})
+                  for lbl, preds in loaded]
+    for label, preds in loaded:
+        scoring_report(label, preds)
 
 
 if __name__ == "__main__":

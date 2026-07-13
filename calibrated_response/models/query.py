@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Annotated, Literal, Union
+from typing import Annotated, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -53,6 +53,14 @@ class Estimate(BaseModel):
     model_config = ConfigDict(frozen=True)
     id: str = Field(..., description="Unique identifier for the estimate")
     estimate_type: Literal["probability", "expectation", "conditional_probability", "conditional_expectation", "correlation"] = Field(..., description="Type of likelihood estimate")
+    sd: Optional[float] = Field(
+        default=None,
+        description="Optional belief width for THIS estimate, in the penalty's "
+                    "native residual space (log-odds for probabilities under "
+                    "the logit penalty, value units for expectations). None "
+                    "means use the solver's global default. Set by "
+                    "repeat-collapse to encode agreement/disagreement across "
+                    "repeated elicitations of the same quantity.")
 
     def to_query_estimate(self) -> str:
         """Get a string representation suitable for queries."""

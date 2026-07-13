@@ -41,6 +41,7 @@ from calibrated_response.models.query import (CorrelationEstimate,
 from calibrated_response.models.variable import (BinaryVariable,
                                                  ContinuousVariable)
 from calibrated_response.maxent_sampler import DistributionBuilder
+from calibrated_response.generation.protocol import collapse_repeats
 
 from run_elicitation import TARGET_NAME, entry_key, load_dataset
 
@@ -99,6 +100,12 @@ def main(argv=None):
                          "order, direct target estimate always kept) — an "
                          "information-density sweep over one cache, so arms "
                          "differ only in how much the solver sees")
+    ap.add_argument("--collapse-repeats", action="store_true",
+                    help="fold repeated estimates of the same quantity into one "
+                         "estimate with a spread-derived sd (agreeing repeats "
+                         "sharpen, disagreeing repeats widen) — the calibrated "
+                         "alternative to letting k repeats sharpen by sqrt(k) "
+                         "regardless of agreement. The point of the v1x2 arm")
     ap.add_argument("--no-corr", action="store_true",
                     help="drop CorrelationEstimate (information-diet ablation)")
     ap.add_argument("--prob-penalty", default="logit", choices=["logit", "abs"],
@@ -128,6 +135,7 @@ def main(argv=None):
         if out_path.exists() else {}
     config = {"steps": args.steps, "n_samples": args.n_samples,
               "entropy_reg": args.entropy_reg, "no_corr": args.no_corr,
+              "collapse_repeats": args.collapse_repeats,
               "prob_penalty": args.prob_penalty,
               "prob_logit_sd": args.prob_logit_sd,
               "robust": args.robust, "protect_anchor": args.protect_anchor,
@@ -150,7 +158,11 @@ def main(argv=None):
         t0 = time.time()
         try:
             variables, estimates = deserialize(cache[key])
-            direct = direct_llm_estimate(estimates)
+            direct = direct_llm_estimate(estimates)  # from raw repeats, so the
+            #        paired baseline is identical across collapse on/off arms
+            if args.collapse_repeats:
+                estimates = collapse_repeats(
+                    estimates, prob_logit_sd=args.prob_logit_sd)
             if args.no_corr:
                 estimates = [x for x in estimates
                              if not isinstance(x, CorrelationEstimate)]
