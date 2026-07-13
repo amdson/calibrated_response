@@ -97,16 +97,29 @@ class DistributionBuilder:
         Probability / expectation / conditional estimates over those variables.
         Estimates referencing unknown variables are recorded in ``self.skipped``.
     prob_sd : float
-        Belief width for probability targets: weight ``1 / (2 prob_sd²)``.
+        Belief width for probability targets in ABSOLUTE probability units
+        (only used when ``prob_penalty="abs"``): weight ``1 / (2 prob_sd²)``.
+    prob_penalty : str
+        ``"logit"`` (default): probability residuals are penalised in
+        log-odds, so belief slack is multiplicative and uniform across the
+        scale — an absolute penalty gives tail targets (p=0.02, sd=0.05)
+        several-x odds of nearly-free slack that the entropy term spends
+        inflating rare events. ``"abs"``: legacy absolute-scale penalty.
+    prob_logit_sd : float
+        Belief width for probability targets in log-odds units (used when
+        ``prob_penalty="logit"``); 0.3 ≈ a x1.35 odds tolerance.
     value_rel_sd : float
         Belief width for expectation targets, as a *fraction of the variable's
         span* (keeps the squared residuals unit-free across mixed domains).
     corr_sd : float
         Belief width for correlation targets (weight ``1 / (2 corr_sd²)``);
         correlations are scale-free so no span normalisation is needed.
-    sharpness : float
+    sharpness : float, optional
         Soft-indicator sharpness in span-normalised units — the effective
         sigmoid slope at a threshold on variable ``i`` is ``sharpness / span_i``.
+        Default: 80 under ``prob_penalty="logit"`` (log-odds precision needs
+        the soft mean to track the hard probability into the tails), 20 under
+        ``"abs"``.
     robust : bool
         If True, every estimate becomes an ``onoff`` constraint: a learnable
         Bernoulli credence can convict a contradicted estimate at a KL price of
@@ -114,6 +127,12 @@ class DistributionBuilder:
         per-estimate credences with ``self.model.credences(self.params)``.
     p_broken : float
         Prior break probability for robust constraints.
+    anchor_variable : str, optional
+        Name of a variable whose *direct* (unconditional) probability
+        estimate is the anchor of the fit.  In robust mode that estimate
+        stays ungated — otherwise the solver can discard the anchor at a
+        cost of ``-log(p_broken)`` nats and follow an overconfident
+        coupling estimate instead.
     n_layers, hidden, s_max :
         Flow architecture (see :class:`FlowSampler`).
     n_bins : int
@@ -125,11 +144,14 @@ class DistributionBuilder:
         variables: Sequence[Variable],
         estimates: Sequence[EstimateUnion],
         prob_sd: float = 0.05,
+        prob_penalty: str = "logit",
+        prob_logit_sd: float = 0.3,
         value_rel_sd: float = 0.05,
         corr_sd: float = 0.15,
-        sharpness: float = 20.0,
+        sharpness: Optional[float] = None,
         robust: bool = False,
         p_broken: float = 0.05,
+        anchor_variable: Optional[str] = None,
         n_layers: int = 8,
         hidden: int = 64,
         s_max: float = 3.0,
@@ -137,12 +159,25 @@ class DistributionBuilder:
     ):
         self.variables = list(variables)
         self.estimates = list(estimates)
+        if prob_penalty not in ("logit", "abs"):
+            raise ValueError(f"prob_penalty must be 'logit' or 'abs', "
+                             f"got {prob_penalty!r}")
         self.prob_sd = float(prob_sd)
+        self.prob_penalty = prob_penalty
+        self.prob_logit_sd = float(prob_logit_sd)
         self.value_rel_sd = float(value_rel_sd)
         self.corr_sd = float(corr_sd)
+        # log-odds penalties need soft indicators that track the hard event
+        # to tail precision: at sharpness 20 the soft mean picks up ~0.02 of
+        # sub-threshold leakage — invisible to an absolute penalty, a ~10x
+        # odds error to a logit one (validated: 80 lands p=0.02 within 10%
+        # in odds; 20 lands at 0.002)
+        if sharpness is None:
+            sharpness = 80.0 if prob_penalty == "logit" else 20.0
         self.sharpness = float(sharpness)
         self.robust = bool(robust)
         self.p_broken = float(p_broken)
+        self.anchor_variable = anchor_variable
         self.n_bins = int(n_bins)
 
         self.skipped: list[str] = []
@@ -236,34 +271,71 @@ class DistributionBuilder:
                 f"[{cv.lower}, {cv.upper}] of {cv.name!r}; clipped to {clipped}")
         return clipped
 
+    def _clip_prob_target(self, est_id: str, p: float) -> float:
+        """Soften certainty claims for the logit penalty.
+
+        ``_logit`` clips at 1e-4, so an elicited p = 1.0 becomes a target of
+        ~+9.2 log-odds — a near-infinite pull that lets one overconfident
+        estimate outvote every other constraint (and, in robust mode, makes
+        gating off the *anchor* cheaper than gating off the bad estimate).
+        Elicited certainty means "very likely", not literal odds of 10^4:1.
+        """
+        if self.prob_penalty != "logit":
+            return p
+        clipped = float(np.clip(p, 0.01, 0.99))
+        if clipped != p:
+            self.warnings.append(
+                f"{est_id}: probability {p} softened to {clipped} for the "
+                f"logit penalty")
+        return clipped
+
     def _add(self, f, cond, target, sd, est_id, desc, eval_fn, hard_cond,
-             scale: float = 1.0):
+             scale: float = 1.0, space: str = "abs", gated: bool = True):
         """Append one constraint (plain or robust) plus its report row.
 
         ``scale`` is the natural unit of the residual (the variable span for
         expectation targets, 1 for probabilities/correlations) so report
-        errors are comparable across mixed-unit constraints."""
+        errors are comparable across mixed-unit constraints. ``space="logit"``
+        penalises the residual in log-odds (``sd`` is then a log-odds width) —
+        used for probability targets so tail beliefs keep multiplicative,
+        not absolute, slack. ``gated=False`` keeps the constraint hard even
+        in robust mode (used for the anchor estimate)."""
         gate = None
-        if self.robust:
-            self.constraints.append(("onoff", f, cond, target, sd, self.p_broken))
+        w = 1.0 / (2.0 * sd * sd)
+        if self.robust and gated:
+            self.constraints.append(
+                ("onoff", f, cond, target, sd, self.p_broken, space))
             gate = self._n_gates
             self._n_gates += 1
         elif cond is None:
-            self.constraints.append(("expect", f, target, 1.0 / (2.0 * sd * sd)))
+            kind = "logit_expect" if space == "logit" else "expect"
+            self.constraints.append((kind, f, target, w))
         else:
-            self.constraints.append(
-                ("cond_expect", f, cond, target, 1.0 / (2.0 * sd * sd)))
+            kind = "logit_cond_expect" if space == "logit" else "cond_expect"
+            self.constraints.append((kind, f, cond, target, w))
         self._report_rows.append(
             (est_id, desc, target, eval_fn, hard_cond, gate, scale))
 
+    def _prob_belief(self) -> tuple[float, str]:
+        """(sd, space) for probability targets under the configured penalty."""
+        if self.prob_penalty == "logit":
+            return self.prob_logit_sd, "logit"
+        return self.prob_sd, "abs"
+
     def _build_constraints(self) -> None:
+        p_sd, p_space = self._prob_belief()
         for est in self.estimates:
             try:
                 if isinstance(est, ProbabilityEstimate):
                     soft, hard = self._proposition_events(est.proposition)
-                    self._add(soft, None, float(est.probability), self.prob_sd,
+                    tg = self._clip_prob_target(est.id, float(est.probability))
+                    is_anchor = (self.anchor_variable is not None and
+                                 getattr(est.proposition, "variable", None)
+                                 == self.anchor_variable)
+                    self._add(soft, None, tg, p_sd,
                               est.id, est.to_query_estimate(),
-                              lambda x, h=hard: float(np.mean(h(x))), None)
+                              lambda x, h=hard: float(np.mean(h(x))), None,
+                              space=p_space, gated=not is_anchor)
 
                 elif isinstance(est, ExpectationEstimate):
                     f, idx = self._moment_events(est.variable)
@@ -283,8 +355,10 @@ class DistributionBuilder:
                     def ev(x, h=hard, hc=hard_c):
                         c = hc(x)
                         return float(np.sum(h(x) * c) / (np.sum(c) + _EPS))
-                    self._add(soft, soft_c, float(est.probability), self.prob_sd,
-                              est.id, est.to_query_estimate(), ev, hard_c)
+                    tg = self._clip_prob_target(est.id, float(est.probability))
+                    self._add(soft, soft_c, tg, p_sd,
+                              est.id, est.to_query_estimate(), ev, hard_c,
+                              space=p_space)
 
                 elif isinstance(est, ConditionalExpectationEstimate):
                     if not est.conditions:

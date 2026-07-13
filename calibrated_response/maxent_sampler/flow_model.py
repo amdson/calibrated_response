@@ -116,10 +116,12 @@ class FlowSamplerModel(SamplerModel):
             if c[0] == "onoff":
                 f, given, target, value_sd = c[1], c[2], c[3], c[4]
                 p_broken = c[5] if len(c) > 5 else 0.05
+                space = c[6] if len(c) > 6 else "abs"
                 gi = len(gate_pbroken)
                 gate_pbroken.append(p_broken)
                 gate_scorers.append(
-                    self._make_onoff(gi, f, given, target, value_sd, p_broken))
+                    self._make_onoff(gi, f, given, target, value_sd, p_broken,
+                                     space))
             else:
                 scorers.append(self._prepare(c))
         self._gate_pbroken = gate_pbroken

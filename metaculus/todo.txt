@@ -1,0 +1,4 @@
+- elicit set of llm answers with lower/no/higher thinking
+- do the std-error estimation using multiple llms/queries
+- test entropy reg hyperparameter, sigmoid sharpness hyperparameter
+- measure model fit quality, e.g. constraints met, estimated entropy, etc on test problems

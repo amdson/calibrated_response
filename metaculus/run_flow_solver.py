@@ -96,6 +96,11 @@ def main(argv=None):
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--no-corr", action="store_true",
                     help="drop CorrelationEstimate (information-diet ablation)")
+    ap.add_argument("--prob-penalty", default="logit", choices=["logit", "abs"],
+                    help="probability-constraint residual space: 'logit' "
+                         "(multiplicative slack, kills rare-event inflation) "
+                         "or 'abs' (legacy absolute)")
+    ap.add_argument("--prob-logit-sd", type=float, default=0.3)
     ap.add_argument("--robust", action="store_true")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--shard", default=None,
@@ -114,6 +119,8 @@ def main(argv=None):
         if out_path.exists() else {}
     config = {"steps": args.steps, "n_samples": args.n_samples,
               "entropy_reg": args.entropy_reg, "no_corr": args.no_corr,
+              "prob_penalty": args.prob_penalty,
+              "prob_logit_sd": args.prob_logit_sd,
               "robust": args.robust, "seed": args.seed}
 
     todo = [k for k in cache if k in by_key and k not in preds]
@@ -137,7 +144,10 @@ def main(argv=None):
                 estimates = [x for x in estimates
                              if not isinstance(x, CorrelationEstimate)]
             builder = DistributionBuilder(variables, estimates,
-                                          robust=args.robust)
+                                          prob_penalty=args.prob_penalty,
+                                          prob_logit_sd=args.prob_logit_sd,
+                                          robust=args.robust,
+                                          anchor_variable=TARGET_NAME)
             dist, info = builder.build(
                 target_variable=TARGET_NAME, steps=args.steps,
                 n_samples=args.n_samples, entropy_reg=args.entropy_reg,

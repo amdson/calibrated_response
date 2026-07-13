@@ -90,6 +90,12 @@ def hard_gt(site: int, threshold: float) -> Callable:
     return lambda x: (x[:, site] > threshold).astype(jnp.float32)
 
 
+def _logit(p):
+    """Numerically-safe log-odds (clips into [1e-4, 1 - 1e-4])."""
+    p = jnp.clip(p, 1e-4, 1.0 - 1e-4)
+    return jnp.log(p) - jnp.log1p(-p)
+
+
 class SamplerModel:
     """Implicit-sampler density model fit by sample-native expectation losses.
 
@@ -207,6 +213,26 @@ class SamplerModel:
                 den = jnp.mean(c) + _EPS
                 return w * (num / den - tg) ** 2
             return score
+        if kind == "logit_expect":
+            # Probability belief penalised in LOG-ODDS: an absolute-scale
+            # penalty gives a tail target (p = 0.02, sd = 0.05) several-x
+            # odds of nearly-free slack, which the entropy term spends
+            # inflating rare events toward 0.5. Log-odds slack is
+            # multiplicative, uniform at every probability level.
+            f, tg = cst[1], cst[2]
+            w = cst[3] if len(cst) > 3 else 1.0
+            lt = _logit(tg)
+            return lambda x: w * (_logit(jnp.mean(f(x))) - lt) ** 2
+        if kind == "logit_cond_expect":
+            f, cond, tg = cst[1], cst[2], cst[3]
+            w = cst[4] if len(cst) > 4 else 1.0
+            lt = _logit(tg)
+            def score(x):
+                c = cond(x)
+                num = jnp.mean(f(x) * c)
+                den = jnp.mean(c) + _EPS
+                return w * (_logit(num / den) - lt) ** 2
+            return score
         if kind == "cov":
             # Centred second moment: targets the *dependence* directly, invariant
             # to mean shifts — unlike ("expect", product(i,j), t), which a maxent
@@ -241,7 +267,8 @@ class SamplerModel:
             return lambda x: w * self._mmd2(x[:, cols], Y, bandwidths)
         raise ValueError(f"unknown constraint kind {kind!r}")
 
-    def _make_onoff(self, gate_idx, f, given, target, value_sd, p_broken):
+    def _make_onoff(self, gate_idx, f, given, target, value_sd, p_broken,
+                    space: str = "abs"):
         """Scoring closure ``(x, gates) -> scalar`` for a robust on/off constraint.
 
         The sample-native analogue of :func:`calibrated_response.tn.losses.onoff_expectation`::
@@ -253,9 +280,13 @@ class SamplerModel:
         ``w = 1/(2 value_sd²)`` encodes the Gaussian belief width.  The gate scales
         the *residual* (division-free), so convicting the constraint (``q -> 0``)
         smoothly switches its pull off at a KL price of ``-log p_broken`` nats.
+
+        ``space="logit"`` computes the residual in log-odds (for probability
+        beliefs; ``value_sd`` is then a log-odds width) — see ``logit_expect``.
         """
         w = 1.0 / (2.0 * value_sd * value_sd)
         pi = 1.0 - p_broken
+        logit_target = _logit(target) if space == "logit" else None
 
         def score(x, gates):
             q = jnp.clip(jax.nn.sigmoid(gates[gate_idx]), 1e-6, 1.0 - 1e-6)
@@ -264,8 +295,10 @@ class SamplerModel:
             else:
                 c = given(x)
                 mu = jnp.sum(f(x) * c) / (jnp.sum(c) + _EPS)
+            resid = (_logit(mu) - logit_target) if space == "logit" \
+                else (mu - target)
             kl = q * jnp.log(q / pi) + (1.0 - q) * jnp.log((1.0 - q) / (1.0 - pi))
-            return kl + w * (q * (mu - target)) ** 2
+            return kl + w * (q * resid) ** 2
         return score
 
     def _entropy_pairs(self, max_pairs: int = 128, seed: int = 0):
@@ -295,12 +328,14 @@ class SamplerModel:
 
         Constraint kinds (see :meth:`_prepare` and :meth:`_make_onoff`)::
 
-            ("expect",      f, target[, weight])
-            ("cond_expect", f, cond, target[, weight])
-            ("cov",         f, g, target[, weight])
-            ("corr",        f, g, target[, weight])
-            ("mmd",         sites, ref_samples[, weight])
-            ("onoff",       f, given, target, value_sd[, p_broken])
+            ("expect",            f, target[, weight])
+            ("cond_expect",       f, cond, target[, weight])
+            ("logit_expect",      f, target[, weight])        # log-odds residual
+            ("logit_cond_expect", f, cond, target[, weight])  # log-odds residual
+            ("cov",               f, g, target[, weight])
+            ("corr",              f, g, target[, weight])
+            ("mmd",               sites, ref_samples[, weight])
+            ("onoff",             f, given, target, value_sd[, p_broken[, space]])
 
         The ``onoff`` kind is the sample-native robust constraint: a belief that
         ``E[f | given] = target`` with width ``value_sd``, protected by a learnable
@@ -338,10 +373,12 @@ class SamplerModel:
             if c[0] == "onoff":
                 f, given, target, value_sd = c[1], c[2], c[3], c[4]
                 p_broken = c[5] if len(c) > 5 else 0.05
+                space = c[6] if len(c) > 6 else "abs"
                 gi = len(gate_pbroken)
                 gate_pbroken.append(p_broken)
                 gate_scorers.append(
-                    self._make_onoff(gi, f, given, target, value_sd, p_broken))
+                    self._make_onoff(gi, f, given, target, value_sd, p_broken,
+                                     space))
             else:
                 scorers.append(self._prepare(c))
         self._gate_pbroken = gate_pbroken      # so init_params sizes the gates
