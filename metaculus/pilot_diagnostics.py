@@ -14,8 +14,7 @@ Usage
 -----
     python metaculus/pilot_diagnostics.py
     python metaculus/pilot_diagnostics.py \
-        --predictions metaculus/flow_predictions.json \
-                      metaculus/flow_predictions_nocorr.json
+        --predictions metaculus/runs/2026-07-14-echo-fix/pred_*.json
 """
 
 from __future__ import annotations
@@ -150,7 +149,8 @@ def scoring_report(label: str, preds: dict) -> None:
 def main(argv=None):
     here = Path(__file__).parent
     ap = argparse.ArgumentParser()
-    ap.add_argument("--cache", default=str(here / "llm_cache_full.json"))
+    ap.add_argument("--cache", default=str(here / "caches" / "full"
+                                           / "llm_cache_full.json"))
     ap.add_argument("--predictions", nargs="*", default=None,
                     help="run_flow_solver output file(s); compared side by side")
     ap.add_argument("--common", action="store_true",
@@ -167,10 +167,7 @@ def main(argv=None):
         if fail_path.exists() else {}
     elicitation_report(cache, failures)
 
-    pred_paths = args.predictions
-    if pred_paths is None:
-        default = here / "flow_predictions.json"
-        pred_paths = [str(default)] if default.exists() else []
+    pred_paths = args.predictions if args.predictions is not None else []
 
     loaded = [(Path(p).stem, json.loads(Path(p).read_text(encoding="utf-8")))
               for p in pred_paths]

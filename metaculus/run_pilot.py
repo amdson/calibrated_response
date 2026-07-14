@@ -11,8 +11,10 @@ elicitation cache — same solver config — so the comparison isolates the
 multi-pass protocol.
 
 Each arm is resume-safe: rerunning skips entries already in its --out file.
-Delete the arm's json (or bump its name) after a change that invalidates
-old fits — stale rows are the classic confound.
+All arms write into one runs/<RUN>/ directory; bump RUN after ANY change
+that invalidates old fits (code, caches, arms) — a fresh directory means
+resume can never cross a code change, which is the mechanism behind the
+2026-07-14 stale-row contamination.
 """
 from __future__ import annotations
 
@@ -22,23 +24,28 @@ from pathlib import Path
 
 HERE = Path(__file__).parent
 
+# bump on any change that invalidates old fits; never reuse a run dir
+# across code or cache changes
+RUN = "2026-07-14-echo-fix"
+
 # (out_name, extra run_flow_solver.py args) — one arm per elicitation
 # protocol, same logit solver config across all of them. The cache files
 # come from run_protocol_pilot.sh (committed + pushed before running this).
-PROTOCOLS = ["baseline", "v1", "v1x2", "v1_fermi"]
+PROTOCOLS = ["baseline", "v1", "v1x2", "v1_fermi", "v1_spread"]
 ARMS = [
-    (f"pred_{p}.json", ["--cache", str(HERE / f"llm_cache_{p}.json"),
-                        "--prob-penalty", "logit"])
+    (f"pred_{p}.json",
+     ["--cache", str(HERE / "caches" / p / f"llm_cache_{p}.json"),
+      "--prob-penalty", "logit"])
     for p in PROTOCOLS
 ]
-# v1x2's whole point is repeated fills. Plain, k repeats just sharpen the
-# belief by sqrt(k) whether or not they agree (anti-calibration); the
-# collapsed arm folds each repeat group into one estimate with a
-# spread-derived sd, so disagreement widens instead. Compare the two.
+# collapse_repeats is now the solver default (duplicates count once,
+# disagreement widens). Keep one ablation arm where v1x2's repeats are fed
+# through raw — k penalties per quantity, sqrt(k) sharpening — so the cost
+# of NOT collapsing stays measurable.
 ARMS.append(
-    ("pred_v1x2_collapsed.json", ["--cache", str(HERE / "llm_cache_v1x2.json"),
-                                  "--prob-penalty", "logit",
-                                  "--collapse-repeats"]))
+    ("pred_v1x2_nocollapse.json",
+     ["--cache", str(HERE / "caches" / "v1x2" / "llm_cache_v1x2.json"),
+      "--prob-penalty", "logit", "--no-collapse"]))
 
 
 def run(cmd: list[str]) -> None:
@@ -52,9 +59,14 @@ def main() -> None:
     if "--shard" in extra:  # per-session out files; merge shards afterwards
         i = extra[extra.index("--shard") + 1].split("/")[0]
         suffix = f"_shard{i}"
+    run_dir = HERE / "runs" / RUN
     outs = []
     for out_name, args in ARMS:
-        out = HERE / out_name.replace(".json", f"{suffix}.json")
+        cache = Path(args[args.index("--cache") + 1])
+        if not cache.exists():
+            print(f"skip {out_name}: no cache at {cache}", flush=True)
+            continue
+        out = run_dir / out_name.replace(".json", f"{suffix}.json")
         outs.append(out)
         run([sys.executable, str(HERE / "run_flow_solver.py"),
              "--out", str(out), *args, *extra])

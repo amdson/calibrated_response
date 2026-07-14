@@ -52,7 +52,8 @@ IMPORTANT:
 - Variable names must be short (2-4 words, no spaces preferred, use underscores)
 - Variable descriptions should be clear and concise
 - Variable types must be binary or continuous
-- The plausible range for continuous variables must be very conservative, covering all realistic outcomes.
+- Bounds for continuous variables must be EXTREMELY conservative: so wide that the true value is almost guaranteed to fall in the middle portion of the range, with genuine probability mass on BOTH sides of your central estimate.
+- A range whose most likely value sits at or near a bound (e.g. X in [0, 1] when you expect X near 0) is degenerate and unusable — widen that side well past the plausible extreme, and if the quantity is pinned at a physical limit (a count you expect to be zero), reformulate it (log-scale it, broaden its scope, or make it binary) so the expected value is interior.
 - Do NOT include a variable restating the main question — a binary variable named 'target' for the question outcome is added automatically; generate the context/driver variables around it.
 - Pick intuitive numerical answers which scale variables to the (0.1-10) range when possible for better calibration
 - Put a particular emphasis on variables that are necessary preconditions for the main question's outcome, 

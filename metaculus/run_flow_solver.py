@@ -9,16 +9,23 @@ one prediction row per entry to ``--out``:
      min_p_cond, seconds, config}
 
 - Resume-safe: rows are keyed by entry and saved after every fit; re-running
-  skips existing keys (delete the file or use a new --out to refit).
+  skips existing keys. --out is REQUIRED and should be a fresh
+  ``runs/<date>-<slug>/`` directory per solver run, so a resume can never
+  cross a code change (the mechanism behind the 2026-07-14 stale-row
+  contamination). A ``manifest.json`` with the config + git SHA is written
+  next to each output file.
+- Repeated estimates of one quantity are collapsed by default (duplicates
+  count once, disagreement widens — see ``protocol.collapse_repeats``);
+  ``--no-collapse`` is the escape hatch that lets k repeats sharpen the
+  solver by sqrt(k).
 - ``--no-corr`` drops CorrelationEstimate before building — the ablation that
   separates "better solver" from "more information used".
 - ``--robust`` fits with per-estimate credence gates.
 
 Usage
 -----
-    python metaculus/run_flow_solver.py --out metaculus/flow_predictions.json
-    python metaculus/run_flow_solver.py --no-corr \
-        --out metaculus/flow_predictions_nocorr.json
+    python metaculus/run_flow_solver.py \
+        --out metaculus/runs/2026-07-15-mytest/flow_predictions.json
 """
 
 from __future__ import annotations
@@ -26,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import time
 import traceback
 from pathlib import Path
@@ -86,11 +94,13 @@ def market_value(e: dict) -> float | None:
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", default=str(Path(__file__).parent
-                                             / "full_dataset.json"))
-    ap.add_argument("--cache", default=str(Path(__file__).parent
-                                           / "llm_cache_full.json"))
-    ap.add_argument("--out", default=str(Path(__file__).parent
-                                         / "flow_predictions.json"))
+                                             / "data" / "full_dataset.json"))
+    ap.add_argument("--cache", default=str(Path(__file__).parent / "caches"
+                                           / "full" / "llm_cache_full.json"))
+    ap.add_argument("--out", required=True,
+                    help="prediction file; use a fresh runs/<date>-<slug>/ "
+                         "directory per solver run so resume never crosses "
+                         "a code change")
     ap.add_argument("--steps", type=int, default=1500)
     ap.add_argument("--n-samples", type=int, default=2048)
     ap.add_argument("--entropy-reg", type=float, default=1.0)
@@ -100,12 +110,13 @@ def main(argv=None):
                          "order, direct target estimate always kept) — an "
                          "information-density sweep over one cache, so arms "
                          "differ only in how much the solver sees")
-    ap.add_argument("--collapse-repeats", action="store_true",
-                    help="fold repeated estimates of the same quantity into one "
-                         "estimate with a spread-derived sd (agreeing repeats "
-                         "sharpen, disagreeing repeats widen) — the calibrated "
-                         "alternative to letting k repeats sharpen by sqrt(k) "
-                         "regardless of agreement. The point of the v1x2 arm")
+    ap.add_argument("--no-collapse", action="store_true",
+                    help="do NOT fold repeated estimates of the same quantity "
+                         "into one spread-derived-sd estimate. Collapse is the "
+                         "default (defense in depth: even a cache that still "
+                         "contains echoed duplicates cannot sqrt(k)-sharpen "
+                         "the solver); this flag restores k independent "
+                         "penalties per quantity")
     ap.add_argument("--no-corr", action="store_true",
                     help="drop CorrelationEstimate (information-diet ablation)")
     ap.add_argument("--prob-penalty", default="logit", choices=["logit", "abs"],
@@ -135,12 +146,38 @@ def main(argv=None):
         if out_path.exists() else {}
     config = {"steps": args.steps, "n_samples": args.n_samples,
               "entropy_reg": args.entropy_reg, "no_corr": args.no_corr,
-              "collapse_repeats": args.collapse_repeats,
+              "collapse_repeats": not args.no_collapse,
               "prob_penalty": args.prob_penalty,
               "prob_logit_sd": args.prob_logit_sd,
               "robust": args.robust, "protect_anchor": args.protect_anchor,
               "max_estimates": args.max_estimates,
               "cache": Path(args.cache).name, "seed": args.seed}
+
+    # audit trail: config + git SHA per output file, readable without
+    # loading a prediction file
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path = out_path.parent / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8")) \
+        if manifest_path.exists() else {}
+    try:
+        sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+            cwd=Path(__file__).parent).stdout.strip() or None
+    except OSError:
+        sha = None
+    prev = manifest.get(out_path.name)
+    if prev and preds and (prev.get("git_sha") != sha
+                           or prev.get("config") != config):
+        print(f"WARNING: resuming {out_path.name} over rows fit at "
+              f"sha={prev.get('git_sha')} config={prev.get('config')} — "
+              f"stale-row contamination; use a fresh runs/<date>-<slug>/ "
+              f"directory instead")
+    manifest[out_path.name] = {
+        "config": config, "git_sha": sha,
+        "dataset": Path(args.dataset).name,
+        "fitted_at": time.strftime("%Y-%m-%dT%H:%M:%S")}
+    manifest_path.write_text(json.dumps(manifest, indent=1),
+                             encoding="utf-8")
 
     todo = [k for k in cache if k in by_key and k not in preds]
     if args.shard:
@@ -160,7 +197,7 @@ def main(argv=None):
             variables, estimates = deserialize(cache[key])
             direct = direct_llm_estimate(estimates)  # from raw repeats, so the
             #        paired baseline is identical across collapse on/off arms
-            if args.collapse_repeats:
+            if not args.no_collapse:
                 estimates = collapse_repeats(
                     estimates, prob_logit_sd=args.prob_logit_sd)
             if args.no_corr:

@@ -9,18 +9,25 @@ mining, marginal batteries, target couplings, and re-estimation are all the
 same shape.
 
 Union semantics (deliberate):
-- Estimates are NEVER deduplicated in the state. k estimates of the same
-  quantity become k quadratic penalties in the solver — mathematically
-  identical to mean-aggregation with sd/sqrt(k), and robust gates can
-  convict an outlier repeat individually. The model is the consistency
-  device; no aggregation code.
+- Estimates are kept as elicited (dupes appended, no aggregation code), but
+  repeats are only meaningful when they are INDEPENDENT draws. A fill pass
+  that can see a prior answer to the same quantity just echoes it, and k
+  echoed copies act on the solver as one penalty at sd/sqrt(k) — a free
+  sqrt(k) sharpening of whatever the LLM already said (the 2026-07-14 pilot
+  echo bug). Two rules follow:
+  (a) ``propose_requests`` never re-requests a quantity that already has an
+      estimate — the echo is removed at the source; and
+  (b) genuine repeats come from re-running ``fill_requests`` with
+      ``hide_estimates=True``, a fresh context in which prior estimates are
+      not shown, so the draw is independent.
+  The solver folds whatever repeats remain via ``collapse_repeats`` (on by
+  default there): duplicates count once, disagreement widens.
 - When estimates are rendered INTO a prompt as data, duplicates collapse to
   one sample per quantity (the first elicited) so the model reads a clean
   belief state.
 - Requests are estimates with the value left blank ("P(target = True | x >
   5)"), stored as rendered quantity strings and deduplicated by structural
-  key. ``fill_requests`` answers every open request each time it runs, so k
-  fill nodes = k independent repeats.
+  key. ``fill_requests`` answers every open request each time it runs.
 
 Every enricher is bounded: one LLM call per application (retries live in the
 runner), and ``propose_requests`` is pure code. Worst-case calls per question
@@ -102,11 +109,15 @@ def collapse_repeats(estimates, prob_logit_sd: float = 0.3):
     Instead, each group of k repeats becomes one estimate at the logit-space
     median with belief width
 
-        sd = max(prob_logit_sd / sqrt(k),  std(logit(p_i)))
+        sd = max(prob_logit_sd,  std(logit(p_i)))
 
-    so agreeing repeats still sharpen (down to the base trust / sqrt(k)) while
-    disagreeing repeats WIDEN past a single estimate's trust — high-uncertainty
-    quantities are down-weighted. Requires ``Estimate.sd`` support in the
+    Duplicates count once; disagreement widens past a single estimate's
+    trust; nothing ever sharpens for free. (An earlier version floored at
+    ``prob_logit_sd / sqrt(k)`` — but ``prob_logit_sd`` encodes how much we
+    trust this claim about the world, and sampling the LLM more times does
+    not make its claim more reliable; for an echoed duplicate it is not even
+    sampling. That floor reproduced exactly the sqrt(k) sharpening this
+    function exists to prevent.) Requires ``Estimate.sd`` support in the
     solver (``DistributionBuilder`` honours it under the logit penalty).
 
     Pure, order-preserving (first occurrence wins the slot); singletons pass
@@ -127,10 +138,10 @@ def collapse_repeats(estimates, prob_logit_sd: float = 0.3):
         if len(grp) == 1:
             out.append(grp[0])
             continue
-        rep, k, t = grp[0], len(grp), grp[0].estimate_type
+        rep, t = grp[0], grp[0].estimate_type
         if t in ("probability", "conditional_probability"):
             ls = [_logit(g.probability) for g in grp]
-            sd = max(prob_logit_sd / math.sqrt(k), statistics.pstdev(ls))
+            sd = max(prob_logit_sd, statistics.pstdev(ls))
             center = 1.0 / (1.0 + math.exp(-statistics.median(ls)))
             out.append(rep.model_copy(update={"probability": center, "sd": sd}))
         elif t in ("expectation", "conditional_expectation"):
@@ -297,9 +308,17 @@ _VAR_MODES = {
 _VAR_RULES = """
 For each variable provide: a short name (2-4 words, underscores, no spaces),
 a concise description, whether it is binary or continuous, an importance in
-[0, 1], and for CONTINUOUS variables a conservative lower_bound/upper_bound
-covering all realistic outcomes plus a unit. Scale continuous variables into
-roughly the 0.1-10 range when a natural unit allows it.
+[0, 1], and for CONTINUOUS variables a lower_bound/upper_bound plus a unit.
+Bounds must be EXTREMELY conservative: choose them so wide that the true
+value is almost guaranteed to fall in the middle portion of the range, with
+genuine probability mass on BOTH sides of your central estimate. A range
+whose most likely value sits at or near a bound (e.g. X in [0, 1] when you
+expect X near 0) is degenerate and unusable — widen that side well past the
+plausible extreme, and if the quantity is pinned at a physical limit (a
+count you expect to be zero), reformulate it (log-scale it, broaden its
+scope, or make it binary) so the expected value is interior. Scale
+continuous variables into roughly the 0.1-10 range when a natural unit
+allows it.
 Do NOT duplicate or restate any existing variable listed above (including
 'target', which is the question outcome itself)."""
 
@@ -328,6 +347,21 @@ _EST_SCOPES = {
         "(with at least one continuous variable). Only include pairs you "
         "genuinely believe are dependent; independent pairs need no "
         "estimate."),
+    # Spreads, not point expectations: E[x] = 48 tells the solver nothing
+    # about whether x clears 50 — without a spread that is decided entirely
+    # by the maxent default width. For threshold questions the spread IS the
+    # answer, so ask for the p10/p50/p90 of every continuous leaf variable.
+    "spreads": (
+        "For EACH continuous variable above, state your 10th, 50th and 90th "
+        "percentiles for its value, as exactly three estimates per variable:\n"
+        "  P(name < q10) = 0.1\n"
+        "  P(name < q50) = 0.5\n"
+        "  P(name < q90) = 0.9\n"
+        "where q10 < q50 < q90 are YOUR quantile values (numbers within the "
+        "variable's bounds), reflecting genuine uncertainty — do not make "
+        "the interval artificially tight or centre it on a round number. "
+        "Binary variables need no estimate. No conditionals, no "
+        "correlations."),
 }
 
 
@@ -352,6 +386,12 @@ async def gen_variables(state: State, client, mode: str = "drivers",
 
 async def gen_estimates(state: State, client, scope: str = "free",
                         n: Optional[int] = None):
+    if scope == "spreads":
+        n_cont = sum(isinstance(v, ContinuousVariable)
+                     for v in state.variables)
+        if n_cont == 0:
+            return [], [], []  # all variables binary — nothing to spread
+        n = 3 * n_cont
     n = n if n is not None else max(6, 2 * (len(state.variables) - 1))
     prompt = (
         f"Question to forecast: {state.question}\n\n"
@@ -373,8 +413,17 @@ async def gen_estimates(state: State, client, scope: str = "free",
 
 
 def propose_requests(state: State, rules=("direct", "marginals",
-                                          "complements", "repeat_target")):
-    """Pure code, no LLM: derive open quantities from the current state."""
+                                          "complements")):
+    """Pure code, no LLM: derive OPEN quantities from the current state.
+
+    Output is filtered against ``state.estimate_keys()``: a quantity that
+    already has an estimate is never re-requested. Re-requesting a known
+    quantity puts its prior answer in the fill prompt's context, and the
+    fill pass echoes it — an identical copy that the solver reads as
+    confirmation (the echo bug). Repeats, if wanted, come from re-running
+    ``fill_requests(hide_estimates=True)``, not from re-requesting here
+    (the old ``repeat_target`` rule did exactly that and is gone).
+    """
     reqs: list[str] = []
     if "direct" in rules:
         reqs.append(f"P({TARGET_NAME} = True)")
@@ -406,33 +455,38 @@ def propose_requests(state: State, rules=("direct", "marginals",
                         continue
                 reqs.append(f"P({e.proposition.to_query_proposition()}"
                             f" | {neg.to_query_proposition()})")
-    if "repeat_target" in rules:
-        for e in state.dedup_estimates():
-            names = set()
-            if hasattr(e, "proposition"):
-                names.add(e.proposition.variable)
-            if hasattr(e, "variable"):
-                names.add(e.variable)
-            if hasattr(e, "variable_a"):
-                names |= {e.variable_a, e.variable_b}
-            names |= {c.variable for c in getattr(e, "conditions", []) or []}
-            if TARGET_NAME in names:
-                reqs.append(quantity_str(e))
-    return [], [], reqs
+    known = state.estimate_keys()
+    seen: set = set()
+    open_reqs: list[str] = []
+    for r in reqs:
+        k = key_of_request(r)
+        if k in known or k in seen:
+            continue
+        seen.add(k)
+        open_reqs.append(r)
+    return [], [], open_reqs
 
 
-async def fill_requests(state: State, client):
-    """Answer every open request. Running this node k times = k independent
-    repeats of the whole request battery (the union keeps all of them)."""
+async def fill_requests(state: State, client, hide_estimates: bool = False):
+    """Answer every open request.
+
+    ``hide_estimates=True`` withholds the state's existing estimates from
+    the prompt, so the answers are independent draws in a fresh context. A
+    repeat only carries information when drawn this way: a fill pass that
+    can see the prior answer to a quantity echoes it verbatim rather than
+    re-sampling. Use it for any fill pass after the first (whose requests
+    the first pass already answered)."""
     if not state.requests:
         return [], [], []
     numbered = "\n".join(f"{i + 1}. {r} = ?"
                          for i, r in enumerate(state.requests))
+    estimates_block = "" if hide_estimates else (
+        f"EXISTING ESTIMATES (context; you may revise your view):\n"
+        f"{state.render_estimates()}\n\n")
     prompt = (
         f"Question to forecast: {state.question}\n\n"
         f"AVAILABLE VARIABLES:\n{state.render_variables()}\n\n"
-        f"EXISTING ESTIMATES (context; you may revise your view):\n"
-        f"{state.render_estimates()}\n\n"
+        f"{estimates_block}"
         f"Provide your best estimate for EACH of the following quantities, "
         f"copying the quantity exactly and replacing '?' with your value:\n"
         f"{numbered}\n\n"

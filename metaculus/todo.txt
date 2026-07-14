@@ -1,3 +1,12 @@
+- v1x2 repeats are nearly empty after the echo fix: propose_requests filters
+  known quantities, so the second (fresh-context) fill only re-answers the
+  leftover gaps (often 0-1 requests). To make v1x2 test genuine repeats, add
+  a repeat rule to propose_requests that is EXEMPT from the known-key filter
+  (re-opens target-linked quantities), used only right before a
+  fill_requests(hide_estimates=True) pass so it cannot echo. Then re-elicit
+  the v1x2 cache only.
+- implement the gaussian-KL domain objective — full design + file/line
+  pointers + validation tests in gaussian_kl_objective.md (repo root)
 - elicit set of llm answers with lower/no/higher thinking
 - do the std-error estimation using multiple llms/queries
 - test entropy reg hyperparameter, sigmoid sharpness hyperparameter

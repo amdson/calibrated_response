@@ -114,6 +114,57 @@ Conclusion: density is closed as a lever at current estimate quality.
 Fix at the source — repeat-elicitation ensembling with pre-aggregation
 (median + spread-derived sd), both-arms conditionals, critique pass.
 
+### 2026-07-14 — protocol pilot: echo bug; ranking void; fixes landed
+
+Five arms (baseline / v1 / v1x2 / v1x2_collapsed / v1_fermi) fit on
+Colab from four caches, 29 common questions. **The ranking is void** —
+full post-mortem in `runs/2026-07-14-protocol-pilot/summary.md`. Two
+compounding bugs:
+
+1. **Echo bug.** `propose_requests` re-requested quantities that already
+   had estimates (`direct`, `marginals`, `repeat_target` rules), and
+   `fill_requests` could see those estimates in its prompt — so it copied
+   them verbatim (median log-odds spread within duplicate groups: 0.000).
+   The direct target estimate was duplicated in every multi-pass entry;
+   k identical copies act on the solver as one penalty at sd/√k, so the
+   anchor was over-weighted in exactly the arms meant to beat it (median
+   |flow − direct| 0.004–0.009 across all arms).
+2. **Collapse floor bug.** `collapse_repeats` floored at
+   `prob_logit_sd/√k`, reproducing the very √k sharpening it was written
+   to prevent — which is why the collapsed arm moved nothing.
+
+Also: `pred_baseline`/`pred_v1` were resume-contaminated with stale CPU
+fits (27/29 and 14/29 rows) via Colab `git reset` + committed prediction
+files + resume-skip. Deleted, refit needed.
+
+**Changes landed (this date):**
+- `propose_requests` filters against `state.estimate_keys()` — a known
+  quantity is never re-requested; `repeat_target` rule removed.
+- Repeats now come from `fill_requests(hide_estimates=True)`: a fresh
+  context with prior estimates hidden, so the draw is independent (v1x2
+  redefined this way).
+- Collapse floor fixed to `max(prob_logit_sd, pstdev)` — duplicates count
+  once, disagreement widens, nothing sharpens for free — and collapse is
+  now the solver DEFAULT (`--no-collapse` is the escape hatch).
+- New `spreads` elicitation scope: p10/p50/p90 per continuous variable
+  (E[x] = 48 says nothing about clearing 50; for threshold questions the
+  spread is the answer). New `v1_spread` protocol arm.
+- Variable-generation prompts (both pipelines) now demand EXTREMELY
+  conservative bounds — true value almost guaranteed interior, mass on
+  both sides of the central estimate — and forbid degenerate ranges like
+  X in [0, 1] with E[X] = 0 (reformulate when pinned at a physical
+  limit). Still open: a Gaussian-KL penalty on the solver domain instead
+  of plain entropy, for when bounds are wide.
+- Layout reorg: `data/` (inputs) / `caches/<protocol>/` ($, immutable) /
+  `runs/<date>-<slug>/` (free, regenerable, gitignored except
+  manifest/summary). `run_flow_solver.py` requires `--out`, writes a
+  `manifest.json` (config + git SHA) per run dir, and warns when resuming
+  across a sha/config change.
+- The v1/v1x2/v1_fermi caches were elicited under the echo bug →
+  archived to `caches/archive/echo-bug-2026-07-14/`; re-elicit with the
+  fixed protocol (`run_protocol_pilot.sh`), then rerun the 5-arm compare
+  (`run_pilot.py`, RUN=2026-07-14-echo-fix) on GPU.
+
 ## Sequence
 
 **Phase 1 — solver sweep on the existing cache (free, this week)**
@@ -141,9 +192,17 @@ Fix at the source — repeat-elicitation ensembling with pre-aggregation
 
 ## Standing cautions
 
-- One change per cache fork; archive caches as `llm_cache_full.vN.json`.
+- One change per cache fork; superseded caches go to `caches/archive/`.
 - Equal `steps` across compared arms (the 800-vs-1500 confound from the
   first Colab run).
-- Drop stale rows when a predictions file predates a cache regen.
+- One `runs/<date>-<slug>/` directory per solver run; NEVER resume into
+  a run dir after a code or cache change (the 2026-07-14 stale-row
+  contamination). `run_flow_solver.py` stamps a `manifest.json` and warns
+  on sha/config mismatch, but the fresh directory is the real guard.
+- `runs/` is regenerable and gitignored (manifests and summaries are
+  kept); caches are the thing that costs money and stay tracked.
+- Repeats only carry information when drawn in a fresh context
+  (`fill_requests(hide_estimates=True)`); a fill that can see a prior
+  answer echoes it.
 - Provider partials/503s: rerun with `--retry-failures`, never lower the
   bar mid-run.

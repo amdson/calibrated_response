@@ -13,8 +13,8 @@ code and free. There is no re-query loop.
 
 Usage
 -----
-    python metaculus/run_protocol.py --dataset metaculus/full_dataset.json \
-        --protocol v1 --ids-file metaculus/pilot_ids.txt --limit 2
+    python metaculus/run_protocol.py --dataset metaculus/data/full_dataset.json \
+        --protocol v1 --ids-file metaculus/data/pilot_ids.txt --limit 2
     python metaculus/run_protocol.py ... --show 2      # pretty-print cache
 """
 
@@ -53,26 +53,29 @@ PROTOCOLS = {
         ("gen_estimates", {"scope": "free", "n": 10}),
     ],
     # v1 multi-pass: variables -> marginal battery -> target couplings ->
-    # programmatic requests (direct + missing marginals + complement arms +
-    # target repeats) -> one fill pass. 4 calls/question.
+    # programmatic requests (only quantities with NO existing estimate:
+    # missing direct/marginals + complement arms) -> one fill pass.
+    # 4 calls/question.
     "v1": [
         ("gen_variables", {"mode": "drivers", "n": 4}),
         ("gen_estimates", {"scope": "marginals"}),
         ("gen_estimates", {"scope": "target_connections"}),
         ("propose_requests", {"rules": ["direct", "marginals",
-                                        "complements", "repeat_target"]}),
+                                        "complements"]}),
         ("fill_requests", {}),
     ],
-    # v1 + a second independent fill = one extra repeat of every requested
-    # quantity (5 calls/question)
+    # v1 + a second fill of the same request battery in a FRESH context
+    # (prior estimates hidden) = one genuinely independent repeat of every
+    # requested quantity (5 calls/question). A repeat that can see the
+    # first answer just echoes it — see protocol.py.
     "v1x2": [
         ("gen_variables", {"mode": "drivers", "n": 4}),
         ("gen_estimates", {"scope": "marginals"}),
         ("gen_estimates", {"scope": "target_connections"}),
         ("propose_requests", {"rules": ["direct", "marginals",
-                                        "complements", "repeat_target"]}),
+                                        "complements"]}),
         ("fill_requests", {}),
-        ("fill_requests", {}),
+        ("fill_requests", {"hide_estimates": True}),
     ],
     # fermi decomposition variant of v1
     "v1_fermi": [
@@ -80,7 +83,20 @@ PROTOCOLS = {
         ("gen_estimates", {"scope": "marginals"}),
         ("gen_estimates", {"scope": "target_connections"}),
         ("propose_requests", {"rules": ["direct", "marginals",
-                                        "complements", "repeat_target"]}),
+                                        "complements"]}),
+        ("fill_requests", {}),
+    ],
+    # v1 + a spread battery: p10/p50/p90 for every continuous variable.
+    # E[x] = 48 says nothing about whether x clears 50 — that is decided by
+    # the maxent default width unless the spread is elicited explicitly.
+    # 5 calls/question.
+    "v1_spread": [
+        ("gen_variables", {"mode": "drivers", "n": 4}),
+        ("gen_estimates", {"scope": "marginals"}),
+        ("gen_estimates", {"scope": "spreads"}),
+        ("gen_estimates", {"scope": "target_connections"}),
+        ("propose_requests", {"rules": ["direct", "marginals",
+                                        "complements"]}),
         ("fill_requests", {}),
     ],
 }
@@ -134,7 +150,8 @@ def main(argv=None):
     ap.add_argument("--dataset", required=True)
     ap.add_argument("--protocol", default="v1", choices=sorted(PROTOCOLS))
     ap.add_argument("--cache", default=None,
-                    help="default: metaculus/llm_cache_<protocol>.json")
+                    help="default: metaculus/caches/<protocol>/"
+                         "llm_cache_<protocol>.json")
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--only-resolved", action="store_true")
@@ -160,7 +177,9 @@ def main(argv=None):
 
     protocol = PROTOCOLS[args.protocol]
     cache_path = Path(args.cache) if args.cache else \
-        Path(__file__).parent / f"llm_cache_{args.protocol}.json"
+        Path(__file__).parent / "caches" / args.protocol / \
+        f"llm_cache_{args.protocol}.json"
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
     cache = json.loads(cache_path.read_text(encoding="utf-8")) \
         if cache_path.exists() else {}
 
@@ -206,9 +225,9 @@ def main(argv=None):
                             f"{entry_question(e)}")])
         for node_name, params in protocol:
             fn, needs_llm = ENRICHERS[node_name]
-            tag = f"{node_name}" + \
-                  (f"[{params.get('mode') or params.get('scope') or ''}]"
-                   if params.get('mode') or params.get('scope') else "")
+            qualifier = params.get('mode') or params.get('scope') or \
+                ("fresh" if params.get('hide_estimates') else None)
+            tag = f"{node_name}" + (f"[{qualifier}]" if qualifier else "")
             t1 = time.time()
             for attempt in range(args.retries + 1):
                 try:

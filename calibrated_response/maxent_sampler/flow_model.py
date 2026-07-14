@@ -99,16 +99,38 @@ class FlowSamplerModel(SamplerModel):
     # ---- loss: same grammar, exact entropy term ----------------------
     def constraint_loss(self, constraints, entropy_reg: float = 1.0,
                         weight_reg: float = 0.0, n_samples: int = 4096,
-                        seed: int = 0):
+                        seed: int = 0, domain_prior: str = "uniform",
+                        prior_bound_sds: float = 2.0, ref_mask=None):
         """Same constraint grammar as :meth:`SamplerModel.constraint_loss`;
         ``entropy_reg`` weights the **exact** joint entropy (default 1.0 — the
         soft-constrained maxent objective).  No histogram proxies needed.
+
+        ``domain_prior`` selects the reference measure the entropy term is
+        implicitly (or explicitly) a KL against:
+
+        * ``"uniform"`` (default): the plain ``- entropy_reg * H(x)`` term.
+          Maxent on a box == min KL(p ‖ Uniform(box)) up to a constant.
+        * ``"gaussian"``: ``+ entropy_reg * KL(p ‖ q0)`` with a factorized
+          reference ``q0_i = Normal(mid_i, span_i / (2 * prior_bound_sds))``
+          per site — the elicited bounds are read as ±k·sd of a default
+          belief, so conservative bounds widen the default instead of
+          flattening it.  ``KL = -H - E_p[log q0]``; the ``-H`` term is the
+          same exact entropy machinery, so anti-collapse survives.  Gradients
+          under ``"uniform"`` are identical to the pre-KL objective (log q0
+          would be constant); loss VALUES shift by a constant between modes.
+
+        ``ref_mask`` (length-n, 1.0/0.0) zeroes the Gaussian log q0 on chosen
+        sites — binary sites keep their Uniform(0,1) reference (log q0 = 0)
+        for free.  Default: all ones.
 
         Stochastic ``loss(params, key)`` like the parent: fresh latents every
         step.  This matters doubly for a flow — it is exactly the kind of
         flexible model that overfits a fixed batch, warping to put the training
         ``z_i`` in high ``log|det J|`` regions while the true entropy collapses
         between them."""
+        if domain_prior not in ("uniform", "gaussian"):
+            raise ValueError(f"domain_prior must be 'uniform' or 'gaussian', "
+                             f"got {domain_prior!r}")
         scorers = []
         gate_scorers = []
         gate_pbroken = []
@@ -127,6 +149,12 @@ class FlowSamplerModel(SamplerModel):
         self._gate_pbroken = gate_pbroken
 
         h_const = self._h_const
+        if domain_prior == "gaussian":
+            ref_mu = self.lower + 0.5 * self.span
+            ref_sd = self.span / (2.0 * float(prior_bound_sds))
+            mask = (jnp.ones(self.n, jnp.float32) if ref_mask is None
+                    else jnp.asarray(ref_mask, jnp.float32))
+            log_norm = -0.5 * jnp.log(2.0 * jnp.pi * ref_sd ** 2)
 
         def body(params, z):
             # One forward pass: constraints score the samples x, the entropy
@@ -142,7 +170,14 @@ class FlowSamplerModel(SamplerModel):
                 for score in gate_scorers:
                     tot = tot + score(x, gates)
             if entropy_reg:
-                tot = tot - entropy_reg * (h_const + jnp.mean(ld))
+                ent = h_const + jnp.mean(ld)               # H(p), exact
+                if domain_prior == "uniform":
+                    tot = tot - entropy_reg * ent          # maxent
+                else:
+                    logq0 = jnp.mean(jnp.sum(mask * (
+                        log_norm
+                        - (x - ref_mu) ** 2 / (2.0 * ref_sd ** 2)), axis=1))
+                    tot = tot + entropy_reg * (-ent - logq0)  # KL(p ‖ q0)
             if weight_reg:
                 tot = tot + weight_reg * jnp.mean(params["theta"] ** 2)
             return tot

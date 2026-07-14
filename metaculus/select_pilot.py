@@ -7,9 +7,9 @@ exact entries, immune to later dataset refreshes growing the resolved set.
 
 Usage
 -----
-    python metaculus/select_pilot.py --n 150                 # writes pilot_ids.txt
-    python metaculus/run_elicitation.py --dataset metaculus/full_dataset.json \
-        --ids-file metaculus/pilot_ids.txt --dry-run
+    python metaculus/select_pilot.py --n 150                 # writes data/pilot_ids.txt
+    python metaculus/run_elicitation.py --dataset metaculus/data/full_dataset.json \
+        --ids-file metaculus/data/pilot_ids.txt --dry-run
 """
 
 from __future__ import annotations
@@ -51,9 +51,9 @@ def select(entries: list[dict], n: int, seed: int) -> list[dict]:
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", default=str(Path(__file__).parent
-                                             / "full_dataset.json"))
+                                             / "data" / "full_dataset.json"))
     ap.add_argument("--out", default=str(Path(__file__).parent
-                                         / "pilot_ids.txt"))
+                                         / "data" / "pilot_ids.txt"))
     ap.add_argument("--n", type=int, default=150)
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args(argv)

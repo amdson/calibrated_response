@@ -34,10 +34,10 @@ Selecting a subset (filters compose; --dry-run shows what would run):
 
 Usage
 -----
-    python metaculus/run_elicitation.py --dataset metaculus/full_dataset.json --dry-run
-    python metaculus/run_elicitation.py --dataset metaculus/full_dataset.json \
+    python metaculus/run_elicitation.py --dataset metaculus/data/full_dataset.json --dry-run
+    python metaculus/run_elicitation.py --dataset metaculus/data/full_dataset.json \
         --only-resolved --sample 100 --dry-run
-    python metaculus/run_elicitation.py --dataset metaculus/full_dataset.json --limit 5
+    python metaculus/run_elicitation.py --dataset metaculus/data/full_dataset.json --limit 5
 """
 
 from __future__ import annotations
@@ -191,7 +191,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", required=True)
     ap.add_argument("--cache", default=str(Path(__file__).parent
-                                           / "llm_cache_full.json"))
+                                           / "caches" / "full" / "llm_cache_full.json"))
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--n-variables", type=int, default=4)
     ap.add_argument("--n-estimates", type=int, default=10)

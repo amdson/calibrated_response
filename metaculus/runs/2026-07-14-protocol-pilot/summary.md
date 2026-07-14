@@ -1,5 +1,11 @@
 # Protocol pilot (2026-07-14): the echo bug, and what to change
 
+> **STATUS (2026-07-14): all recommended changes landed** — see the
+> 2026-07-14 entry in `experiments.md`. This doc is kept as the summary
+> of the (void) run whose outputs sit in this directory. `pred_baseline`
+> and `pred_v1` were deleted (resume-contaminated); the echo-bug caches
+> moved to `caches/archive/echo-bug-2026-07-14/`.
+
 Five arms fit on Colab/GPU from four elicitation caches, scored on the 29
 questions fit in all of them (`pilot_diagnostics.py --common`, base rate 0.31).
 
@@ -187,4 +193,10 @@ PROGRAMMER NOTE
 I like this advice, I'd also like to implement it as on of the elicitation functions. --- Elicit spreads, not point expectations. E[cavity_reduction] = 48 tells the solver nothing about whether it clears 50 — that's decided entirely by the maxent default width. For every threshold question, the spread is the answer, and it's currently the one thing you never ask for. Ask for p10/p50/p90 per leaf variable. 
 
 EXTRA PROGRAMMER NOTE
-It's a problem that the elicitation functions are giving me variables with degenerate ranges. E.g. a X in [0, 1] with E(X)=0. I'm thinking we should ask the language models for extremely conservative bounds, such that the variable is almost guaranteed to be within the middle range of the bounds. We can then optionally apply a gaussian KL penalty on the domain of the solver instead of simple entropy. 
+It's a problem that the elicitation functions are giving me variables with degenerate ranges. E.g. a X in [0, 1] with E(X)=0. I'm thinking we should ask the language models for extremely conservative bounds, such that the variable is almost guaranteed to be within the middle range of the bounds. We can then optionally apply a gaussian KL penalty on the domain of the solver instead of simple entropy.
+
+> LANDED 2026-07-14: prompt side done — `_VAR_RULES` (protocol.py) and the
+> variable_generation prompt (prompts.py) now demand extremely conservative
+> bounds with the true value interior and mass on both sides, and tell the
+> model to reformulate quantities pinned at a physical limit. The gaussian
+> KL domain penalty in the solver is NOT implemented — still open.

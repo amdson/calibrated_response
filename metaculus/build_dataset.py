@@ -147,7 +147,7 @@ def main(argv=None):
                          "cutoff are used. Must be >= the elicitation LLM's "
                          "training cutoff.")
     ap.add_argument("--out", default=str(Path(__file__).parent
-                                         / "full_dataset.json"))
+                                         / "data" / "full_dataset.json"))
     ap.add_argument("--refresh", action="store_true",
                     help="re-download resolution sets (pick up new resolutions)")
     args = ap.parse_args(argv)

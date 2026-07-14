@@ -133,6 +133,18 @@ class DistributionBuilder:
         stays ungated — otherwise the solver can discard the anchor at a
         cost of ``-log(p_broken)`` nats and follow an overconfident
         coupling estimate instead.
+    domain_prior : str
+        Reference measure for the entropy term. ``"uniform"`` (default):
+        plain maxent — implicitly KL to Uniform(box), so unpinned variables
+        default to uniform over their (now deliberately conservative)
+        elicited bounds. ``"gaussian"``: KL to a per-variable
+        ``Normal(mid, span / (2 * prior_bound_sds))`` — bounds are read as
+        ±k·sd of a default belief, so unpinned mass concentrates mid-range
+        instead of flooding the box.  Binary variables keep the uniform
+        reference in both modes.
+    prior_bound_sds : float
+        ``k`` in the bounds contract above (gaussian mode only); 2.0 puts
+        the elicited bounds at ±2 sd (~95% central mass).
     n_layers, hidden, s_max :
         Flow architecture (see :class:`FlowSampler`).
     n_bins : int
@@ -152,6 +164,8 @@ class DistributionBuilder:
         robust: bool = False,
         p_broken: float = 0.05,
         anchor_variable: Optional[str] = None,
+        domain_prior: str = "uniform",
+        prior_bound_sds: float = 2.0,
         n_layers: int = 8,
         hidden: int = 64,
         s_max: float = 3.0,
@@ -178,6 +192,11 @@ class DistributionBuilder:
         self.robust = bool(robust)
         self.p_broken = float(p_broken)
         self.anchor_variable = anchor_variable
+        if domain_prior not in ("uniform", "gaussian"):
+            raise ValueError(f"domain_prior must be 'uniform' or 'gaussian', "
+                             f"got {domain_prior!r}")
+        self.domain_prior = domain_prior
+        self.prior_bound_sds = float(prior_bound_sds)
         self.n_bins = int(n_bins)
 
         self.skipped: list[str] = []
@@ -433,7 +452,11 @@ class DistributionBuilder:
             entropy_reg: float = 1.0, seed: int = 0, **kw):
         """Fit the flow by soft-constrained maxent (Adam, fresh latents per step)."""
         loss = self.model.constraint_loss(
-            self.constraints, entropy_reg=entropy_reg, n_samples=n_samples)
+            self.constraints, entropy_reg=entropy_reg, n_samples=n_samples,
+            domain_prior=self.domain_prior,
+            prior_bound_sds=self.prior_bound_sds,
+            # binary sites keep their Uniform(0,1) reference in gaussian mode
+            ref_mask=[0.0 if b else 1.0 for b in self.is_binary])
         self.params, self.history = self.model.optimize(
             loss, steps=steps, lr=lr, seed=seed, **kw)
         return self.params, self.history
