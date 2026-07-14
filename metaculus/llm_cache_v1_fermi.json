@@ -16883,5 +16883,5040 @@
   "model": "google/gemini-3-flash-preview",
   "elicited_at": "2026-07-13T13:56:08",
   "seconds": 17.4
+ },
+ "38917@2026-02-15": {
+  "variables": [
+   {
+    "__class__": "BinaryVariable",
+    "name": "target",
+    "description": "The literal answer to the main question: Will Barack Obama be arrested before July 2026?",
+    "type": "binary"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "federal_indictment_issued",
+    "description": "Whether a formal federal indictment is unsealed by the Department of Justice against Barack Obama before July 2026.",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "doj_leadership_approval",
+    "description": "The probability that the Attorney General or Acting Attorney General authorizes the arrest of a former president, given the extreme political and legal precedents.",
+    "type": "continuous",
+    "lower_bound": 0.0,
+    "upper_bound": 1.0,
+    "unit": "probability"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "special_counsel_appointment",
+    "description": "Whether a Special Counsel is specifically appointed to investigate and prosecute the 'treasonous conspiracy' allegations involving Obama.",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "evidence_sufficiency_threshold",
+    "description": "A subjective measure of the strength of evidence presented by the DNI/DOJ to a grand jury, where 10 is an undeniable case and 0 is purely political rhetoric.",
+    "type": "continuous",
+    "lower_bound": 0.0,
+    "upper_bound": 10.0,
+    "unit": "score"
+   }
+  ],
+  "estimates": [
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.04,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_federal_indictment_issued = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "federal_indictment_issued",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.06,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_doj_leadership_approval_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "doj_leadership_approval",
+    "expected_value": 0.08,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_special_counsel_appointment = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "special_counsel_appointment",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.25,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_evidence_sufficiency_threshold_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "evidence_sufficiency_threshold",
+    "expected_value": 2.5,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_target = True_feder",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "federal_indictment_issued",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.65,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_feder",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "federal_indictment_issued",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.001,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_doj_leadersh",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "doj_leadership_approval",
+    "correlation": 0.85,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_speci",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "special_counsel_appointment",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.15,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_speci",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "special_counsel_appointment",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.005,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_evidence_suf",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "evidence_sufficiency_threshold",
+    "correlation": 0.75,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.03,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_feder",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "federal_indictment_issued",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.001,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_feder",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "federal_indictment_issued",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.6,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_speci",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "special_counsel_appointment",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.005,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_speci",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "special_counsel_appointment",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.12,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_doj_leadersh",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "doj_leadership_approval",
+    "correlation": 0.88,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_evidence_suf",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "evidence_sufficiency_threshold",
+    "correlation": 0.72,
+    "provenance": "fill_requests"
+   }
+  ],
+  "requests": [
+   "P(target = True)",
+   "P(target = True | federal_indictment_issued = False)",
+   "P(target = True | federal_indictment_issued = True)",
+   "P(target = True | special_counsel_appointment = False)",
+   "P(target = True | special_counsel_appointment = True)",
+   "Corr(target, doj_leadership_approval)",
+   "Corr(target, evidence_sufficiency_threshold)"
+  ],
+  "node_log": [
+   {
+    "node": "gen_variables[fermi]",
+    "added": {
+     "vars": 4,
+     "estimates": 0,
+     "requests": 0
+    },
+    "seconds": 44.5,
+    "attempts": 2
+   },
+   {
+    "node": "gen_estimates[marginals]",
+    "added": {
+     "vars": 0,
+     "estimates": 5,
+     "requests": 0
+    },
+    "seconds": 32.6,
+    "attempts": 2
+   },
+   {
+    "node": "gen_estimates[target_connections]",
+    "added": {
+     "vars": 0,
+     "estimates": 6,
+     "requests": 0
+    },
+    "seconds": 40.0,
+    "attempts": 2
+   },
+   {
+    "node": "propose_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 0,
+     "requests": 7
+    },
+    "seconds": 0.0,
+    "attempts": 1
+   },
+   {
+    "node": "fill_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 7,
+     "requests": 0
+    },
+    "seconds": 39.8,
+    "attempts": 1
+   }
+  ],
+  "protocol": "v1_fermi",
+  "model": "google/gemini-3-flash-preview",
+  "elicited_at": "2026-07-14T10:11:59",
+  "seconds": 156.9
+ },
+ "OVXCLS@2026-02-01": {
+  "variables": [
+   {
+    "__class__": "BinaryVariable",
+    "name": "target",
+    "description": "The literal answer to the main question: Will the Chicago Board Options Exchange's Crude Oil ETF Volatility Index have increased by 2026-02-08 as compared to its value on 2026-02-01?",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "ovx_initial_value",
+    "description": "The value of the CBOE Crude Oil ETF Volatility Index (OVX) on 2026-02-01.",
+    "type": "continuous",
+    "lower_bound": 10.0,
+    "upper_bound": 150.0,
+    "unit": "index points"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "crude_oil_price_volatility",
+    "description": "The realized daily percentage change in front-month WTI crude oil futures between 2026-02-01 and 2026-02-08.",
+    "type": "continuous",
+    "lower_bound": 0.0,
+    "upper_bound": 25.0,
+    "unit": "absolute percentage change"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "geopolitical_risk_event",
+    "description": "Occurrence of a significant supply disruption or geopolitical escalation in a major oil-producing region during the forecast week.",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "ovx_final_value",
+    "description": "The value of the CBOE Crude Oil ETF Volatility Index (OVX) on 2026-02-08.",
+    "type": "continuous",
+    "lower_bound": 10.0,
+    "upper_bound": 150.0,
+    "unit": "index points"
+   }
+  ],
+  "estimates": [
+   {
+    "id": "P_target = 1_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.52,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_ovx_initial_value_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "ovx_initial_value",
+    "expected_value": 42.0,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_crude_oil_price_volatility_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "crude_oil_price_volatility",
+    "expected_value": 3.5,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_geopolitical_risk_event = 1_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "geopolitical_risk_event",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.05,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_ovx_final_value_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "ovx_final_value",
+    "expected_value": 42.5,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_target = 1_ovx_i",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "ovx_initial_value",
+      "variable_type": "continuous",
+      "threshold": 42.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.44,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = 1_ovx_i",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "ovx_initial_value",
+      "variable_type": "continuous",
+      "threshold": 42.0,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.58,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_ovx_final_va",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "ovx_final_value",
+    "correlation": 0.72,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = 1_crude",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "crude_oil_price_volatility",
+      "variable_type": "continuous",
+      "threshold": 5.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.85,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = 1_crude",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "crude_oil_price_volatility",
+      "variable_type": "continuous",
+      "threshold": 5.0,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.42,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = 1_geopo",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "geopolitical_risk_event",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.92,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = 1_geopo",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "geopolitical_risk_event",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.49,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.52,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_ovx_i",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "ovx_initial_value",
+      "variable_type": "continuous",
+      "threshold": 42.0,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.58,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_ovx_i",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "ovx_initial_value",
+      "variable_type": "continuous",
+      "threshold": 42.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.44,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_crude",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "crude_oil_price_volatility",
+      "variable_type": "continuous",
+      "threshold": 5.0,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.42,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_crude",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "crude_oil_price_volatility",
+      "variable_type": "continuous",
+      "threshold": 5.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.85,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_geopo",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "geopolitical_risk_event",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.49,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_geopo",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "geopolitical_risk_event",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.92,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_ovx_final_va",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "ovx_final_value",
+    "correlation": 0.72,
+    "provenance": "fill_requests"
+   }
+  ],
+  "requests": [
+   "P(target = True)",
+   "P(target = True | ovx_initial_value < 42.0)",
+   "P(target = True | ovx_initial_value > 42.0)",
+   "P(target = True | crude_oil_price_volatility < 5.0)",
+   "P(target = True | crude_oil_price_volatility > 5.0)",
+   "P(target = True | geopolitical_risk_event = False)",
+   "P(target = True | geopolitical_risk_event = True)",
+   "Corr(target, ovx_final_value)"
+  ],
+  "node_log": [
+   {
+    "node": "gen_variables[fermi]",
+    "added": {
+     "vars": 4,
+     "estimates": 0,
+     "requests": 0
+    },
+    "seconds": 14.1,
+    "attempts": 1
+   },
+   {
+    "node": "gen_estimates[marginals]",
+    "added": {
+     "vars": 0,
+     "estimates": 5,
+     "requests": 0
+    },
+    "seconds": 34.3,
+    "attempts": 2
+   },
+   {
+    "node": "gen_estimates[target_connections]",
+    "added": {
+     "vars": 0,
+     "estimates": 7,
+     "requests": 0
+    },
+    "seconds": 76.1,
+    "attempts": 3
+   },
+   {
+    "node": "propose_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 0,
+     "requests": 8
+    },
+    "seconds": 0.0,
+    "attempts": 1
+   },
+   {
+    "node": "fill_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 8,
+     "requests": 0
+    },
+    "seconds": 38.1,
+    "attempts": 2
+   }
+  ],
+  "protocol": "v1_fermi",
+  "model": "google/gemini-3-flash-preview",
+  "elicited_at": "2026-07-14T10:12:03",
+  "seconds": 162.6
+ },
+ "41861@2026-02-15": {
+  "variables": [
+   {
+    "__class__": "BinaryVariable",
+    "name": "target",
+    "description": "The literal answer to the main question: Will Wagner Moura win the Academy Award for Best Actor at the 2026 Academy Awards?",
+    "type": "binary"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "sag_award_best_actor",
+    "description": "Whether Wagner Moura wins the Screen Actors Guild Award for Outstanding Performance by a Male Actor in a Leading Role, a primary precursor to the Oscar.",
+    "type": "binary"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "bafta_best_actor_win",
+    "description": "Whether Wagner Moura wins the BAFTA Award for Best Actor in a Leading Role, which often indicates strong international and Academy voter support.",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "oscar_odds_ranking",
+    "description": "Wagner Moura's implied rank among the five nominees based on betting markets and expert aggregation sites (e.g., GoldDerby) as of March 1, 2026. A rank of 1 indicates he is the favorite.",
+    "type": "continuous",
+    "lower_bound": 1.0,
+    "upper_bound": 5.0,
+    "unit": "rank"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "chalamet_win_probability",
+    "description": "The estimated probability that Timoth\u00e9e Chalamet (the primary competitor in this scenario) wins the Best Actor Oscar for 'Marty Supreme'.",
+    "type": "continuous",
+    "lower_bound": 0.0,
+    "upper_bound": 1.0,
+    "unit": "probability"
+   }
+  ],
+  "estimates": [
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.28,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_sag_award_best_actor = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "sag_award_best_actor",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.32,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_bafta_best_actor_win = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "bafta_best_actor_win",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.22,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_oscar_odds_ranking_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "oscar_odds_ranking",
+    "expected_value": 2.4,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_chalamet_win_probability_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "chalamet_win_probability",
+    "expected_value": 0.35,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_target = True_sag_a",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "sag_award_best_actor",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.72,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_sag_a",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "sag_award_best_actor",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.08,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_bafta",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "bafta_best_actor_win",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.65,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_bafta",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "bafta_best_actor_win",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.18,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_oscar_odds_r",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "oscar_odds_ranking",
+    "correlation": -0.85,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_chalamet_win",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "chalamet_win_probability",
+    "correlation": -0.78,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.3,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_sag_a",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "sag_award_best_actor",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.1,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_sag_a",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "sag_award_best_actor",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.75,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_bafta",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "bafta_best_actor_win",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.18,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_bafta",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "bafta_best_actor_win",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.68,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_oscar_odds_r",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "oscar_odds_ranking",
+    "correlation": -0.85,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_chalamet_win",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "chalamet_win_probability",
+    "correlation": -0.8,
+    "provenance": "fill_requests"
+   }
+  ],
+  "requests": [
+   "P(target = True)",
+   "P(target = True | sag_award_best_actor = False)",
+   "P(target = True | sag_award_best_actor = True)",
+   "P(target = True | bafta_best_actor_win = False)",
+   "P(target = True | bafta_best_actor_win = True)",
+   "Corr(target, oscar_odds_ranking)",
+   "Corr(target, chalamet_win_probability)"
+  ],
+  "node_log": [
+   {
+    "node": "gen_variables[fermi]",
+    "added": {
+     "vars": 4,
+     "estimates": 0,
+     "requests": 0
+    },
+    "seconds": 19.6,
+    "attempts": 1
+   },
+   {
+    "node": "gen_estimates[marginals]",
+    "added": {
+     "vars": 0,
+     "estimates": 5,
+     "requests": 0
+    },
+    "seconds": 2.8,
+    "attempts": 1
+   },
+   {
+    "node": "gen_estimates[target_connections]",
+    "added": {
+     "vars": 0,
+     "estimates": 6,
+     "requests": 0
+    },
+    "seconds": 36.2,
+    "attempts": 2
+   },
+   {
+    "node": "propose_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 0,
+     "requests": 7
+    },
+    "seconds": 0.0,
+    "attempts": 1
+   },
+   {
+    "node": "fill_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 7,
+     "requests": 0
+    },
+    "seconds": 13.5,
+    "attempts": 1
+   }
+  ],
+  "protocol": "v1_fermi",
+  "model": "google/gemini-3-flash-preview",
+  "elicited_at": "2026-07-14T10:13:11",
+  "seconds": 72.1
+ },
+ "1698@2026-02-15": {
+  "variables": [
+   {
+    "__class__": "BinaryVariable",
+    "name": "target",
+    "description": "The literal answer to the main question: Will the United Nations Security Council adopt a resolution related to the conflict in Sudan by 1 May 2026?",
+    "type": "binary"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "p5_consensus_on_draft",
+    "description": "The degree to which the five permanent members of the UNSC (P5) reach a consensus on the text of a draft resolution regarding Sudan, avoiding a veto from Russia or China.",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "un_humanitarian_crisis_severity",
+    "description": "The number of people in Sudan estimated by the UN to be in need of urgent humanitarian assistance by April 2026.",
+    "type": "continuous",
+    "lower_bound": 25.0,
+    "upper_bound": 40.0,
+    "unit": "million people"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "formal_ceasefire_negotiations_active",
+    "description": "Whether a formal mediation process (e.g., Jeddah talks or AU-led process) is actively proposing a draft ceasefire agreement to the UNSC for endorsement before May 2026.",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "unsc_sudan_resolutions_count",
+    "description": "The number of substantive (non-technical rollover) UNSC resolutions passed regarding Sudan in the 12 months preceding May 2026.",
+    "type": "continuous",
+    "lower_bound": 0.0,
+    "upper_bound": 5.0,
+    "unit": "resolutions"
+   }
+  ],
+  "estimates": [
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.65,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_p5_consensus_on_draft = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "p5_consensus_on_draft",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.55,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_un_humanitarian_crisis_severity_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "un_humanitarian_crisis_severity",
+    "expected_value": 31.5,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_formal_ceasefire_negotiations_active = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "formal_ceasefire_negotiations_active",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.35,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_unsc_sudan_resolutions_count_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "unsc_sudan_resolutions_count",
+    "expected_value": 1.4,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_target = True_p5_co",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "p5_consensus_on_draft",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.95,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_p5_co",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "p5_consensus_on_draft",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.05,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_un_humanitar",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "un_humanitarian_crisis_severity",
+    "correlation": 0.35,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_forma",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "formal_ceasefire_negotiations_active",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.85,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_forma",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "formal_ceasefire_negotiations_active",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.54,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_unsc_sudan_r",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "unsc_sudan_resolutions_count",
+    "correlation": 0.6,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.62,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_p5_co",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "p5_consensus_on_draft",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.03,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_p5_co",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "p5_consensus_on_draft",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.98,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_forma",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "formal_ceasefire_negotiations_active",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.52,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_forma",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "formal_ceasefire_negotiations_active",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.88,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_un_humanitar",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "un_humanitarian_crisis_severity",
+    "correlation": 0.35,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_unsc_sudan_r",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "unsc_sudan_resolutions_count",
+    "correlation": 0.65,
+    "provenance": "fill_requests"
+   }
+  ],
+  "requests": [
+   "P(target = True)",
+   "P(target = True | p5_consensus_on_draft = False)",
+   "P(target = True | p5_consensus_on_draft = True)",
+   "P(target = True | formal_ceasefire_negotiations_active = False)",
+   "P(target = True | formal_ceasefire_negotiations_active = True)",
+   "Corr(target, un_humanitarian_crisis_severity)",
+   "Corr(target, unsc_sudan_resolutions_count)"
+  ],
+  "node_log": [
+   {
+    "node": "gen_variables[fermi]",
+    "added": {
+     "vars": 4,
+     "estimates": 0,
+     "requests": 0
+    },
+    "seconds": 35.9,
+    "attempts": 1
+   },
+   {
+    "node": "gen_estimates[marginals]",
+    "added": {
+     "vars": 0,
+     "estimates": 5,
+     "requests": 0
+    },
+    "seconds": 40.3,
+    "attempts": 2
+   },
+   {
+    "node": "gen_estimates[target_connections]",
+    "added": {
+     "vars": 0,
+     "estimates": 6,
+     "requests": 0
+    },
+    "seconds": 3.0,
+    "attempts": 1
+   },
+   {
+    "node": "propose_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 0,
+     "requests": 7
+    },
+    "seconds": 0.0,
+    "attempts": 1
+   },
+   {
+    "node": "fill_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 7,
+     "requests": 0
+    },
+    "seconds": 17.0,
+    "attempts": 1
+   }
+  ],
+  "protocol": "v1_fermi",
+  "model": "google/gemini-3-flash-preview",
+  "elicited_at": "2026-07-14T10:14:47",
+  "seconds": 96.2
+ },
+ "0x6680cae9b37261f6c1ec3313f9ad175708bb9722e94285b5b0a5b50a9972d312@2026-02-15": {
+  "variables": [
+   {
+    "__class__": "BinaryVariable",
+    "name": "target",
+    "description": "The literal answer to the main question: Will Israel win Eurovision 2026?",
+    "type": "binary"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "israel_participation_2026",
+    "description": "Whether Israel is officially confirmed and permitted to compete in the Eurovision Song Contest 2026 by the EBU.",
+    "type": "binary"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "israel_qualifies_for_final",
+    "description": "Whether the Israeli entry successfully qualifies from the semi-finals to the Grand Final of Eurovision 2026.",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "israel_televote_score_rank",
+    "description": "The rank of Israel in the public televote during the Grand Final (where 1 is the highest score).",
+    "type": "continuous",
+    "lower_bound": 1.0,
+    "upper_bound": 26.0,
+    "unit": "rank"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "israel_jury_score_rank",
+    "description": "The rank of Israel in the professional jury vote during the Grand Final (where 1 is the highest score).",
+    "type": "continuous",
+    "lower_bound": 1.0,
+    "upper_bound": 26.0,
+    "unit": "rank"
+   }
+  ],
+  "estimates": [
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.04,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_israel_participation_2026 = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "israel_participation_2026",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.92,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_israel_qualifies_for_final = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "israel_qualifies_for_final",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.85,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_israel_televote_score_rank_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "israel_televote_score_rank",
+    "expected_value": 6.5,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_israel_jury_score_rank_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "israel_jury_score_rank",
+    "expected_value": 13.0,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_target = True_israe",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "israel_participation_2026",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.043,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_israe",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "israel_participation_2026",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.0,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_israe",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "israel_qualifies_for_final",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.047,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_israe",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "israel_qualifies_for_final",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.0,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_israel_telev",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "israel_televote_score_rank",
+    "correlation": -0.45,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_israel_jury_",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "israel_jury_score_rank",
+    "correlation": -0.35,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.04,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_israe",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "israel_participation_2026",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.0,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_israe",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "israel_participation_2026",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.043,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_israe",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "israel_qualifies_for_final",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.0,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_israe",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "israel_qualifies_for_final",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.047,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_israel_telev",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "israel_televote_score_rank",
+    "correlation": -0.45,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_israel_jury_",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "israel_jury_score_rank",
+    "correlation": -0.35,
+    "provenance": "fill_requests"
+   }
+  ],
+  "requests": [
+   "P(target = True)",
+   "P(target = True | israel_participation_2026 = False)",
+   "P(target = True | israel_participation_2026 = True)",
+   "P(target = True | israel_qualifies_for_final = False)",
+   "P(target = True | israel_qualifies_for_final = True)",
+   "Corr(target, israel_televote_score_rank)",
+   "Corr(target, israel_jury_score_rank)"
+  ],
+  "node_log": [
+   {
+    "node": "gen_variables[fermi]",
+    "added": {
+     "vars": 4,
+     "estimates": 0,
+     "requests": 0
+    },
+    "seconds": 22.7,
+    "attempts": 1
+   },
+   {
+    "node": "gen_estimates[marginals]",
+    "added": {
+     "vars": 0,
+     "estimates": 5,
+     "requests": 0
+    },
+    "seconds": 16.6,
+    "attempts": 1
+   },
+   {
+    "node": "gen_estimates[target_connections]",
+    "added": {
+     "vars": 0,
+     "estimates": 6,
+     "requests": 0
+    },
+    "seconds": 12.2,
+    "attempts": 1
+   },
+   {
+    "node": "propose_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 0,
+     "requests": 7
+    },
+    "seconds": 0.0,
+    "attempts": 1
+   },
+   {
+    "node": "fill_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 7,
+     "requests": 0
+    },
+    "seconds": 48.5,
+    "attempts": 2
+   }
+  ],
+  "protocol": "v1_fermi",
+  "model": "google/gemini-3-flash-preview",
+  "elicited_at": "2026-07-14T10:15:32",
+  "seconds": 99.9
+ },
+ "0x406a62740107092e26426b8bb42fceb0a698b79c7ec3bf6955ece180b0fda107@2026-02-15": {
+  "variables": [
+   {
+    "__class__": "BinaryVariable",
+    "name": "target",
+    "description": "The literal answer to the main question: Will Alibaba have the best AI model at the end of February 2026?",
+    "type": "binary"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "qwen_ranking_top_3",
+    "description": "Whether an Alibaba Qwen model is ranked in the top 3 overall on the Chatbot Arena Leaderboard as of February 1, 2026.",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "qwen_arena_score_delta",
+    "description": "The difference in Arena Score between the top Alibaba model and the current global leader as of February 28, 2026.",
+    "type": "continuous",
+    "lower_bound": -100.0,
+    "upper_bound": 50.0,
+    "unit": "Elo points"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "us_export_control_impact",
+    "description": "Whether new US export controls implemented between 2025 and Feb 2026 significantly restricted Alibaba's access to H100/B200 equivalent compute for training.",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "competitor_major_release_count",
+    "description": "The number of flagship model releases (e.g., GPT-5, Claude 4, Gemini 2) by OpenAI, Anthropic, or Google between March 2025 and February 2026.",
+    "type": "continuous",
+    "lower_bound": 0.0,
+    "upper_bound": 6.0,
+    "unit": "major releases"
+   }
+  ],
+  "estimates": [
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.04,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_qwen_ranking_top_3 = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "qwen_ranking_top_3",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.25,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_qwen_arena_score_delta_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "qwen_arena_score_delta",
+    "expected_value": -18.0,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_us_export_control_impact = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "us_export_control_impact",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.7,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_competitor_major_release_count_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "competitor_major_release_count",
+    "expected_value": 2.8,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_target = True_qwen_",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "qwen_ranking_top_3",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.12,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_qwen_",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "qwen_ranking_top_3",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.013,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_qwen_arena_s",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "qwen_arena_score_delta",
+    "correlation": 0.65,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_us_ex",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "us_export_control_impact",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.02,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_us_ex",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "us_export_control_impact",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.086,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_competitor_m",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "competitor_major_release_count",
+    "correlation": -0.4,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.04,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_qwen_",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "qwen_ranking_top_3",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.01,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_qwen_",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "qwen_ranking_top_3",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.13,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_us_ex",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "us_export_control_impact",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.09,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_us_ex",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "us_export_control_impact",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.02,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_qwen_arena_s",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "qwen_arena_score_delta",
+    "correlation": 0.7,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_competitor_m",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "competitor_major_release_count",
+    "correlation": -0.45,
+    "provenance": "fill_requests"
+   }
+  ],
+  "requests": [
+   "P(target = True)",
+   "P(target = True | qwen_ranking_top_3 = False)",
+   "P(target = True | qwen_ranking_top_3 = True)",
+   "P(target = True | us_export_control_impact = False)",
+   "P(target = True | us_export_control_impact = True)",
+   "Corr(target, qwen_arena_score_delta)",
+   "Corr(target, competitor_major_release_count)"
+  ],
+  "node_log": [
+   {
+    "node": "gen_variables[fermi]",
+    "added": {
+     "vars": 4,
+     "estimates": 0,
+     "requests": 0
+    },
+    "seconds": 13.2,
+    "attempts": 1
+   },
+   {
+    "node": "gen_estimates[marginals]",
+    "added": {
+     "vars": 0,
+     "estimates": 5,
+     "requests": 0
+    },
+    "seconds": 16.1,
+    "attempts": 1
+   },
+   {
+    "node": "gen_estimates[target_connections]",
+    "added": {
+     "vars": 0,
+     "estimates": 6,
+     "requests": 0
+    },
+    "seconds": 56.2,
+    "attempts": 2
+   },
+   {
+    "node": "propose_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 0,
+     "requests": 7
+    },
+    "seconds": 0.0,
+    "attempts": 1
+   },
+   {
+    "node": "fill_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 7,
+     "requests": 0
+    },
+    "seconds": 34.3,
+    "attempts": 1
+   }
+  ],
+  "protocol": "v1_fermi",
+  "model": "google/gemini-3-flash-preview",
+  "elicited_at": "2026-07-14T10:16:47",
+  "seconds": 119.9
+ },
+ "a3fcfd23d4aa63846042eb149e55fad879035b1d9b4af8087a3fbe1948de6c44@2026-02-15": {
+  "variables": [
+   {
+    "__class__": "BinaryVariable",
+    "name": "target",
+    "description": "The literal answer to the main question: Will there be more than ten times as many 'Protests' in Azerbaijan for the 30 days before 2026-02-22 compared to one plus the 30-day average of 'Protests' over the 360 days preceding 2026-02-15?\n\ne.g. If the forecast due date is 2024-01-01 and we have the following data:\nDate,'Protests'\n2023-11-11,1\n2023-10-10,2\nto calculate one plus the 30-day average of 'Protests' over the preceding 360 days, we\u2019d have: 1+(1+2)/12=1.25.\n\nIn this example, for the question to resolve positively, 13 (10 x 1.25) or more 'Protests' would need to occur in the 30 days leading up to the resolution.",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "historical_360_day_protests",
+    "description": "Total number of 'Protests' in Azerbaijan recorded by ACLED in the 360 days preceding 2026-02-15.",
+    "type": "continuous",
+    "lower_bound": 0.0,
+    "upper_bound": 240.0,
+    "unit": "events"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "implied_resolution_threshold",
+    "description": "The calculated threshold (10 * (1 + (historical_360_day_protests / 12))) that actual protests must exceed for a positive resolution.",
+    "type": "continuous",
+    "lower_bound": 10.0,
+    "upper_bound": 210.0,
+    "unit": "events"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "target_period_protest_count",
+    "description": "Total number of 'Protests' in Azerbaijan recorded by ACLED during the 30-day window from 2026-01-23 to 2026-02-21.",
+    "type": "continuous",
+    "lower_bound": 0.0,
+    "upper_bound": 300.0,
+    "unit": "events"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "major_civil_unrest_event",
+    "description": "Occurrence of a significant national trigger (e.g., disputed election, economic crisis, or major territorial conflict escalation) causing a surge in public demonstrations.",
+    "type": "binary"
+   }
+  ],
+  "estimates": [
+   {
+    "id": "E_historical_360_day_protests_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "historical_360_day_protests",
+    "expected_value": 24.0,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_implied_resolution_threshold_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "implied_resolution_threshold",
+    "expected_value": 30.0,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_target_period_protest_count_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "target_period_protest_count",
+    "expected_value": 3.5,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_major_civil_unrest_event = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "major_civil_unrest_event",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.05,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.04,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "C_target_historical_3",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "historical_360_day_protests",
+    "correlation": -0.15,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_target_perio",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "target_period_protest_count",
+    "correlation": 0.82,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_implied_reso",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "implied_resolution_threshold",
+    "correlation": -0.15,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_major",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "major_civil_unrest_event",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.65,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_major",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "major_civil_unrest_event",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.008,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.04,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_major",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "major_civil_unrest_event",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.008,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_major",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "major_civil_unrest_event",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.65,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_historical_3",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "historical_360_day_protests",
+    "correlation": -0.15,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_target_perio",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "target_period_protest_count",
+    "correlation": 0.82,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_implied_reso",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "implied_resolution_threshold",
+    "correlation": -0.15,
+    "provenance": "fill_requests"
+   }
+  ],
+  "requests": [
+   "P(target = True)",
+   "P(target = True | major_civil_unrest_event = False)",
+   "P(target = True | major_civil_unrest_event = True)",
+   "Corr(target, historical_360_day_protests)",
+   "Corr(target, target_period_protest_count)",
+   "Corr(target, implied_resolution_threshold)"
+  ],
+  "node_log": [
+   {
+    "node": "gen_variables[fermi]",
+    "added": {
+     "vars": 4,
+     "estimates": 0,
+     "requests": 0
+    },
+    "seconds": 20.4,
+    "attempts": 1
+   },
+   {
+    "node": "gen_estimates[marginals]",
+    "added": {
+     "vars": 0,
+     "estimates": 5,
+     "requests": 0
+    },
+    "seconds": 12.1,
+    "attempts": 1
+   },
+   {
+    "node": "gen_estimates[target_connections]",
+    "added": {
+     "vars": 0,
+     "estimates": 5,
+     "requests": 0
+    },
+    "seconds": 2.4,
+    "attempts": 1
+   },
+   {
+    "node": "propose_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 0,
+     "requests": 6
+    },
+    "seconds": 0.0,
+    "attempts": 1
+   },
+   {
+    "node": "fill_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 6,
+     "requests": 0
+    },
+    "seconds": 71.4,
+    "attempts": 3
+   }
+  ],
+  "protocol": "v1_fermi",
+  "model": "google/gemini-3-flash-preview",
+  "elicited_at": "2026-07-14T10:17:18",
+  "seconds": 106.3
+ },
+ "meteofrance_TEMPERATURE_celsius.07110.D@2026-02-15": {
+  "variables": [
+   {
+    "__class__": "BinaryVariable",
+    "name": "target",
+    "description": "The literal answer to the main question: What is the probability that the daily average temperature at the French weather station at Brest Bretagne Airport will be higher on 2026-02-22 than on 2026-02-15?",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "temp_brest_2026_02_15",
+    "description": "Daily average temperature at Brest-Guipavas station on 2026-02-15",
+    "type": "continuous",
+    "lower_bound": -5.0,
+    "upper_bound": 15.0,
+    "unit": "degrees Celsius"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "temp_brest_2026_02_22",
+    "description": "Daily average temperature at Brest-Guipavas station on 2026-02-22",
+    "type": "continuous",
+    "lower_bound": -5.0,
+    "upper_bound": 15.0,
+    "unit": "degrees Celsius"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "north_atlantic_oscillation_index",
+    "description": "The state of the NAO index in late February 2026, which influences the transport of warm maritime air into Brittany",
+    "type": "continuous",
+    "lower_bound": -3.0,
+    "upper_bound": 3.0,
+    "unit": "standard deviations"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "weekly_temp_trend_february",
+    "description": "The difference in average daily temperature at Brest between February 22 and February 15 (T22 - T15) based on climatological 30-year normals",
+    "type": "continuous",
+    "lower_bound": -1.0,
+    "upper_bound": 2.0,
+    "unit": "degrees Celsius"
+   }
+  ],
+  "estimates": [
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.52,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_temp_brest_2026_02_15_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "temp_brest_2026_02_15",
+    "expected_value": 7.5,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_temp_brest_2026_02_22_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "temp_brest_2026_02_22",
+    "expected_value": 7.7,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_north_atlantic_oscillation_index_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "north_atlantic_oscillation_index",
+    "expected_value": 0.0,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_weekly_temp_trend_february_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "weekly_temp_trend_february",
+    "expected_value": 0.2,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_target = True_temp_",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "temp_brest_2026_02_15",
+      "variable_type": "continuous",
+      "threshold": 9.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.38,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_temp_",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "temp_brest_2026_02_15",
+      "variable_type": "continuous",
+      "threshold": 6.0,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.65,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_temp_brest_2",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "temp_brest_2026_02_22",
+    "correlation": 0.62,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_north",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "north_atlantic_oscillation_index",
+      "variable_type": "continuous",
+      "threshold": 1.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.68,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_north",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "north_atlantic_oscillation_index",
+      "variable_type": "continuous",
+      "threshold": -1.0,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.35,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_weekly_temp_",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "weekly_temp_trend_february",
+    "correlation": 0.15,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.52,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_temp_",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "temp_brest_2026_02_15",
+      "variable_type": "continuous",
+      "threshold": 9.0,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.58,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_temp_",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "temp_brest_2026_02_15",
+      "variable_type": "continuous",
+      "threshold": 6.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.46,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_north",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "north_atlantic_oscillation_index",
+      "variable_type": "continuous",
+      "threshold": 1.0,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.48,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_north",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "north_atlantic_oscillation_index",
+      "variable_type": "continuous",
+      "threshold": -1.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.55,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_temp_",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "temp_brest_2026_02_15",
+      "variable_type": "continuous",
+      "threshold": 9.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.38,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_temp_",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "temp_brest_2026_02_15",
+      "variable_type": "continuous",
+      "threshold": 6.0,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.65,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_temp_brest_2",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "temp_brest_2026_02_22",
+    "correlation": 0.62,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_north",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "north_atlantic_oscillation_index",
+      "variable_type": "continuous",
+      "threshold": 1.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.68,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_north",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "north_atlantic_oscillation_index",
+      "variable_type": "continuous",
+      "threshold": -1.0,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.35,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_weekly_temp_",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "weekly_temp_trend_february",
+    "correlation": 0.15,
+    "provenance": "fill_requests"
+   }
+  ],
+  "requests": [
+   "P(target = True)",
+   "P(target = True | temp_brest_2026_02_15 < 9.0)",
+   "P(target = True | temp_brest_2026_02_15 > 6.0)",
+   "P(target = True | north_atlantic_oscillation_index < 1.0)",
+   "P(target = True | north_atlantic_oscillation_index > -1.0)",
+   "P(target = True | temp_brest_2026_02_15 > 9.0)",
+   "P(target = True | temp_brest_2026_02_15 < 6.0)",
+   "Corr(target, temp_brest_2026_02_22)",
+   "P(target = True | north_atlantic_oscillation_index > 1.0)",
+   "P(target = True | north_atlantic_oscillation_index < -1.0)",
+   "Corr(target, weekly_temp_trend_february)"
+  ],
+  "node_log": [
+   {
+    "node": "gen_variables[fermi]",
+    "added": {
+     "vars": 4,
+     "estimates": 0,
+     "requests": 0
+    },
+    "seconds": 35.6,
+    "attempts": 1
+   },
+   {
+    "node": "gen_estimates[marginals]",
+    "added": {
+     "vars": 0,
+     "estimates": 5,
+     "requests": 0
+    },
+    "seconds": 52.0,
+    "attempts": 2
+   },
+   {
+    "node": "gen_estimates[target_connections]",
+    "added": {
+     "vars": 0,
+     "estimates": 6,
+     "requests": 0
+    },
+    "seconds": 36.7,
+    "attempts": 2
+   },
+   {
+    "node": "propose_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 0,
+     "requests": 11
+    },
+    "seconds": 0.0,
+    "attempts": 1
+   },
+   {
+    "node": "fill_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 11,
+     "requests": 0
+    },
+    "seconds": 21.0,
+    "attempts": 1
+   }
+  ],
+  "protocol": "v1_fermi",
+  "model": "google/gemini-3-flash-preview",
+  "elicited_at": "2026-07-14T10:19:13",
+  "seconds": 145.3
+ },
+ "ECBESTRVOLWGTTRMDMNRT@2026-02-15": {
+  "variables": [
+   {
+    "__class__": "BinaryVariable",
+    "name": "target",
+    "description": "The literal answer to the main question: Will the euro short-term rate (volume-weighted trimmed mean), a measure of the borrowing costs of banks in the euro area, have increased by 2026-02-22 as compared to its value on 2026-02-15?",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "ecb_deposit_facility_rate_change",
+    "description": "The change in the ECB deposit facility rate (DFR) between the two dates, which typically sets the floor for the \u20acSTR.",
+    "type": "continuous",
+    "lower_bound": -1.0,
+    "upper_bound": 1.0,
+    "unit": "percentage points"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "ecb_monetary_policy_meeting_held",
+    "description": "Whether a Governing Council monetary policy meeting occurs between February 15 and February 22, 2026, which could lead to a rate change.",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "excess_liquidity_trend",
+    "description": "The change in the level of excess liquidity in the Eurosystem (measured in trillions of EUR); lower liquidity tends to push \u20acSTR closer to the DFR.",
+    "type": "continuous",
+    "lower_bound": -0.5,
+    "upper_bound": 0.5,
+    "unit": "Trillion EUR"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "estr_spread_to_dfr",
+    "description": "The spread of the \u20acSTR relative to the ECB deposit facility rate on the target date; usually negative and stable around -10 basis points.",
+    "type": "continuous",
+    "lower_bound": -0.2,
+    "upper_bound": 0.05,
+    "unit": "percentage points"
+   }
+  ],
+  "estimates": [
+   {
+    "id": "P_target = 1_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.42,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_ecb_deposit_facility_rate_change_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "ecb_deposit_facility_rate_change",
+    "expected_value": -0.01,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_ecb_monetary_policy_meeting_held = 1_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "ecb_monetary_policy_meeting_held",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.16,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_excess_liquidity_trend_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "excess_liquidity_trend",
+    "expected_value": -0.02,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_estr_spread_to_dfr_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "estr_spread_to_dfr",
+    "expected_value": -0.1,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_target = True_ecb_d",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "ecb_deposit_facility_rate_change",
+      "variable_type": "continuous",
+      "threshold": 0.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.98,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_ecb_d",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "ecb_deposit_facility_rate_change",
+      "variable_type": "continuous",
+      "threshold": 0.0,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.35,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_ecb_m",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "ecb_monetary_policy_meeting_held",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.65,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_ecb_m",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "ecb_monetary_policy_meeting_held",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.38,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_excess_liqui",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "excess_liquidity_trend",
+    "correlation": -0.25,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_estr_spread_",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "estr_spread_to_dfr",
+    "correlation": 0.6,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.4,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_ecb_d",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "ecb_deposit_facility_rate_change",
+      "variable_type": "continuous",
+      "threshold": 0.0,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.05,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_ecb_d",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "ecb_deposit_facility_rate_change",
+      "variable_type": "continuous",
+      "threshold": 0.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.98,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_ecb_m",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "ecb_monetary_policy_meeting_held",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.38,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_ecb_m",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "ecb_monetary_policy_meeting_held",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.55,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_excess_liqui",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "excess_liquidity_trend",
+    "correlation": -0.3,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_estr_spread_",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "estr_spread_to_dfr",
+    "correlation": 0.7,
+    "provenance": "fill_requests"
+   }
+  ],
+  "requests": [
+   "P(target = True)",
+   "P(target = True | ecb_deposit_facility_rate_change < 0.0)",
+   "P(target = True | ecb_deposit_facility_rate_change > 0.0)",
+   "P(target = True | ecb_monetary_policy_meeting_held = False)",
+   "P(target = True | ecb_monetary_policy_meeting_held = True)",
+   "Corr(target, excess_liquidity_trend)",
+   "Corr(target, estr_spread_to_dfr)"
+  ],
+  "node_log": [
+   {
+    "node": "gen_variables[fermi]",
+    "added": {
+     "vars": 4,
+     "estimates": 0,
+     "requests": 0
+    },
+    "seconds": 17.1,
+    "attempts": 1
+   },
+   {
+    "node": "gen_estimates[marginals]",
+    "added": {
+     "vars": 0,
+     "estimates": 5,
+     "requests": 0
+    },
+    "seconds": 49.2,
+    "attempts": 2
+   },
+   {
+    "node": "gen_estimates[target_connections]",
+    "added": {
+     "vars": 0,
+     "estimates": 6,
+     "requests": 0
+    },
+    "seconds": 12.6,
+    "attempts": 1
+   },
+   {
+    "node": "propose_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 0,
+     "requests": 7
+    },
+    "seconds": 0.0,
+    "attempts": 1
+   },
+   {
+    "node": "fill_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 7,
+     "requests": 0
+    },
+    "seconds": 41.7,
+    "attempts": 1
+   }
+  ],
+  "protocol": "v1_fermi",
+  "model": "google/gemini-3-flash-preview",
+  "elicited_at": "2026-07-14T10:19:19",
+  "seconds": 120.7
+ },
+ "DGS3MO@2026-02-15": {
+  "variables": [
+   {
+    "__class__": "BinaryVariable",
+    "name": "target",
+    "description": "The literal answer to the main question: Will the market yield on US treasury securities at 3-month constant maturity, quoted on an investment basis, have increased by 2026-02-22 as compared to its value on 2026-02-15?",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "fed_funds_rate_change",
+    "description": "The change in the target range for the federal funds rate by the FOMC between 2026-02-15 and 2026-02-22.",
+    "type": "continuous",
+    "lower_bound": -0.5,
+    "upper_bound": 0.5,
+    "unit": "percentage points"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "market_inflation_expectations",
+    "description": "The 1-year breakeven inflation rate as of 2026-02-22, reflecting short-term inflation sentiment which influences the 3-month yield.",
+    "type": "continuous",
+    "lower_bound": 0.0,
+    "upper_bound": 5.0,
+    "unit": "percent"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "t_bill_net_issuance",
+    "description": "The net change in the outstanding volume of 3-month Treasury bills issued by the US Treasury during the week ending 2026-02-22.",
+    "type": "continuous",
+    "lower_bound": -100.0,
+    "upper_bound": 100.0,
+    "unit": "billion USD"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "daily_yield_volatility",
+    "description": "The standard deviation of daily changes in the 3-month yield during the week preceding 2026-02-22, indicating the likelihood of a trend reversal.",
+    "type": "continuous",
+    "lower_bound": 0.0,
+    "upper_bound": 0.2,
+    "unit": "percentage points"
+   }
+  ],
+  "estimates": [
+   {
+    "id": "P_target = 1_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.48,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_fed_funds_rate_change_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "fed_funds_rate_change",
+    "expected_value": 0.0,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_market_inflation_expectations_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "market_inflation_expectations",
+    "expected_value": 2.35,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_t_bill_net_issuance_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "t_bill_net_issuance",
+    "expected_value": 15.0,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_daily_yield_volatility_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "daily_yield_volatility",
+    "expected_value": 0.04,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_target = True_fed_f",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "fed_funds_rate_change",
+      "variable_type": "continuous",
+      "threshold": 0.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.95,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_fed_f",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "fed_funds_rate_change",
+      "variable_type": "continuous",
+      "threshold": 0.0,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.44,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_market_infla",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "market_inflation_expectations",
+    "correlation": 0.35,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_t_bil",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "t_bill_net_issuance",
+      "variable_type": "continuous",
+      "threshold": 20.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.62,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_t_bil",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "t_bill_net_issuance",
+      "variable_type": "continuous",
+      "threshold": 20.0,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.42,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_daily",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "daily_yield_volatility",
+      "variable_type": "continuous",
+      "threshold": 0.06,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.55,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_daily",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "daily_yield_volatility",
+      "variable_type": "continuous",
+      "threshold": 0.06,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.46,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.48,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_fed_f",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "fed_funds_rate_change",
+      "variable_type": "continuous",
+      "threshold": 0.0,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.05,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_fed_f",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "fed_funds_rate_change",
+      "variable_type": "continuous",
+      "threshold": 0.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.96,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_t_bil",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "t_bill_net_issuance",
+      "variable_type": "continuous",
+      "threshold": 20.0,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.42,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_t_bil",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "t_bill_net_issuance",
+      "variable_type": "continuous",
+      "threshold": 20.0,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.62,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_daily",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "daily_yield_volatility",
+      "variable_type": "continuous",
+      "threshold": 0.06,
+      "is_lower_bound": false
+     }
+    ],
+    "probability": 0.46,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_daily",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "inequality",
+      "variable": "daily_yield_volatility",
+      "variable_type": "continuous",
+      "threshold": 0.06,
+      "is_lower_bound": true
+     }
+    ],
+    "probability": 0.54,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_market_infla",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "market_inflation_expectations",
+    "correlation": 0.35,
+    "provenance": "fill_requests"
+   }
+  ],
+  "requests": [
+   "P(target = True)",
+   "P(target = True | fed_funds_rate_change < 0.0)",
+   "P(target = True | fed_funds_rate_change > 0.0)",
+   "P(target = True | t_bill_net_issuance < 20.0)",
+   "P(target = True | t_bill_net_issuance > 20.0)",
+   "P(target = True | daily_yield_volatility < 0.06)",
+   "P(target = True | daily_yield_volatility > 0.06)",
+   "Corr(target, market_inflation_expectations)"
+  ],
+  "node_log": [
+   {
+    "node": "gen_variables[fermi]",
+    "added": {
+     "vars": 4,
+     "estimates": 0,
+     "requests": 0
+    },
+    "seconds": 13.8,
+    "attempts": 2
+   },
+   {
+    "node": "gen_estimates[marginals]",
+    "added": {
+     "vars": 0,
+     "estimates": 5,
+     "requests": 0
+    },
+    "seconds": 20.4,
+    "attempts": 1
+   },
+   {
+    "node": "gen_estimates[target_connections]",
+    "added": {
+     "vars": 0,
+     "estimates": 7,
+     "requests": 0
+    },
+    "seconds": 15.3,
+    "attempts": 1
+   },
+   {
+    "node": "propose_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 0,
+     "requests": 8
+    },
+    "seconds": 0.0,
+    "attempts": 1
+   },
+   {
+    "node": "fill_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 8,
+     "requests": 0
+    },
+    "seconds": 3.5,
+    "attempts": 1
+   }
+  ],
+  "protocol": "v1_fermi",
+  "model": "google/gemini-3-flash-preview",
+  "elicited_at": "2026-07-14T10:20:06",
+  "seconds": 52.9
+ },
+ "50abbf7c2acbda969cec1aea9302662569b1d16e397b8301e3de20ebae393720@2026-02-15": {
+  "variables": [
+   {
+    "__class__": "BinaryVariable",
+    "name": "target",
+    "description": "The literal answer to the main question: According to Wikipedia, will a vaccine have been developed for Heartland virus disease by 2026-02-22?",
+    "type": "binary"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "phase_1_clinical_trials_completion",
+    "description": "Whether a Heartland virus vaccine candidate has successfully completed Phase 1 human clinical trials by August 2025.",
+    "type": "binary"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "fda_fast_track_designation",
+    "description": "Whether the FDA has granted Fast Track or Breakthrough Therapy designation to any Heartland virus vaccine candidate by late 2025.",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "cumulative_hrtv_case_count",
+    "description": "The total number of laboratory-confirmed Heartland virus (HRTV) cases reported in the US, indicating public health urgency for vaccine development.",
+    "type": "continuous",
+    "lower_bound": 60.0,
+    "upper_bound": 200.0,
+    "unit": "confirmed cases"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "wikipedia_vaccine_status_entry",
+    "description": "Whether the specific Wikipedia article 'List of infectious diseases' or its linked subpages explicitly list a vaccine as available or approved for Heartland virus.",
+    "type": "binary"
+   }
+  ],
+  "estimates": [
+   {
+    "id": "P_phase_1_clinical_trials_completion = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "phase_1_clinical_trials_completion",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.05,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_fda_fast_track_designation = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "fda_fast_track_designation",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.03,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_cumulative_hrtv_case_count_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "cumulative_hrtv_case_count",
+    "expected_value": 85.0,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_wikipedia_vaccine_status_entry = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "wikipedia_vaccine_status_entry",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.01,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.01,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_target = True_phase",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "phase_1_clinical_trials_completion",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.08,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_phase",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "phase_1_clinical_trials_completion",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.005,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_fda_f",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "fda_fast_track_designation",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.15,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_fda_f",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "fda_fast_track_designation",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.006,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_cumulative_h",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "cumulative_hrtv_case_count",
+    "correlation": 0.12,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_wikip",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "wikipedia_vaccine_status_entry",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.95,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_wikip",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "wikipedia_vaccine_status_entry",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.001,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.005,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_phase",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "phase_1_clinical_trials_completion",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.001,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_phase",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "phase_1_clinical_trials_completion",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.06,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_fda_f",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "fda_fast_track_designation",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.002,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_fda_f",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "fda_fast_track_designation",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.1,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_wikip",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "wikipedia_vaccine_status_entry",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.001,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_wikip",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "wikipedia_vaccine_status_entry",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.98,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_cumulative_h",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "cumulative_hrtv_case_count",
+    "correlation": 0.15,
+    "provenance": "fill_requests"
+   }
+  ],
+  "requests": [
+   "P(target = True)",
+   "P(target = True | phase_1_clinical_trials_completion = False)",
+   "P(target = True | phase_1_clinical_trials_completion = True)",
+   "P(target = True | fda_fast_track_designation = False)",
+   "P(target = True | fda_fast_track_designation = True)",
+   "P(target = True | wikipedia_vaccine_status_entry = False)",
+   "P(target = True | wikipedia_vaccine_status_entry = True)",
+   "Corr(target, cumulative_hrtv_case_count)"
+  ],
+  "node_log": [
+   {
+    "node": "gen_variables[fermi]",
+    "added": {
+     "vars": 4,
+     "estimates": 0,
+     "requests": 0
+    },
+    "seconds": 31.2,
+    "attempts": 1
+   },
+   {
+    "node": "gen_estimates[marginals]",
+    "added": {
+     "vars": 0,
+     "estimates": 5,
+     "requests": 0
+    },
+    "seconds": 32.0,
+    "attempts": 2
+   },
+   {
+    "node": "gen_estimates[target_connections]",
+    "added": {
+     "vars": 0,
+     "estimates": 7,
+     "requests": 0
+    },
+    "seconds": 3.0,
+    "attempts": 1
+   },
+   {
+    "node": "propose_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 0,
+     "requests": 8
+    },
+    "seconds": 0.0,
+    "attempts": 1
+   },
+   {
+    "node": "fill_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 8,
+     "requests": 0
+    },
+    "seconds": 8.7,
+    "attempts": 1
+   }
+  ],
+  "protocol": "v1_fermi",
+  "model": "google/gemini-3-flash-preview",
+  "elicited_at": "2026-07-14T10:21:21",
+  "seconds": 74.9
+ },
+ "d563befa9ded6fdc765857663fceeb546cd5b983b2de7850615c037880a25390@2026-02-15": {
+  "variables": [
+   {
+    "__class__": "BinaryVariable",
+    "name": "target",
+    "description": "The literal answer to the main question: According to Wikipedia, will Evgeniia Chikunova still hold the world record for 200m breaststroke in long course (50 metres) swimming pools on 2026-02-22?",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "chikunova_current_record_time",
+    "description": "The world record time for the women's 200m breaststroke (long course) held by Evgeniia Chikunova as of February 2026.",
+    "type": "continuous",
+    "lower_bound": 137.0,
+    "upper_bound": 140.0,
+    "unit": "seconds"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "major_championships_before_resolution",
+    "description": "The number of World Aquatics sanctioned international long course championships (e.g., World Aquatics Championships 2025) occurring between Feb 2025 and Feb 2026 where the record could be broken.",
+    "type": "continuous",
+    "lower_bound": 0.0,
+    "upper_bound": 3.0,
+    "unit": "competitions"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "faster_ratified_performance_exists",
+    "description": "Whether a swimmer other than Chikunova has achieved a time faster than 2:17.55 in a long course 200m breaststroke event that has been ratified or is pending ratification by World Aquatics prior to Feb 22, 2026.",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "wikipedia_update_latency",
+    "description": "The probability that Wikipedia's 'List of world records in swimming' page is updated within 7 days of a new world record being set.",
+    "type": "continuous",
+    "lower_bound": 0.8,
+    "upper_bound": 1.0,
+    "unit": "probability"
+   }
+  ],
+  "estimates": [
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.82,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_chikunova_current_record_time_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "chikunova_current_record_time",
+    "expected_value": 137.55,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_major_championships_before_resolution_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "major_championships_before_resolution",
+    "expected_value": 1.0,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_faster_ratified_performance_exists = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "faster_ratified_performance_exists",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.18,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_wikipedia_update_latency_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "wikipedia_update_latency",
+    "expected_value": 0.98,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "C_target_major_champi",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "major_championships_before_resolution",
+    "correlation": -0.25,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = 1_faste",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "faster_ratified_performance_exists",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.05,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = 1_faste",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "faster_ratified_performance_exists",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.95,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_chikunova_cu",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "chikunova_current_record_time",
+    "correlation": -0.15,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_wikipedia_up",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "wikipedia_update_latency",
+    "correlation": -0.05,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.82,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_faste",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "faster_ratified_performance_exists",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 1.0,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_faste",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "faster_ratified_performance_exists",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.02,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_major_champi",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "major_championships_before_resolution",
+    "correlation": -0.3,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_chikunova_cu",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "chikunova_current_record_time",
+    "correlation": -0.15,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_wikipedia_up",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "wikipedia_update_latency",
+    "correlation": -0.02,
+    "provenance": "fill_requests"
+   }
+  ],
+  "requests": [
+   "P(target = True)",
+   "P(target = True | faster_ratified_performance_exists = False)",
+   "P(target = True | faster_ratified_performance_exists = True)",
+   "Corr(target, major_championships_before_resolution)",
+   "Corr(target, chikunova_current_record_time)",
+   "Corr(target, wikipedia_update_latency)"
+  ],
+  "node_log": [
+   {
+    "node": "gen_variables[fermi]",
+    "added": {
+     "vars": 4,
+     "estimates": 0,
+     "requests": 0
+    },
+    "seconds": 6.4,
+    "attempts": 1
+   },
+   {
+    "node": "gen_estimates[marginals]",
+    "added": {
+     "vars": 0,
+     "estimates": 5,
+     "requests": 0
+    },
+    "seconds": 60.2,
+    "attempts": 2
+   },
+   {
+    "node": "gen_estimates[target_connections]",
+    "added": {
+     "vars": 0,
+     "estimates": 5,
+     "requests": 0
+    },
+    "seconds": 49.0,
+    "attempts": 3
+   },
+   {
+    "node": "propose_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 0,
+     "requests": 6
+    },
+    "seconds": 0.0,
+    "attempts": 1
+   },
+   {
+    "node": "fill_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 6,
+     "requests": 0
+    },
+    "seconds": 28.5,
+    "attempts": 2
+   }
+  ],
+  "protocol": "v1_fermi",
+  "model": "google/gemini-3-flash-preview",
+  "elicited_at": "2026-07-14T10:21:43",
+  "seconds": 144.2
+ },
+ "LVS@2026-02-15": {
+  "variables": [
+   {
+    "__class__": "BinaryVariable",
+    "name": "target",
+    "description": "The literal answer to the main question: Will LVS's market close price on 2026-02-22 be higher than its market close price on 2026-02-15?\n\nStock splits and reverse splits will be accounted for in resolving this question. Forecasts on questions about companies that have been delisted (through mergers or bankruptcy) will resolve to their final close price.",
+    "type": "binary"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "weekly_return_sp500",
+    "description": "The percentage return of the S&P 500 index between the market close on 2026-02-13 and 2026-02-20, representing overall market sentiment.",
+    "type": "continuous",
+    "lower_bound": -10.0,
+    "upper_bound": 10.0,
+    "unit": "percent"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "macau_gaming_revenue_trend",
+    "description": "The month-over-month growth rate of Gross Gaming Revenue (GGR) in Macau for the period leading into February 2026, which drives LVS's largest revenue segment.",
+    "type": "continuous",
+    "lower_bound": -20.0,
+    "upper_bound": 20.0,
+    "unit": "percent"
+   },
+   {
+    "__class__": "ContinuousVariable",
+    "name": "lvs_beta_adjusted_volatility",
+    "description": "The expected volatility of LVS relative to the market for a 5-trading day window, determining the magnitude of price swings needed to exceed the baseline price.",
+    "type": "continuous",
+    "lower_bound": 0.5,
+    "upper_bound": 5.0,
+    "unit": "ratio"
+   },
+   {
+    "__class__": "BinaryVariable",
+    "name": "negative_macro_shocks_china",
+    "description": "The occurrence of significant adverse regulatory or economic policy changes in China/Macau during the specific week of February 15-22, 2026, that would depress gaming stocks.",
+    "type": "binary"
+   }
+  ],
+  "estimates": [
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.53,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_weekly_return_sp500_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "weekly_return_sp500",
+    "expected_value": 0.18,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_macau_gaming_revenue_trend_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "macau_gaming_revenue_trend",
+    "expected_value": 2.5,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "E_lvs_beta_adjusted_volatility_",
+    "estimate_type": "expectation",
+    "sd": null,
+    "variable": "lvs_beta_adjusted_volatility",
+    "expected_value": 1.3,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "P_negative_macro_shocks_china = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "negative_macro_shocks_china",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.04,
+    "provenance": "gen_estimates[marginals]"
+   },
+   {
+    "id": "C_target_weekly_retur",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "weekly_return_sp500",
+    "correlation": 0.65,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_macau_gaming",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "macau_gaming_revenue_trend",
+    "correlation": 0.55,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "C_target_lvs_beta_adj",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "lvs_beta_adjusted_volatility",
+    "correlation": 0.12,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_negat",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "negative_macro_shocks_china",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.15,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_negat",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "negative_macro_shocks_china",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.55,
+    "provenance": "gen_estimates[target_connections]"
+   },
+   {
+    "id": "P_target = True_",
+    "estimate_type": "probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "probability": 0.53,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_negat",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "negative_macro_shocks_china",
+      "variable_type": "binary",
+      "value": false
+     }
+    ],
+    "probability": 0.55,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "P_target = True_negat",
+    "estimate_type": "conditional_probability",
+    "sd": null,
+    "proposition": {
+     "proposition_type": "equality",
+     "variable": "target",
+     "variable_type": "binary",
+     "value": true
+    },
+    "conditions": [
+     {
+      "proposition_type": "equality",
+      "variable": "negative_macro_shocks_china",
+      "variable_type": "binary",
+      "value": true
+     }
+    ],
+    "probability": 0.15,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_weekly_retur",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "weekly_return_sp500",
+    "correlation": 0.65,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_macau_gaming",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "macau_gaming_revenue_trend",
+    "correlation": 0.55,
+    "provenance": "fill_requests"
+   },
+   {
+    "id": "C_target_lvs_beta_adj",
+    "estimate_type": "correlation",
+    "sd": null,
+    "variable_a": "target",
+    "variable_b": "lvs_beta_adjusted_volatility",
+    "correlation": 0.12,
+    "provenance": "fill_requests"
+   }
+  ],
+  "requests": [
+   "P(target = True)",
+   "P(target = True | negative_macro_shocks_china = False)",
+   "P(target = True | negative_macro_shocks_china = True)",
+   "Corr(target, weekly_return_sp500)",
+   "Corr(target, macau_gaming_revenue_trend)",
+   "Corr(target, lvs_beta_adjusted_volatility)"
+  ],
+  "node_log": [
+   {
+    "node": "gen_variables[fermi]",
+    "added": {
+     "vars": 4,
+     "estimates": 0,
+     "requests": 0
+    },
+    "seconds": 5.0,
+    "attempts": 1
+   },
+   {
+    "node": "gen_estimates[marginals]",
+    "added": {
+     "vars": 0,
+     "estimates": 5,
+     "requests": 0
+    },
+    "seconds": 21.4,
+    "attempts": 1
+   },
+   {
+    "node": "gen_estimates[target_connections]",
+    "added": {
+     "vars": 0,
+     "estimates": 5,
+     "requests": 0
+    },
+    "seconds": 2.9,
+    "attempts": 1
+   },
+   {
+    "node": "propose_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 0,
+     "requests": 6
+    },
+    "seconds": 0.0,
+    "attempts": 1
+   },
+   {
+    "node": "fill_requests",
+    "added": {
+     "vars": 0,
+     "estimates": 6,
+     "requests": 0
+    },
+    "seconds": 10.8,
+    "attempts": 1
+   }
+  ],
+  "protocol": "v1_fermi",
+  "model": "google/gemini-3-flash-preview",
+  "elicited_at": "2026-07-14T10:22:01",
+  "seconds": 40.0
  }
 }
