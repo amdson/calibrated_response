@@ -5,3 +5,9 @@ config.yaml
 *__pycache__*
 *.pyc
 .jax_cache/
+
+# solver outputs are free and regenerable; a committed prediction file is a
+# resume-contamination hazard (Colab git reset restores it and resume-skip
+# keeps stale rows). Keep only per-run manifests and summaries.
+metaculus/runs/**/*.json
+!metaculus/runs/**/manifest.json
