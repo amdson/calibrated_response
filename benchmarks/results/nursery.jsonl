@@ -1,0 +1,1 @@
+{"heldout_nll": 10.736982995328239, "marginal_tv": 0.05812853990348009, "pair_tv_seen": 0.1114647026227081, "pair_tv_unseen": 0.09427066208691391, "engine": "independent", "n_pair": 20, "noise": 0.3, "conflict": 0.0, "seed": 0, "fit_seconds": 0.0}

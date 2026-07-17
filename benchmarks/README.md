@@ -35,6 +35,16 @@ python -m benchmarks.run --dataset adult --engines independent tn \
     --n-pair 20 40 80 --noise 0.0 0.3 1.0 --conflict 0.0 0.2
 ```
 
+Datasets ([datasets.py](datasets.py)): `synthetic_chain` (known-truth AR(1)
+debug), and four public tables spanning the type space — `adult` (mixed),
+`bank_marketing` (mixed, categorical-heavy), `california` (all continuous),
+`nursery` (all categorical).
+
+Full sweeps are GPU work (a single `tn` fit on adult takes ~8 min on local CPU):
+open [colab_sweep.ipynb](colab_sweep.ipynb) in Colab on a GPU runtime and Run
+all — it clones this repo, runs the grid behind the curves below, plots them,
+and downloads the `results/*.jsonl` to merge back here.
+
 Results append to `results/<dataset>.jsonl` (one row per cell — engine,
 sweep coordinates, seed, scores), so sweeps are resumable and plotting is a
 pandas groupby.
