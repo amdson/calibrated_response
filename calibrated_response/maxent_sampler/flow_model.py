@@ -35,6 +35,7 @@ import numpy as np
 from calibrated_response.tn.discretize import ContinuousVar, Discretizer
 from calibrated_response.maxent_sampler.model import SamplerModel
 from calibrated_response.maxent_sampler.flow_sampler import FlowSampler
+from calibrated_response.maxent_sampler.spline_sampler import SplineFlowSampler
 
 _EPS = 1e-30
 
@@ -60,10 +61,21 @@ class FlowSamplerModel(SamplerModel):
         :meth:`entropy`) is the exact *extended* joint including dummies — the
         real-site marginal entropy alone is no longer tractable, which is also
         why :meth:`log_prob` is unavailable with ``n_dummy > 0``.
+    flow_type : str
+        ``"affine"`` (default) uses the RealNVP affine-coupling
+        :class:`FlowSampler`; ``"spline"`` uses the more expressive
+        rational-quadratic :class:`SplineFlowSampler` (``num_bins`` /
+        ``tail_bound`` apply).  Both keep exact entropy, so the maxent
+        machinery below is identical.
+    num_bins, tail_bound :
+        Spline knobs (``flow_type="spline"`` only): bins per transformed dim and
+        the ``[-B, B]`` interval outside which the spline is the identity.
     """
 
     def __init__(self, vars: Sequence[ContinuousVar], n_layers: int = 8,
-                 hidden: int = 64, s_max: float = 3.0, n_dummy: int = 0):
+                 hidden: int = 64, s_max: float = 3.0, n_dummy: int = 0,
+                 flow_type: str = "affine", num_bins: int = 8,
+                 tail_bound: float = 4.0):
         self.disc = Discretizer(vars)
         self.n = self.disc.n_sites
         self.dims = self.disc.dims
@@ -71,8 +83,17 @@ class FlowSamplerModel(SamplerModel):
         self.n_flow = self.n + self.n_dummy
         self.latent_dim = self.n_flow                # invertible: same dim
 
-        self.net = FlowSampler(self.n_flow, n_layers=n_layers, hidden=hidden,
-                               s_max=s_max)
+        if flow_type == "affine":
+            self.net = FlowSampler(self.n_flow, n_layers=n_layers,
+                                   hidden=hidden, s_max=s_max)
+        elif flow_type == "spline":
+            self.net = SplineFlowSampler(self.n_flow, n_layers=n_layers,
+                                         hidden=hidden, num_bins=num_bins,
+                                         tail_bound=tail_bound)
+        else:
+            raise ValueError(f"flow_type must be 'affine' or 'spline', "
+                             f"got {flow_type!r}")
+        self.flow_type = flow_type
         lower = np.concatenate([self.disc.lower, np.zeros(self.n_dummy)])
         upper = np.concatenate([self.disc.upper, np.ones(self.n_dummy)])
         self.lower = jnp.asarray(lower, jnp.float32)

@@ -134,6 +134,13 @@ class DistributionBuilder:
         the elicited bounds at ±2 sd (~95% central mass).
     n_layers, hidden, s_max :
         Flow architecture (see :class:`FlowSampler`).
+    flow_type : str
+        ``"affine"`` (default, RealNVP) or ``"spline"`` (rational-quadratic
+        neural spline — more expressive per parameter, better tails; keeps
+        exact entropy). ``num_bins`` / ``tail_bound`` apply to the spline.
+    num_bins, tail_bound :
+        Spline knobs (``flow_type="spline"``): bins per transformed dim and the
+        ``[-B, B]`` interval outside which the spline is the identity.
     n_dummy : int
         Extra flow dimensions carrying no variable (see
         :class:`FlowSamplerModel`): a pure expressiveness knob — no
@@ -166,6 +173,9 @@ class DistributionBuilder:
         hidden: int = 64,
         s_max: float = 3.0,
         n_dummy: int = 0,
+        flow_type: str = "affine",
+        num_bins: int = 8,
+        tail_bound: float = 4.0,
         n_bins: int = 32,
     ):
         self.variables = list(variables)
@@ -228,7 +238,8 @@ class DistributionBuilder:
 
         self.model = FlowSamplerModel(self.cvars, n_layers=n_layers,
                                       hidden=hidden, s_max=s_max,
-                                      n_dummy=n_dummy)
+                                      n_dummy=n_dummy, flow_type=flow_type,
+                                      num_bins=num_bins, tail_bound=tail_bound)
 
         # ---- estimates → constraints + evaluation rows -----------------------
         self.constraints: list = []
