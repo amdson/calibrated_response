@@ -153,8 +153,15 @@ files + resume-skip. Deleted, refit needed.
   conservative bounds — true value almost guaranteed interior, mass on
   both sides of the central estimate — and forbid degenerate ranges like
   X in [0, 1] with E[X] = 0 (reformulate when pinned at a physical
-  limit). Still open: a Gaussian-KL penalty on the solver domain instead
-  of plain entropy, for when bounds are wide.
+  limit). The matching solver-side change landed the same day: a
+  Gaussian-KL domain prior (`--domain-prior gaussian`: KL to
+  N(mid, span/(2·`--prior-bound-sds`)) per continuous variable instead of
+  plain entropy; binary sites keep the uniform reference; anti-collapse
+  preserved). Uniform stays the default until the `pred_baseline_gk`
+  run_pilot arm is benchmarked — design in `gaussian_kl_objective.md`,
+  validation in `tests/maxent_sampler/test_gaussian_kl_prior.py`. Loss
+  VALUES are constant-shifted between modes; never compare raw losses
+  across them.
 - Layout reorg: `data/` (inputs) / `caches/<protocol>/` ($, immutable) /
   `runs/<date>-<slug>/` (free, regenerable, gitignored except
   manifest/summary). `run_flow_solver.py` requires `--out`, writes a

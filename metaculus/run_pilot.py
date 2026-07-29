@@ -46,6 +46,14 @@ ARMS.append(
     ("pred_v1x2_nocollapse.json",
      ["--cache", str(HERE / "caches" / "v1x2" / "llm_cache_v1x2.json"),
       "--prob-penalty", "logit", "--no-collapse"]))
+# gaussian-KL domain prior (see gaussian_kl_objective.md): same elicitation
+# as baseline, entropy term replaced by KL to N(mid, span/4) per continuous
+# variable — isolates the solver-side half of the conservative-bounds change.
+# Once a protocol winner emerges, point this at the winner's cache instead.
+ARMS.append(
+    ("pred_baseline_gk.json",
+     ["--cache", str(HERE / "caches" / "baseline" / "llm_cache_baseline.json"),
+      "--prob-penalty", "logit", "--domain-prior", "gaussian"]))
 
 
 def run(cmd: list[str]) -> None:

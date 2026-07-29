@@ -5,8 +5,10 @@
   (re-opens target-linked quantities), used only right before a
   fill_requests(hide_estimates=True) pass so it cannot echo. Then re-elicit
   the v1x2 cache only.
-- implement the gaussian-KL domain objective — full design + file/line
-  pointers + validation tests in gaussian_kl_objective.md (repo root)
+- benchmark the gaussian-KL domain prior (implemented 2026-07-14, uniform
+  still the default): run_pilot.py arm pred_baseline_gk.json; once a
+  protocol winner emerges, re-point the arm at the winner's cache and
+  decide whether gaussian becomes the default
 - elicit set of llm answers with lower/no/higher thinking
 - do the std-error estimation using multiple llms/queries
 - test entropy reg hyperparameter, sigmoid sharpness hyperparameter

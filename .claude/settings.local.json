@@ -67,7 +67,13 @@
       "Bash(/c/Users/amdic/miniconda3/envs/calp/python.exe -X utf8 \"C:\\\\Users\\\\amdic\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-amdic-calibrated-response\\\\8e912eb9-734f-4008-b355-83e44e657820\\\\scratchpad\\\\proto_allbelief.py\")",
       "Bash(/c/Users/amdic/miniconda3/envs/calp/python.exe -X utf8 \"C:\\\\Users\\\\amdic\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-amdic-calibrated-response\\\\8e912eb9-734f-4008-b355-83e44e657820\\\\scratchpad\\\\proto_allbelief2.py\")",
       "Bash(/c/Users/amdic/miniconda3/envs/calp/python.exe -X utf8 -m benchmarks.run --dataset synthetic_chain --engines independent tn --n-pair 20 --noise 0.0 --seeds 0 --n-bins-cont 8 --max-rows 4000)",
-      "Bash(tasklist //FI \"IMAGENAME eq python.exe\")"
+      "Bash(tasklist //FI \"IMAGENAME eq python.exe\")",
+      "Bash(~/miniconda3/envs/calp/python.exe \"C:/Users/amdic/AppData/Local/Temp/claude/c--Users-amdic-calibrated-response/57ba307a-a27f-42cc-9b26-575046d0913b/scratchpad/why_tail.py\")",
+      "Bash(~/miniconda3/envs/calp/python.exe \"C:/Users/amdic/AppData/Local/Temp/claude/c--Users-amdic-calibrated-response/57ba307a-a27f-42cc-9b26-575046d0913b/scratchpad/entropy_accounting.py\")",
+      "Bash(~/miniconda3/envs/calp/python.exe \"C:/Users/amdic/AppData/Local/Temp/claude/c--Users-amdic-calibrated-response/57ba307a-a27f-42cc-9b26-575046d0913b/scratchpad/capacity_sweep.py\")",
+      "Bash(~/miniconda3/envs/calp/python.exe -c ' *)",
+      "Bash(PYTHONIOENCODING=utf-8 ~/miniconda3/envs/calp/python.exe -c ' *)",
+      "Bash(PYTHONIOENCODING=utf-8 ~/miniconda3/envs/calp/python.exe \"C:/Users/amdic/AppData/Local/Temp/claude/c--Users-amdic-calibrated-response/57ba307a-a27f-42cc-9b26-575046d0913b/scratchpad/build_nb.py\")"
     ]
   }
 }

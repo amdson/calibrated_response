@@ -199,4 +199,6 @@ It's a problem that the elicitation functions are giving me variables with degen
 > variable_generation prompt (prompts.py) now demand extremely conservative
 > bounds with the true value interior and mass on both sides, and tell the
 > model to reformulate quantities pinned at a physical limit. The gaussian
-> KL domain penalty in the solver is NOT implemented — still open.
+> KL domain penalty landed later the same day (`--domain-prior gaussian`,
+> see `gaussian_kl_objective.md`); uniform stays the default until the
+> `pred_baseline_gk` benchmark arm is scored.

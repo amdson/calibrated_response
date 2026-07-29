@@ -34,11 +34,11 @@ round of work.
 A query is a plain-text forecasting question, optionally with background /
 resolution criteria. The working benchmark is Metaculus binary questions:
 
-- `metaculus/tiny_dataset.json` — 24 resolved questions (keys: `id`, `question`,
+- `metaculus/data/tiny_dataset.json` — 24 resolved questions (keys: `id`, `question`,
   `resolution_criteria`, `background`, `freeze_datetime_value` = market price at
   freeze, `resolved_to`).
 - `metaculus/eval_utils.py` — dataset iteration and scoring helpers.
-- `metaculus/llm_cache.json` — cached LLM elicitation output keyed by question
+- `metaculus/caches/` (e.g. `caches/full/llm_cache_full.json`) — cached LLM elicitation output keyed by question
   id, so solver experiments rerun without API calls.
 
 Nothing constrains the pipeline to binary questions — the target is just one

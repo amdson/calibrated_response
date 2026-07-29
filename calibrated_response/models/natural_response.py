@@ -7,26 +7,46 @@ from calibrated_response.models.query import (
     Proposition, PropositionUnion, EqualityProposition, InequalityProposition,
     Estimate, EstimateUnion, ProbabilityEstimate, ExpectationEstimate,
     ConditionalExpectationEstimate, ConditionalProbabilityEstimate,
-    CorrelationEstimate)
+    CorrelationEstimate, EquationEstimate)
 
 # One grammar, shared by the pydantic field pattern (what the LLM is told and
 # validated against) and parse_natural_syntax (how it is parsed) so they can
 # never drift apart. Deliberately whitespace-tolerant: `P(x>5|y=True)=0.3`
 # and `P(x > 5 | y = True) = 0.3` both match.
 #
+# The relational operator (group 4 below) is `=` for a point belief or
+# `< / > / <= / >=` for a one-sided bound (`P(x>5) < 0.3`); the inner `>`/`<`
+# of a proposition stays inside the bracketed term, so the two never collide.
+#
 # Breakdown:
-#   ^\s*([PE])\s*        -> P or E (group 1)
-#   [\[\(](.+?)          -> opening ( or [, then the main term (group 2)
-#   (?:\s*\|\s*(.+?))?   -> optional | conditions, any spacing (group 3)
-#   [\]\)]\s*=\s*        -> closing ) or ], equals sign
-#   (.+?)\s*$            -> the value (group 4)
+#   ^\s*([PE])\s*            -> P or E (group 1)
+#   [\[\(](.+?)              -> opening ( or [, then the main term (group 2)
+#   (?:\s*\|\s*(.+?))?       -> optional | conditions, any spacing (group 3)
+#   [\]\)]\s*(<=|>=|<|>|=)\s* -> closing ) or ], then the relation (group 4)
+#   (.+?)\s*$                -> the value (group 5)
+_REL_OP = r"(<=|>=|<|>|=)"
 PE_PATTERN = (
-    r"^\s*([PE])\s*[\[\(](.+?)(?:\s*\|\s*(.+?))?[\]\)]\s*=\s*(.+?)\s*$"
+    r"^\s*([PE])\s*[\[\(](.+?)(?:\s*\|\s*(.+?))?[\]\)]\s*" + _REL_OP + r"\s*(.+?)\s*$"
 )
-# Corr(X, Y) = r  — scale-free pairwise dependence
-CORR_PATTERN = r"^\s*Corr\s*\(\s*([^,|]+?)\s*,\s*([^,|]+?)\s*\)\s*=\s*(.+?)\s*$"
-# What the pydantic field admits: either form.
-EXPRESSION_PATTERN = f"(?:{PE_PATTERN})|(?:{CORR_PATTERN})"
+# Corr(X, Y) = r  — scale-free pairwise dependence (also one-sided-bound aware)
+CORR_PATTERN = (
+    r"^\s*Corr\s*\(\s*([^,|]+?)\s*,\s*([^,|]+?)\s*\)\s*" + _REL_OP + r"\s*(.+?)\s*$"
+)
+# Structural equation `lhs = rhs [~ N(0, sigma)]` — a bare-identifier LHS is
+# what separates it from the P()/E[]/Corr() forms (those have a bracket right
+# after the head symbol, so they never match a plain `name =`). The rhs is
+# validated loosely here; the real arithmetic grammar is enforced at build time
+# by maxent_sampler.equations.
+NOISE_PATTERN = r"~\s*N\s*\(\s*0\s*,\s*([0-9.eE+\-]+)\s*\)\s*$"
+EQUATION_PATTERN = r"^\s*[A-Za-z_]\w*\s*=\s*.+$"
+# What the pydantic field admits: any of the forms.
+EXPRESSION_PATTERN = (
+    f"(?:{PE_PATTERN})|(?:{CORR_PATTERN})|(?:{EQUATION_PATTERN})"
+)
+
+# Relational operator -> Estimate.relation (strict/non-strict collapse to the
+# same soft bound; the solver's hinge has no notion of a measure-zero boundary).
+_OP_TO_RELATION = {"=": "eq", "<": "le", "<=": "le", ">": "ge", ">=": "ge"}
 
 
 class NaturalEstimate(BaseModel):
@@ -38,8 +58,20 @@ class NaturalEstimate(BaseModel):
     expression: str = Field(
         ...,
         pattern=EXPRESSION_PATTERN,
-        description="Format: 'P(A > 10 | B = True) = 0.5' or 'E[Cost | Tax = True] = 100.0'",
-        examples=["E[battery_cost | growth > 40.0] = 125.0"]
+        description="Format: 'P(A > 10 | B = True) = 0.5' or "
+                    "'E[Cost | Tax = True] = 100.0'. The outer relation may also "
+                    "be a one-sided bound when you are only confident about a "
+                    "ceiling or floor: 'P(A > 10) < 0.2', 'E[Cost] > 100', "
+                    "'Corr(A, B) > 0.3'. Use '<'/'>' for bounds and '=' for a "
+                    "point estimate. You can also state a structural equation "
+                    "linking variables — 'total = 0.4*x + 0.6*y' for an exact "
+                    "identity, 'total = 0.4*x + 0.6*y ~ N(0, 5)' with additive "
+                    "noise, or a threshold 'hit = ind(total > 100)' — which is "
+                    "far better than guessing a correlation when one variable is "
+                    "a known function of others.",
+        examples=["E[battery_cost | growth > 40.0] = 125.0",
+                  "P(remaining_slams > 2) < 0.15",
+                  "net_worth = tesla_price*musk_shares + spacex_stake"]
     )
 
     def convert(self) -> EstimateUnion:
@@ -137,20 +169,39 @@ def parse_natural_syntax(expression: str) -> EstimateUnion:
     # 1. Regex Extraction (same grammar the pydantic field validates against)
     corr = re.match(CORR_PATTERN, expression)
     if corr:
-        var_a, var_b, value_str = corr.groups()
+        var_a, var_b, op, value_str = corr.groups()
         return CorrelationEstimate(
             id=f"C_{var_a.strip()[:12]}_{var_b.strip()[:12]}",
             variable_a=var_a.strip(),
             variable_b=var_b.strip(),
             correlation=float(value_str.strip().rstrip(".")),
+            relation=_OP_TO_RELATION[op],
         )
 
     match = re.match(PE_PATTERN, expression)
 
     if not match:
+        # Not a P()/E[]/Corr() form — try a structural equation `lhs = rhs`,
+        # peeling off an optional `~ N(0, sigma)` noise tail first.
+        body = expression.strip()
+        noise_sd = None
+        m_noise = re.search(NOISE_PATTERN, body)
+        if m_noise:
+            noise_sd = float(m_noise.group(1))
+            body = body[: m_noise.start()].strip()
+        m_eq = re.match(r"^\s*([A-Za-z_]\w*)\s*=\s*(.+?)\s*$", body)
+        if m_eq:
+            lhs, rhs = m_eq.group(1), m_eq.group(2).strip()
+            return EquationEstimate(
+                id=f"EQ_{lhs[:16]}",
+                lhs=lhs,
+                rhs=rhs,
+                noise_sd=noise_sd,
+            )
         raise ValueError(f"Invalid syntax: {expression}")
 
-    type_char, main_term, condition_str, value_str = match.groups()
+    type_char, main_term, condition_str, op, value_str = match.groups()
+    relation = _OP_TO_RELATION[op]
 
     # 2. Parse Value (tolerate a trailing period / percent phrasing slip)
     est_value = float(value_str.strip().rstrip("."))
@@ -175,31 +226,35 @@ def parse_natural_syntax(expression: str) -> EstimateUnion:
                 id=est_id,
                 proposition=main_prop,
                 conditions=conditions,
-                probability=est_value
+                probability=est_value,
+                relation=relation
             )
         else:
             return ProbabilityEstimate(
                 id=est_id,
                 proposition=main_prop,
-                probability=est_value
+                probability=est_value,
+                relation=relation
             )
 
     elif type_char == 'E':
         # Expectation: Main term is just a Variable (e.g., E[Cost])
         variable_name = main_term.strip()
-        
+
         if conditions:
             return ConditionalExpectationEstimate(
                 id=est_id,
                 variable=variable_name,
                 conditions=conditions,
-                expected_value=est_value
+                expected_value=est_value,
+                relation=relation
             )
         else:
             return ExpectationEstimate(
                 id=est_id,
                 variable=variable_name,
-                expected_value=est_value
+                expected_value=est_value,
+                relation=relation
             )
             
     raise ValueError(f"Unknown estimate type: {type_char}")

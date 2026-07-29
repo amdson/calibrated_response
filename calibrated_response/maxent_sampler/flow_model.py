@@ -10,7 +10,10 @@ marginal histogram proxy::
     H(x) = H(z) + E[log |det J|] + sum log span        (exact, O(D)/sample)
 
 ``entropy_reg=1.0`` is the natural scale: the loss is then a true
-soft-constrained maximum-entropy objective.  Degenerate joints (mass on any
+soft-constrained maximum-entropy objective.  ``domain_prior="gaussian"``
+generalizes it to ``+ entropy_reg * KL(p ‖ q0)`` with a per-site Gaussian
+reference centered in the box (bounds read as ±``prior_bound_sds``·sd of a
+default belief) — same exact entropy machinery, one extra O(D)/sample term.  Degenerate joints (mass on any
 lower-dimensional manifold) have ``H = -inf``, so collapse is impossible rather
 than merely discouraged — and unlike the histogram proxies this guards *all*
 orders of structure, not just 1-D/2-D marginals, at a cost linear in D.
@@ -42,37 +45,64 @@ class FlowSamplerModel(SamplerModel):
     Parameters
     ----------
     vars : sequence of ContinuousVar
-        Variable specs; the flow's latent dimension is forced to ``len(vars)``
-        (invertibility).
+        Variable specs; the flow's latent dimension is forced to
+        ``len(vars) + n_dummy`` (invertibility).
     n_layers, hidden, s_max :
         As in :class:`FlowSampler`.
+    n_dummy : int
+        Extra flow dimensions carrying no variable.  Dummies widen every
+        coupling layer's conditioning input (more expressive transport for the
+        same depth) while leaving the objective unchanged in expectation: they
+        live on a unit box, so their ``log span`` is 0, the maxent optimum
+        keeps them independent-uniform (0 net entropy contribution), and no
+        constraint or Gaussian reference ever touches them.  All sampling
+        readouts return only the real sites; the entropy term (and
+        :meth:`entropy`) is the exact *extended* joint including dummies — the
+        real-site marginal entropy alone is no longer tractable, which is also
+        why :meth:`log_prob` is unavailable with ``n_dummy > 0``.
     """
 
     def __init__(self, vars: Sequence[ContinuousVar], n_layers: int = 8,
-                 hidden: int = 64, s_max: float = 3.0):
+                 hidden: int = 64, s_max: float = 3.0, n_dummy: int = 0):
         self.disc = Discretizer(vars)
         self.n = self.disc.n_sites
         self.dims = self.disc.dims
-        self.latent_dim = self.n                     # invertible: same dim
+        self.n_dummy = int(n_dummy)
+        self.n_flow = self.n + self.n_dummy
+        self.latent_dim = self.n_flow                # invertible: same dim
 
-        self.net = FlowSampler(self.n, n_layers=n_layers, hidden=hidden,
+        self.net = FlowSampler(self.n_flow, n_layers=n_layers, hidden=hidden,
                                s_max=s_max)
-        self.lower = jnp.asarray(self.disc.lower, jnp.float32)
-        self.span = jnp.asarray(self.disc.upper - self.disc.lower, jnp.float32)
+        lower = np.concatenate([self.disc.lower, np.zeros(self.n_dummy)])
+        upper = np.concatenate([self.disc.upper, np.ones(self.n_dummy)])
+        self.lower = jnp.asarray(lower, jnp.float32)
+        self.span = jnp.asarray(upper - lower, jnp.float32)
         self._gate_pbroken = []
 
-        # H(z) + sum log span: the constant part of H(x).
-        self._h_const = (0.5 * self.n * float(np.log(2.0 * np.pi * np.e))
+        # H(z) + sum log span: the constant part of H(x).  Dummy spans are 1,
+        # so they add nothing here.
+        self._h_const = (0.5 * self.n_flow * float(np.log(2.0 * np.pi * np.e))
                          + float(jnp.sum(jnp.log(self.span))))
 
     # ---- sampling with log-det --------------------------------------
     def _sample_x_logdet(self, params, z):
+        """Full extended batch ``(N, n_flow)`` — dummy columns included (the
+        loss needs the whole invertible image for the entropy term)."""
         u, ld = jax.vmap(self.net.forward_flat, in_axes=(None, 0))(
             params["theta"], z)
         return self.lower + self.span * u, ld
 
+    def _sample_x(self, params, z):
+        """Query-facing samples: real sites only, shape ``(N, n)``."""
+        x, _ = self._sample_x_logdet(params, z)
+        return x[:, :self.n]
+
     def entropy(self, params, n_samples: int = 20000, seed: int = 0):
-        """Exact joint differential entropy ``H(x)`` in nats (MC over z)."""
+        """Exact joint differential entropy ``H(x)`` in nats (MC over z).
+
+        With ``n_dummy > 0`` this is the entropy of the *extended* joint
+        (real sites + dummies) — the quantity the loss regularizes; the
+        real-site marginal entropy alone is not tractable."""
         _, ld = self._sample_x_logdet(params, self._draw_z(n_samples, seed))
         return float(self._h_const + jnp.mean(ld))
 
@@ -84,7 +114,13 @@ class FlowSamplerModel(SamplerModel):
             log p(x) = log N(z(x)) - log|det J_g(z(x))| - sum log span
 
         The flow is a tractable density model as well as a sampler — this is
-        what e.g. held-out NLL evaluation uses."""
+        what e.g. held-out NLL evaluation uses.  Unavailable with
+        ``n_dummy > 0``: the real-site density is then a marginal of the
+        extended joint, which the inverse pass cannot integrate out."""
+        if self.n_dummy:
+            raise NotImplementedError(
+                "log_prob requires n_dummy=0: with dummy dimensions the "
+                "real-site density is an intractable marginal")
         x = np.atleast_2d(np.asarray(x, np.float32))
         u = (jnp.asarray(x) - self.lower) / self.span
         inv = jax.vmap(self.net.inverse_flat, in_axes=(None, 0))
@@ -154,6 +190,9 @@ class FlowSamplerModel(SamplerModel):
             ref_sd = self.span / (2.0 * float(prior_bound_sds))
             mask = (jnp.ones(self.n, jnp.float32) if ref_mask is None
                     else jnp.asarray(ref_mask, jnp.float32))
+            if self.n_dummy:                 # dummies keep the uniform ref
+                mask = jnp.concatenate(
+                    [mask, jnp.zeros(self.n_dummy, jnp.float32)])
             log_norm = -0.5 * jnp.log(2.0 * jnp.pi * ref_sd ** 2)
 
         def body(params, z):

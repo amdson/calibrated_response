@@ -124,6 +124,23 @@ def main(argv=None):
                          "(multiplicative slack, kills rare-event inflation) "
                          "or 'abs' (legacy absolute)")
     ap.add_argument("--prob-logit-sd", type=float, default=0.3)
+    ap.add_argument("--domain-prior", default="uniform",
+                    choices=["uniform", "gaussian"],
+                    help="reference measure for the entropy term: 'uniform' "
+                         "(plain maxent — unpinned variables spread over the "
+                         "elicited box) or 'gaussian' (KL to Normal(mid, "
+                         "span/(2k)) per continuous variable — conservative "
+                         "bounds widen the default belief instead of "
+                         "flattening it)")
+    ap.add_argument("--prior-bound-sds", type=float, default=2.0,
+                    help="k in the gaussian bounds contract: elicited bounds "
+                         "sit at ±k sd of the default belief (gaussian mode "
+                         "only)")
+    ap.add_argument("--n-dummy", type=int, default=0,
+                    help="extra flow dimensions carrying no variable — a pure "
+                         "expressiveness knob (wider coupling layers, same "
+                         "regularization in expectation); constraints and "
+                         "readouts never see them")
     ap.add_argument("--robust", action="store_true")
     ap.add_argument("--protect-anchor", action="store_true",
                     help="keep the direct target estimate ungated in robust "
@@ -149,6 +166,9 @@ def main(argv=None):
               "collapse_repeats": not args.no_collapse,
               "prob_penalty": args.prob_penalty,
               "prob_logit_sd": args.prob_logit_sd,
+              "domain_prior": args.domain_prior,
+              "prior_bound_sds": args.prior_bound_sds,
+              "n_dummy": args.n_dummy,
               "robust": args.robust, "protect_anchor": args.protect_anchor,
               "max_estimates": args.max_estimates,
               "cache": Path(args.cache).name, "seed": args.seed}
@@ -217,7 +237,10 @@ def main(argv=None):
                                           robust=args.robust,
                                           anchor_variable=(
                                               TARGET_NAME if args.protect_anchor
-                                              else None))
+                                              else None),
+                                          domain_prior=args.domain_prior,
+                                          prior_bound_sds=args.prior_bound_sds,
+                                          n_dummy=args.n_dummy)
             dist, info = builder.build(
                 target_variable=TARGET_NAME, steps=args.steps,
                 n_samples=args.n_samples, entropy_reg=args.entropy_reg,

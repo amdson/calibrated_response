@@ -25,6 +25,17 @@ continuous batch; use the smooth factories below for indicators)::
     ("cov",         f, g, target[, weight])       #  Cov(f, g)          = target
     ("corr",        f, g, target[, weight])       #  Corr(f, g)         = target
     ("mmd",         sites, ref_samples[, weight]) #  MMD(x[:,sites], ref) -> 0
+    ("eqn_det",     r, weight)                     #  residual r(x)      = 0
+    ("eqn_dist",    r, sigma, weight)              #  residual r(x)      ~ N(0, sigma)
+
+One-sided ("hinge") variants penalise only the violating side of the bound
+(``direction`` is ``"le"`` for ``<= target`` or ``"ge"`` for ``>= target``)::
+
+    ("expect_ineq",            f, target, weight, direction)
+    ("cond_expect_ineq",       f, cond, target, weight, direction)
+    ("logit_expect_ineq",      f, target, weight, direction)   # log-odds hinge
+    ("logit_cond_expect_ineq", f, cond, target, weight, direction)
+    ("corr_ineq",              f, g, target, weight, direction)
 
 Head-to-head with :mod:`calibrated_response.tn`: build both models from the same
 :class:`~calibrated_response.tn.discretize.ContinuousVar` list and compare on the
@@ -94,6 +105,23 @@ def _logit(p):
     """Numerically-safe log-odds (clips into [1e-4, 1 - 1e-4])."""
     p = jnp.clip(p, 1e-4, 1.0 - 1e-4)
     return jnp.log(p) - jnp.log1p(-p)
+
+
+def _hinge_pen(resid, direction: str):
+    """One-sided squared penalty on a signed residual ``resid = fitted - target``.
+
+    ``direction="le"`` encodes ``fitted <= target``: only *exceeding* the bound
+    (``resid > 0``) is penalised, so the constraint is a soft ceiling and the
+    entropy term is free to push the quantity anywhere below it.  ``"ge"`` is the
+    mirror soft floor (``fitted >= target``, penalising ``resid < 0``).  ``"eq"``
+    would be the ordinary two-sided ``resid**2`` — callers use the plain kinds for
+    that, so it is not accepted here.
+    """
+    if direction == "le":
+        return jax.nn.relu(resid) ** 2
+    if direction == "ge":
+        return jax.nn.relu(-resid) ** 2
+    raise ValueError(f"inequality direction must be 'le' or 'ge', got {direction!r}")
 
 
 class SamplerModel:
@@ -204,6 +232,10 @@ class SamplerModel:
             f, tg = cst[1], cst[2]
             w = cst[3] if len(cst) > 3 else 1.0
             return lambda x: w * (jnp.mean(f(x)) - tg) ** 2
+        if kind == "expect_ineq":
+            # One-sided E[f(x)] <= / >= target (see _hinge_pen).
+            f, tg, w, direction = cst[1], cst[2], cst[3], cst[4]
+            return lambda x: w * _hinge_pen(jnp.mean(f(x)) - tg, direction)
         if kind == "cond_expect":
             f, cond, tg = cst[1], cst[2], cst[3]
             w = cst[4] if len(cst) > 4 else 1.0
@@ -212,6 +244,14 @@ class SamplerModel:
                 num = jnp.mean(f(x) * c)
                 den = jnp.mean(c) + _EPS
                 return w * (num / den - tg) ** 2
+            return score
+        if kind == "cond_expect_ineq":
+            f, cond, tg, w, direction = cst[1], cst[2], cst[3], cst[4], cst[5]
+            def score(x):
+                c = cond(x)
+                num = jnp.mean(f(x) * c)
+                den = jnp.mean(c) + _EPS
+                return w * _hinge_pen(num / den - tg, direction)
             return score
         if kind == "logit_expect":
             # Probability belief penalised in LOG-ODDS: an absolute-scale
@@ -223,6 +263,13 @@ class SamplerModel:
             w = cst[3] if len(cst) > 3 else 1.0
             lt = _logit(tg)
             return lambda x: w * (_logit(jnp.mean(f(x))) - lt) ** 2
+        if kind == "logit_expect_ineq":
+            # One-sided probability bound penalised in log-odds. "le" keeps the
+            # hinge in the same monotone space as the equality logit penalty, so
+            # the ceiling stays uniform in odds across the scale.
+            f, tg, w, direction = cst[1], cst[2], cst[3], cst[4]
+            lt = _logit(tg)
+            return lambda x: w * _hinge_pen(_logit(jnp.mean(f(x))) - lt, direction)
         if kind == "logit_cond_expect":
             f, cond, tg = cst[1], cst[2], cst[3]
             w = cst[4] if len(cst) > 4 else 1.0
@@ -232,6 +279,15 @@ class SamplerModel:
                 num = jnp.mean(f(x) * c)
                 den = jnp.mean(c) + _EPS
                 return w * (_logit(num / den) - lt) ** 2
+            return score
+        if kind == "logit_cond_expect_ineq":
+            f, cond, tg, w, direction = cst[1], cst[2], cst[3], cst[4], cst[5]
+            lt = _logit(tg)
+            def score(x):
+                c = cond(x)
+                num = jnp.mean(f(x) * c)
+                den = jnp.mean(c) + _EPS
+                return w * _hinge_pen(_logit(num / den) - lt, direction)
             return score
         if kind == "cov":
             # Centred second moment: targets the *dependence* directly, invariant
@@ -255,6 +311,32 @@ class SamplerModel:
                 r = c / jnp.sqrt((jnp.var(a) + _EPS) * (jnp.var(b) + _EPS))
                 return w * (r - tg) ** 2
             return score
+        if kind == "corr_ineq":
+            # One-sided Corr(f, g) <= / >= target.
+            f, g, tg, w, direction = cst[1], cst[2], cst[3], cst[4], cst[5]
+            def score(x):
+                a, b = f(x), g(x)
+                c = jnp.mean(a * b) - jnp.mean(a) * jnp.mean(b)
+                r = c / jnp.sqrt((jnp.var(a) + _EPS) * (jnp.var(b) + _EPS))
+                return w * _hinge_pen(r - tg, direction)
+            return score
+        if kind == "eqn_det":
+            # Deterministic identity lhs = rhs: drive the residual to zero.
+            # r(x) is a per-sample residual closure (see maxent_sampler.equations).
+            g, w = cst[1], cst[2]
+            return lambda x: w * jnp.mean(g(x) ** 2)
+        if kind == "eqn_dist":
+            # Noisy identity lhs = rhs + N(0, sigma): match the residual's first
+            # two moments (mean 0, variance sigma**2). Maxent completes the pair
+            # to a Gaussian residual ~independent of the rhs variables. Both
+            # moments are low-variance sample means -> good signal at N~few-k.
+            g, sigma, w = cst[1], cst[2], cst[3]
+            s2 = sigma * sigma
+            def score(x):
+                r = g(x)
+                return w * ((jnp.mean(r) / sigma) ** 2
+                            + (jnp.mean(r * r) / s2 - 1.0) ** 2)
+            return score
         if kind == "mmd":
             sites, ref = cst[1], cst[2]
             w = cst[3] if len(cst) > 3 else 1.0
@@ -268,7 +350,7 @@ class SamplerModel:
         raise ValueError(f"unknown constraint kind {kind!r}")
 
     def _make_onoff(self, gate_idx, f, given, target, value_sd, p_broken,
-                    space: str = "abs"):
+                    space: str = "abs", direction: str = "eq"):
         """Scoring closure ``(x, gates) -> scalar`` for a robust on/off constraint.
 
         The sample-native analogue of :func:`calibrated_response.tn.losses.onoff_expectation`::
@@ -283,6 +365,11 @@ class SamplerModel:
 
         ``space="logit"`` computes the residual in log-odds (for probability
         beliefs; ``value_sd`` is then a log-odds width) — see ``logit_expect``.
+
+        ``direction`` (``"eq"`` default, else ``"le"``/``"ge"``) makes the gated
+        residual one-sided: the credence only pulls when the soft bound is
+        violated, so a satisfied inequality leaves the gate at its prior and
+        never distorts the joint.
         """
         w = 1.0 / (2.0 * value_sd * value_sd)
         pi = 1.0 - p_broken
@@ -297,6 +384,10 @@ class SamplerModel:
                 mu = jnp.sum(f(x) * c) / (jnp.sum(c) + _EPS)
             resid = (_logit(mu) - logit_target) if space == "logit" \
                 else (mu - target)
+            if direction == "le":
+                resid = jax.nn.relu(resid)
+            elif direction == "ge":
+                resid = jax.nn.relu(-resid)
             kl = q * jnp.log(q / pi) + (1.0 - q) * jnp.log((1.0 - q) / (1.0 - pi))
             return kl + w * (q * resid) ** 2
         return score
@@ -335,7 +426,18 @@ class SamplerModel:
             ("cov",               f, g, target[, weight])
             ("corr",              f, g, target[, weight])
             ("mmd",               sites, ref_samples[, weight])
-            ("onoff",             f, given, target, value_sd[, p_broken[, space]])
+            ("eqn_det",           r, weight)                 # residual -> 0
+            ("eqn_dist",          r, sigma, weight)          # residual ~ N(0, sigma)
+            ("onoff",             f, given, target, value_sd[, p_broken[, space[, direction]]])
+
+        plus the one-sided hinge kinds (``direction`` ``"le"``/``"ge"``), which
+        penalise only a violated bound — see :meth:`_prepare`::
+
+            ("expect_ineq",            f, target, weight, direction)
+            ("cond_expect_ineq",       f, cond, target, weight, direction)
+            ("logit_expect_ineq",      f, target, weight, direction)
+            ("logit_cond_expect_ineq", f, cond, target, weight, direction)
+            ("corr_ineq",              f, g, target, weight, direction)
 
         The ``onoff`` kind is the sample-native robust constraint: a belief that
         ``E[f | given] = target`` with width ``value_sd``, protected by a learnable
@@ -374,11 +476,12 @@ class SamplerModel:
                 f, given, target, value_sd = c[1], c[2], c[3], c[4]
                 p_broken = c[5] if len(c) > 5 else 0.05
                 space = c[6] if len(c) > 6 else "abs"
+                direction = c[7] if len(c) > 7 else "eq"
                 gi = len(gate_pbroken)
                 gate_pbroken.append(p_broken)
                 gate_scorers.append(
                     self._make_onoff(gi, f, given, target, value_sd, p_broken,
-                                     space))
+                                     space, direction))
             else:
                 scorers.append(self._prepare(c))
         self._gate_pbroken = gate_pbroken      # so init_params sizes the gates

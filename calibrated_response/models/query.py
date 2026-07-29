@@ -52,7 +52,15 @@ class Estimate(BaseModel):
     """Base class for likelihood estimates."""
     model_config = ConfigDict(frozen=True)
     id: str = Field(..., description="Unique identifier for the estimate")
-    estimate_type: Literal["probability", "expectation", "conditional_probability", "conditional_expectation", "correlation"] = Field(..., description="Type of likelihood estimate")
+    estimate_type: Literal["probability", "expectation", "conditional_probability", "conditional_expectation", "correlation", "equation"] = Field(..., description="Type of likelihood estimate")
+    relation: Literal["eq", "le", "ge"] = Field(
+        default="eq",
+        description="How the estimated quantity relates to the stated value: "
+                    "'eq' is a point belief (quantity = value, the default and "
+                    "the only form in older elicitations), 'le'/'ge' are "
+                    "one-sided bounds (quantity <= / >= value). Bounds map to a "
+                    "hinge penalty in the solver — only the violating side is "
+                    "constrained, leaving the quantity free on the other side.")
     sd: Optional[float] = Field(
         default=None,
         description="Optional belief width for THIS estimate, in the penalty's "
@@ -66,6 +74,11 @@ class Estimate(BaseModel):
         """Get a string representation suitable for queries."""
         raise NotImplementedError("Subclasses must implement to_query_estimate()")
 
+    @property
+    def _rel_op(self) -> str:
+        """Rendering of ``relation`` as an operator for ``to_query_estimate``."""
+        return {"eq": "=", "le": "<", "ge": ">"}[self.relation]
+
 class ProbabilityEstimate(Estimate):
     """Estimate for probability P(X)."""
     estimate_type: Literal["probability"] = "probability"
@@ -73,7 +86,7 @@ class ProbabilityEstimate(Estimate):
     probability: float = Field(..., ge=0.0, le=1.0, description="Estimated probability value")
 
     def to_query_estimate(self) -> str:
-        return f"P({self.proposition.to_query_proposition()}) = {self.probability}"
+        return f"P({self.proposition.to_query_proposition()}) {self._rel_op} {self.probability}"
 
 class ExpectationEstimate(Estimate):
     """Estimate for expectation E[X]."""
@@ -82,7 +95,7 @@ class ExpectationEstimate(Estimate):
     expected_value: float = Field(..., description="Estimated expected value")
 
     def to_query_estimate(self) -> str:
-        return f"E[{self.variable}] = {self.expected_value}"
+        return f"E[{self.variable}] {self._rel_op} {self.expected_value}"
 
 class ConditionalProbabilityEstimate(Estimate):
     """Estimate for conditional probability P(X | condition)."""
@@ -93,7 +106,7 @@ class ConditionalProbabilityEstimate(Estimate):
 
     def to_query_estimate(self) -> str:
         conditions_str = ", ".join([cond.to_query_proposition() for cond in self.conditions])
-        return f"P({self.proposition.to_query_proposition()} | {conditions_str}) = {self.probability}"
+        return f"P({self.proposition.to_query_proposition()} | {conditions_str}) {self._rel_op} {self.probability}"
 
 class ConditionalExpectationEstimate(Estimate):
     """Estimate for conditional expectation E[X | condition]."""
@@ -104,7 +117,7 @@ class ConditionalExpectationEstimate(Estimate):
 
     def to_query_estimate(self) -> str:
         conditions_str = ", ".join([cond.to_query_proposition() for cond in self.conditions])
-        return f"E[{self.variable} | {conditions_str}] = {self.expected_value}"
+        return f"E[{self.variable} | {conditions_str}] {self._rel_op} {self.expected_value}"
     
 class CorrelationEstimate(Estimate):
     """Estimate for the Pearson correlation Corr(X, Y).
@@ -120,7 +133,37 @@ class CorrelationEstimate(Estimate):
                                description="Estimated Pearson correlation")
 
     def to_query_estimate(self) -> str:
-        return f"Corr({self.variable_a}, {self.variable_b}) = {self.correlation}"
+        return f"Corr({self.variable_a}, {self.variable_b}) {self._rel_op} {self.correlation}"
+
+
+class EquationEstimate(Estimate):
+    """A structural equation ``lhs = rhs`` over the variables.
+
+    ``rhs`` is an arithmetic expression (``+ - * / **``, constants, variable
+    names, ``abs``/``min``/``max``, and the threshold indicator ``ind(e > c)``);
+    see :mod:`calibrated_response.maxent_sampler.equations`.  Semantics are set
+    by ``noise_sd``:
+
+    * ``None`` — a deterministic identity (the fitted joint is pushed toward
+      ``lhs == rhs`` for every sample).  Use for Fermi links the target is a
+      function of: ``total = a*x + b*y``, ``diff = end - start``,
+      ``record = ind(anomaly > 1.60)``.
+    * a positive float — additive Gaussian noise: ``lhs = rhs + N(0, noise_sd)``.
+      The solver matches the residual's mean (0) and variance (``noise_sd**2``);
+      maxent completes it to Gaussian noise ~independent of the rhs.
+
+    Unlike the moment estimates this is not a bound, so ``relation`` is ignored.
+    """
+    estimate_type: Literal["equation"] = "equation"
+    lhs: str = Field(..., description="Left-hand-side variable name")
+    rhs: str = Field(..., description="Right-hand-side arithmetic expression over the variables")
+    noise_sd: Optional[float] = Field(
+        default=None, ge=0.0,
+        description="Additive Gaussian noise sd; None (or 0) = deterministic identity")
+
+    def to_query_estimate(self) -> str:
+        base = f"{self.lhs} = {self.rhs}"
+        return base if not self.noise_sd else f"{base} ~ N(0, {self.noise_sd})"
 
 
 # Discriminated union for estimates
@@ -130,7 +173,8 @@ EstimateUnion = Annotated[
         ExpectationEstimate,
         ConditionalProbabilityEstimate,
         ConditionalExpectationEstimate,
-        CorrelationEstimate
+        CorrelationEstimate,
+        EquationEstimate
     ],
     Field(discriminator='estimate_type')
 ]

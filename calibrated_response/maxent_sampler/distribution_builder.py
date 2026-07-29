@@ -23,7 +23,7 @@ events), and every readout is a Monte-Carlo estimate on the actual sampler.
 
 from __future__ import annotations
 
-from typing import Callable, Optional, Sequence
+from typing import Optional, Sequence
 
 import numpy as np
 
@@ -33,14 +33,9 @@ from calibrated_response.models.distribution import (
     HistogramDistribution,
 )
 from calibrated_response.models.query import (
-    ConditionalExpectationEstimate,
-    ConditionalProbabilityEstimate,
-    CorrelationEstimate,
     EqualityProposition,
     EstimateUnion,
-    ExpectationEstimate,
     InequalityProposition,
-    ProbabilityEstimate,
 )
 from calibrated_response.models.variable import (
     BinaryVariable,
@@ -50,28 +45,10 @@ from calibrated_response.models.variable import (
 from calibrated_response.tn.discretize import ContinuousVar
 from calibrated_response.maxent_sampler.flow_model import FlowSamplerModel
 from calibrated_response.maxent_sampler.model import soft_gt, soft_lt
-
-_EPS = 1e-30
-
-
-def _and_all(fs: Sequence[Callable]) -> Callable:
-    """Conjunction of event indicators (product works for soft and hard alike)."""
-    if len(fs) == 1:
-        return fs[0]
-
-    def cond(x):
-        c = fs[0](x)
-        for f in fs[1:]:
-            c = c * f(x)
-        return c
-    return cond
-
-
-def _hard_event(idx: int, threshold: float, greater: bool) -> Callable:
-    """Exact indicator for evaluation readouts (never inside the loss)."""
-    if greater:
-        return lambda x: (x[:, idx] > threshold).astype(np.float32)
-    return lambda x: (x[:, idx] < threshold).astype(np.float32)
+from calibrated_response.maxent_sampler.sample_losses import (
+    SAMPLE_LOSSES,
+    _hard_event,
+)
 
 
 class DistributionBuilder:
@@ -114,6 +91,16 @@ class DistributionBuilder:
     corr_sd : float
         Belief width for correlation targets (weight ``1 / (2 corr_sd²)``);
         correlations are scale-free so no span normalisation is needed.
+    eqn_rel_sd : float
+        Tolerance for a *deterministic* ``EquationEstimate`` (``lhs = rhs``), as a
+        fraction of the lhs variable's span: the residual is believed zero to
+        within ``eqn_rel_sd·span``, giving weight ``1 / (2 (eqn_rel_sd·span)²)``.
+        Smaller = a stiffer identity.
+    eqn_conf : float
+        Overall stiffness for a *noisy* ``EquationEstimate``
+        (``lhs = rhs ~ N(0, σ)``): the residual's mean/variance moment-match
+        terms are already unit-free (normalised by ``σ``), so this is just a
+        confidence multiplier on that constraint.
     sharpness : float, optional
         Soft-indicator sharpness in span-normalised units — the effective
         sigmoid slope at a threshold on variable ``i`` is ``sharpness / span_i``.
@@ -147,6 +134,13 @@ class DistributionBuilder:
         the elicited bounds at ±2 sd (~95% central mass).
     n_layers, hidden, s_max :
         Flow architecture (see :class:`FlowSampler`).
+    n_dummy : int
+        Extra flow dimensions carrying no variable (see
+        :class:`FlowSamplerModel`): a pure expressiveness knob — no
+        constraint or reference touches them, and in expectation they leave
+        the entropy regularization unchanged.  Readouts (``sample``,
+        marginals, reports) are unaffected; ``info["entropy"]`` becomes the
+        extended-joint entropy including dummies.
     n_bins : int
         Bin count for histogram marginal readouts (fitting itself is bin-free).
     """
@@ -160,6 +154,8 @@ class DistributionBuilder:
         prob_logit_sd: float = 0.3,
         value_rel_sd: float = 0.05,
         corr_sd: float = 0.15,
+        eqn_rel_sd: float = 0.03,
+        eqn_conf: float = 10.0,
         sharpness: Optional[float] = None,
         robust: bool = False,
         p_broken: float = 0.05,
@@ -169,6 +165,7 @@ class DistributionBuilder:
         n_layers: int = 8,
         hidden: int = 64,
         s_max: float = 3.0,
+        n_dummy: int = 0,
         n_bins: int = 32,
     ):
         self.variables = list(variables)
@@ -181,6 +178,8 @@ class DistributionBuilder:
         self.prob_logit_sd = float(prob_logit_sd)
         self.value_rel_sd = float(value_rel_sd)
         self.corr_sd = float(corr_sd)
+        self.eqn_rel_sd = float(eqn_rel_sd)
+        self.eqn_conf = float(eqn_conf)
         # log-odds penalties need soft indicators that track the hard event
         # to tail precision: at sharpness 20 the soft mean picks up ~0.02 of
         # sub-threshold leakage — invisible to an absolute penalty, a ~10x
@@ -228,7 +227,8 @@ class DistributionBuilder:
             raise ValueError("no usable variables")
 
         self.model = FlowSamplerModel(self.cvars, n_layers=n_layers,
-                                      hidden=hidden, s_max=s_max)
+                                      hidden=hidden, s_max=s_max,
+                                      n_dummy=n_dummy)
 
         # ---- estimates → constraints + evaluation rows -----------------------
         self.constraints: list = []
@@ -309,7 +309,8 @@ class DistributionBuilder:
         return clipped
 
     def _add(self, f, cond, target, sd, est_id, desc, eval_fn, hard_cond,
-             scale: float = 1.0, space: str = "abs", gated: bool = True):
+             scale: float = 1.0, space: str = "abs", gated: bool = True,
+             direction: str = "eq"):
         """Append one constraint (plain or robust) plus its report row.
 
         ``scale`` is the natural unit of the residual (the variable span for
@@ -318,20 +319,33 @@ class DistributionBuilder:
         penalises the residual in log-odds (``sd`` is then a log-odds width) —
         used for probability targets so tail beliefs keep multiplicative,
         not absolute, slack. ``gated=False`` keeps the constraint hard even
-        in robust mode (used for the anchor estimate)."""
+        in robust mode (used for the anchor estimate).
+
+        ``direction`` (``"eq"`` default, else ``"le"``/``"ge"``) turns the
+        two-sided squared residual into a one-sided hinge — a soft ceiling
+        (``le``) or floor (``ge``) on the fitted quantity — routing to the
+        ``*_ineq`` constraint kinds (or a directional ``onoff`` gate)."""
         gate = None
         w = 1.0 / (2.0 * sd * sd)
+        ineq = direction != "eq"
         if self.robust and gated:
             self.constraints.append(
-                ("onoff", f, cond, target, sd, self.p_broken, space))
+                ("onoff", f, cond, target, sd, self.p_broken, space, direction))
             gate = self._n_gates
             self._n_gates += 1
         elif cond is None:
             kind = "logit_expect" if space == "logit" else "expect"
-            self.constraints.append((kind, f, target, w))
+            if ineq:
+                self.constraints.append((kind + "_ineq", f, target, w, direction))
+            else:
+                self.constraints.append((kind, f, target, w))
         else:
             kind = "logit_cond_expect" if space == "logit" else "cond_expect"
-            self.constraints.append((kind, f, cond, target, w))
+            if ineq:
+                self.constraints.append(
+                    (kind + "_ineq", f, cond, target, w, direction))
+            else:
+                self.constraints.append((kind, f, cond, target, w))
         self._report_rows.append(
             (est_id, desc, target, eval_fn, hard_cond, gate, scale))
 
@@ -361,87 +375,23 @@ class DistributionBuilder:
         return self.value_rel_sd * self._span(idx)
 
     def _build_constraints(self) -> None:
-        p_sd, p_space = self._prob_belief()
+        """Dispatch each estimate to its :data:`SAMPLE_LOSSES` builder.
+
+        The per-type conversion lives in
+        :mod:`calibrated_response.maxent_sampler.sample_losses`; here we only
+        route (first ``isinstance`` match wins, as the old ``if/elif`` chain did)
+        and funnel unusable estimates into ``self.skipped``.
+        """
         for est in self.estimates:
             try:
-                if isinstance(est, ProbabilityEstimate):
-                    soft, hard = self._proposition_events(est.proposition)
-                    tg = self._clip_prob_target(est.id, float(est.probability))
-                    is_anchor = (self.anchor_variable is not None and
-                                 getattr(est.proposition, "variable", None)
-                                 == self.anchor_variable)
-                    self._add(soft, None, tg, self._prob_sd(est, p_sd),
-                              est.id, est.to_query_estimate(),
-                              lambda x, h=hard: float(np.mean(h(x))), None,
-                              space=p_space, gated=not is_anchor)
-
-                elif isinstance(est, ExpectationEstimate):
-                    f, idx = self._moment_events(est.variable)
-                    tg = self._clip_target(est.id, idx, float(est.expected_value))
-                    self._add(f, None, tg, self._value_sd(est, idx),
-                              est.id, est.to_query_estimate(),
-                              lambda x, f=f: float(np.mean(f(x))), None,
-                              scale=self._span(idx))
-
-                elif isinstance(est, ConditionalProbabilityEstimate):
-                    if not est.conditions:
-                        raise ValueError("conditional estimate with no conditions")
-                    soft, hard = self._proposition_events(est.proposition)
-                    pairs = [self._proposition_events(c) for c in est.conditions]
-                    soft_c = _and_all([s for s, _ in pairs])
-                    hard_c = _and_all([h for _, h in pairs])
-                    def ev(x, h=hard, hc=hard_c):
-                        c = hc(x)
-                        return float(np.sum(h(x) * c) / (np.sum(c) + _EPS))
-                    tg = self._clip_prob_target(est.id, float(est.probability))
-                    self._add(soft, soft_c, tg, self._prob_sd(est, p_sd),
-                              est.id, est.to_query_estimate(), ev, hard_c,
-                              space=p_space)
-
-                elif isinstance(est, ConditionalExpectationEstimate):
-                    if not est.conditions:
-                        raise ValueError("conditional estimate with no conditions")
-                    f, idx = self._moment_events(est.variable)
-                    tg = self._clip_target(est.id, idx, float(est.expected_value))
-                    pairs = [self._proposition_events(c) for c in est.conditions]
-                    soft_c = _and_all([s for s, _ in pairs])
-                    hard_c = _and_all([h for _, h in pairs])
-                    def ev(x, f=f, hc=hard_c):
-                        c = hc(x)
-                        return float(np.sum(f(x) * c) / (np.sum(c) + _EPS))
-                    self._add(f, soft_c, tg, self._value_sd(est, idx),
-                              est.id, est.to_query_estimate(), ev, hard_c,
-                              scale=self._span(idx))
-
-                elif isinstance(est, CorrelationEstimate):
-                    fa, ia = self._moment_events(est.variable_a)
-                    fb, ib = self._moment_events(est.variable_b)
-                    tg = float(est.correlation)
-                    # scale-free "corr" constraint; the loss correlates raw
-                    # site values (binary sites live on [0,1]), the report
-                    # uses thresholded binaries for consistency with
-                    # sample_dict semantics
-                    self.constraints.append(
-                        ("corr", fa, fb, tg,
-                         1.0 / (2.0 * self.corr_sd * self.corr_sd)))
-                    if self.robust:
-                        self.warnings.append(
-                            f"{est.id}: correlation constraints are not gated "
-                            f"in robust mode (no credence)")
-
-                    def ev(x, ia=ia, ib=ib):
-                        a = ((x[:, ia] > 0.5).astype(float)
-                             if self.is_binary[ia] else x[:, ia])
-                        b = ((x[:, ib] > 0.5).astype(float)
-                             if self.is_binary[ib] else x[:, ib])
-                        return float(np.corrcoef(a, b)[0, 1])
-                    self._report_rows.append(
-                        (est.id, est.to_query_estimate(), tg, ev, None, None,
-                         1.0))
-
-                else:
+                loss = next(
+                    (sl for sl in SAMPLE_LOSSES
+                     if isinstance(est, sl.estimate_type)), None)
+                if loss is None:
                     self.skipped.append(
                         f"{getattr(est, 'id', '?')}: unsupported estimate type")
+                    continue
+                loss.build(self, est)
             except Exception as exc:   # noqa: BLE001
                 self.skipped.append(f"{getattr(est, 'id', '?')}: {exc}")
 
@@ -510,6 +460,26 @@ class DistributionBuilder:
         self._require_fit()
         return self.model.entropy(self.params, n_samples=n_samples, seed=seed)
 
+    def kl_to_ref(self, n_samples: int = 20000, seed: int = 0) -> Optional[float]:
+        """``KL(p ‖ q0)`` of the fit against the gaussian domain reference
+        (nats, MC); ``None`` under the uniform prior (constant-shifted -H,
+        not comparable)."""
+        self._require_fit()
+        if self.domain_prior != "gaussian":
+            return None
+        x = self.sample(n_samples, seed=seed)
+        # real sites only: samples exclude dummies, whose reference is
+        # uniform (log q0 = 0) so they drop out of the sum anyway
+        lower = np.asarray(self.model.lower)[: self.model.n]
+        span = np.asarray(self.model.span)[: self.model.n]
+        mu = lower + 0.5 * span
+        sd = span / (2.0 * self.prior_bound_sds)
+        mask = np.array([0.0 if b else 1.0 for b in self.is_binary])
+        logq0 = float(np.mean(np.sum(mask * (
+            -0.5 * np.log(2.0 * np.pi * sd ** 2)
+            - (x - mu) ** 2 / (2.0 * sd ** 2)), axis=1)))
+        return -self.entropy(n_samples, seed) - logq0
+
     def constraint_report(self, n_samples: int = 50000, seed: int = 0):
         """Per-estimate fit check on fresh samples with **hard** indicators.
 
@@ -560,6 +530,7 @@ class DistributionBuilder:
             "warnings": self.warnings,
             "history": self.history,
             "entropy": self.entropy(),
+            "kl_to_ref": self.kl_to_ref(),
             "report": self.constraint_report(),
             "params": self.params,
             "model": self.model,
