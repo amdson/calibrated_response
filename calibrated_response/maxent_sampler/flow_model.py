@@ -244,7 +244,8 @@ class FlowSamplerModel(SamplerModel):
     def constraint_loss(self, constraints, entropy_reg: float = 1.0,
                         weight_reg: float = 0.0, n_samples: int = 4096,
                         seed: int = 0, domain_prior: str = "uniform",
-                        prior_bound_sds: float = 2.0, ref_mask=None):
+                        prior_bound_sds: float = 2.0, ref_mask=None,
+                        with_logq: bool = False):
         """Same constraint grammar as :meth:`SamplerModel.constraint_loss`;
         ``entropy_reg`` weights the **exact** joint entropy (default 1.0 — the
         soft-constrained maxent objective).  No histogram proxies needed.
@@ -266,6 +267,18 @@ class FlowSamplerModel(SamplerModel):
         ``ref_mask`` (length-n, 1.0/0.0) zeroes the Gaussian log q0 on chosen
         sites — binary sites keep their Uniform(0,1) reference (log q0 = 0)
         for free.  Default: all ones.
+
+        ``with_logq=True`` appends one extra column to the sample matrix seen
+        by constraint features: the per-sample ``log q_theta(x)`` evaluated at
+        ``stop_gradient(x)`` (one extra inverse pass per loss eval).  Features
+        that ignore it (all the standard site-indexed ones) are unaffected;
+        features can read ``x[:, -1]`` to build score-function (REINFORCE)
+        gradient terms — ``grad E[f] = E[f * grad log q]`` needs the *partial*
+        theta-derivative of ``log q`` at fixed samples, which the forward-path
+        ``log N(z) - logdet`` does NOT give (its gradient includes the
+        transport term); hence the inverse pass.  With ``n_dummy > 0`` the
+        column is the extended-joint density — still the correct score weight,
+        since the samples are drawn from that joint.
 
         Stochastic ``loss(params, key)`` like the parent: fresh latents every
         step.  This matters doubly for a flow — it is exactly the kind of
@@ -309,13 +322,23 @@ class FlowSamplerModel(SamplerModel):
             # (log p(x_i) = log N(z_i) - logdet_i; the z-density term is
             # theta-independent, so h_const carries its analytic expectation).
             x, ld = self._sample_x_logdet(params, z)
+            if with_logq:
+                u_bar = jax.lax.stop_gradient((x - self.lower) / self.span)
+                z_bar, ld_bar = jax.vmap(
+                    self.net.inverse_flat, in_axes=(None, 0))(
+                        params["theta"], u_bar)
+                lq = (self._base_log_prob(params, z_bar) - ld_bar
+                      - self._log_span_sum)
+                x_feat = jnp.concatenate([x, lq[:, None]], axis=1)
+            else:
+                x_feat = x
             tot = 0.0
             for score in scorers:
-                tot = tot + score(x)
+                tot = tot + score(x_feat)
             if gate_scorers:
                 gates = params["gates"]
                 for score in gate_scorers:
-                    tot = tot + score(x, gates)
+                    tot = tot + score(x_feat, gates)
             if entropy_reg:
                 if self.n_components == 1:
                     ent = h_const + jnp.mean(ld)           # H(p), exact

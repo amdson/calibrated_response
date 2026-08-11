@@ -381,6 +381,47 @@ where `k` comes from (per-estimate field vs credence-derived), default τ as a
 fraction of span, and whether the NLL kinds replace or sit beside the
 squared/logit kinds behind a builder flag for benchmark A/B.
 
+### 11b. `eqn_nll` — k-sample equation beliefs — *shipped (model layer)*
+
+Extension of the same machinery to equation-language constraints. The belief
+"an informant saw `lhs = rhs` hold on k data points with residual scatter
+≤ σ" is the sufficient statistics of k Gaussian residual draws (mean 0,
+variance σ²), whose NLL under the model's actual residual moments is a single
+closed form:
+
+    ("eqn_nll", r, sigma, k[, beta])   →   k · KL( N(0, σ²) ‖ N(μ_r, v_r) )
+
+**One-sided in variance**: believing an equation means "residual *at most*
+σ", so `v_eff = max(v_r, σ²)` — a tighter-than-claimed residual is free, and
+σ² doubles as the τ floor (bounded 1/v gradients). Below the floor the KL
+reduces to the plain mean term `μ_r²/(2σ²)`; above it, `k·log(v_eff/σ²)`
+prices loosening the equation. β-scale is `sg(v_eff/k)^β` — the k-sample
+*mean's* variance, matching `expect_nll`'s `s²` so the kinds price their
+escapes on the same footing (scaling by raw `v_r` overprices loosening by
+√k — found the hard way). Same debias (`μ̂² − v_r/N`). `eqn_det` (σ=0) stays
+as-is: an exact identity has no finite-k story. `eqn_ineq` doesn't fit the
+frame either (support restriction, not a statistic).
+
+Demo results (σ=5, K=8, same file): **which belief yields under conflict is
+decided by k and by entropy, not hardcoded.** `eqn_conflict` (equation +
+`E[x]=10`, `E[y]=45`, all k=8): the fit *keeps* the equation (sd(r)=5.5,
+corr .99) and pools the level with sd(x)→38.9 — maxent-correct, since
+widening marginals buys entropy while loosening the equation buys nothing,
+and the bounded domain lets Var(x) inflate almost freely (raising level-k
+mostly doesn't flip this: the model inflates Var ∝ k to keep `Var/k`
+constant until the domain-variance ceiling binds). The clean test of the
+loosening channel is `eqn_vs_eqn` (`y = x + N(0,5)` vs `y = x + 20 +
+N(0,5)`): marginal widening can't reconcile a clash that lives in the
+residual itself, so both equations loosen — E[r]=10.5 (pooled midpoint),
+sd(r)=11.5 = 2.3σ, corr .89 (structure retained, weakened). `eqn_agree`
+(equation + consistent levels) lands both means on target with sd(r)≈σ. All
+10 demo checks pass.
+
+Not captured (deliberately): residual–rhs *independence* — the k-sample story
+constrains the residual's marginal moments only; independence still comes
+(weakly) from maxent, as in `eqn_dist`. If the correlation escape shows up in
+practice, a `corr`-style NLL term on `Corr(r, rhs)` composes cleanly.
+
 ## 12. Mixture base distribution for the flow — *shipped (model layer)*
 
 Multimodal maxent solutions (e.g. the conflict2 bimodal posterior from §11)
@@ -478,3 +519,27 @@ effective dims (fine per-block, pointless there since flow entropy is exact).
   *inflation* — over-correlating the prerequisites enlarges P(all met)
   beyond maxent (corr 0.28 vs true 0.04) because marginal constraints don't
   price correlation; same family as the §10/§11 correlation escape.
+- **Hybrid pathwise+score estimator for hard indicators** — *shipped as an
+  option*. Two channels can move probability across a sharp boundary:
+  transport (move samples; needs a soft/ST surrogate, zero gradient for hard
+  `f`) and reweighting (change `log q` on either side; the score-function
+  identity `∇E[f] = E[f·∇log q]`, needs no smoothness). Until now every
+  constraint gradient was pure transport; `log q` only appeared in the
+  entropy term. The unified estimator uses the soft surrogate as a control
+  variate inside the score estimator:
+  `∇E[h] = ∇E[s] + E[(h−s−b̄)·∇log q]` — unbiased for the HARD expectation,
+  with REINFORCE variance confined to the ~1/sharpness boundary band where
+  `h≠s` (this is what makes it usable on 1e-3-rare events; REBAR/RELAX is
+  the discrete-variable analogue). Equivalent view: the true gradient of a
+  discontinuous `E[f]` = interior pathwise term + boundary flux (Reynolds);
+  a sharp sigmoid's pathwise gradient is a kernel estimate of the flux with
+  bandwidth 1/sharpness — so "sharpness" was always a bias/variance
+  bandwidth knob, and the score residual restores what the kernel misses.
+  Plumbing: `FlowSamplerModel.constraint_loss(..., with_logq=True)` appends
+  a per-sample `log q_θ(stop_grad(x))` column to the feature matrix (one
+  extra inverse pass; the forward-path `log N(z) − logdet` is WRONG here —
+  its θ-gradient includes the transport term). `hybrid_ind_prod` +
+  `viol_mode="hybrid"` in `benchmarks/prereq_experiment.py`; forward value
+  bit-identical to ST. Caveat to watch: the score term routes constraint
+  pressure through the same `∇log q` machinery as entropy — unknown
+  interaction with the init-slam dynamics, so it still pairs with warmup.

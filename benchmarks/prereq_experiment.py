@@ -118,6 +118,36 @@ def st_ind(site: int, threshold: float, sharpness: float = 50.0,
     return f
 
 
+def hybrid_ind_prod(terms, sharpness: float = 50.0):
+    """Unbiased hard-indicator product via pathwise + score-function gradient.
+
+    ``terms`` is a list of ``(site, threshold, direction)``.  Requires the
+    loss to be built with ``constraint_loss(..., with_logq=True)`` so that
+    ``x[:, -1]`` is the per-sample ``log q_theta`` at ``stop_gradient(x)``.
+
+    Forward value: the EXACT hard product ``h`` (like ST -- no leakage floor).
+    Gradient: pathwise through the soft product ``s`` PLUS the score-function
+    correction ``E[(h - s - mean) * grad log q]`` -- the soft surrogate acts
+    as a control variate, so the estimator is unbiased for ``grad E[h]`` and
+    the REINFORCE variance is confined to the residual ``h - s``, nonzero
+    only in the ~1/sharpness boundary band (this is what plain REINFORCE on
+    a rare hard indicator lacks).  Mean baseline included (E[grad log q]=0,
+    so it only reduces variance)."""
+    def f(x):
+        s = 1.0
+        h = 1.0
+        for site, thr, dirn in terms:
+            d = (x[:, site] - thr) if dirn == "gt" else (thr - x[:, site])
+            s = s * jax.nn.sigmoid(sharpness * d)
+            h = h * (d > 0)
+        h = h.astype(jnp.float32)
+        lq = x[:, -1]
+        w = jax.lax.stop_gradient(h - s)
+        t = (w - jnp.mean(w)) * lq
+        return s + (t - jax.lax.stop_gradient(t)) + jax.lax.stop_gradient(h - s)
+    return f
+
+
 def build_constraints(n_prereq: int, p_prereq: float = P_PREREQ,
                       k_obs: float = K_OBS, k_hard: float = K_HARD,
                       viol_mode: str = "st"):
@@ -127,7 +157,17 @@ def build_constraints(n_prereq: int, p_prereq: float = P_PREREQ,
     straight-through indicators: the forward violation probability is EXACT
     (no soft-leakage floor at any sharpness -- see the VIOL_SHARP note), and
     gradients keep default-sharpness support.  ``"soft"`` keeps the
-    sharpness-``VIOL_SHARP`` sigmoid scoring for A/B."""
+    sharpness-``VIOL_SHARP`` sigmoid scoring for A/B.  ``"hybrid"`` scores
+    with :func:`hybrid_ind_prod`: exact forward like ST, but the gradient is
+    UNBIASED (pathwise-soft + score-function residual through ``log q``);
+    requires ``constraint_loss(..., with_logq=True)``."""
+    if viol_mode == "hybrid":
+        csts = []
+        for i in range(n_prereq):
+            csts.append(("prob_nll", soft_gt(i, 0.5), p_prereq, k_obs))
+            violated = hybrid_ind_prod([(n_prereq, 0.5, "gt"), (i, 0.5, "lt")])
+            csts.append(("prob_nll", violated, P_IMPOSSIBLE, k_hard))
+        return csts
     if viol_mode == "st":
         g_e = st_ind(n_prereq, 0.5, direction="gt")
         not_as = [st_ind(i, 0.5, direction="lt") for i in range(n_prereq)]
@@ -162,15 +202,16 @@ def fit_and_measure(n_prereq=4, n_components=1, n_layers=6, hidden=64,
     m = FlowSamplerModel(sites, n_layers=n_layers, hidden=hidden,
                          n_components=n_components, base_spread=base_spread)
     npar = int(m.net.n_params)
+    wlq = viol_mode == "hybrid"      # score-channel needs the log-q column
     loss = m.constraint_loss(
         build_constraints(n_prereq, p_prereq, viol_mode=viol_mode),
-        entropy_reg=1.0, n_samples=n_samples)
+        entropy_reg=1.0, n_samples=n_samples, with_logq=wlq)
     t0 = time.time()
     if warmup_steps:
         weak = m.constraint_loss(
             build_constraints(n_prereq, p_prereq, k_hard=warmup_k_hard,
                               viol_mode=viol_mode),
-            entropy_reg=1.0, n_samples=n_samples)
+            entropy_reg=1.0, n_samples=n_samples, with_logq=wlq)
         p0, _ = m.optimize(weak, seed=seed, steps=warmup_steps, lr=2e-3,
                            grad_clip=5.0)
         params, hist = m.optimize(loss, seed=seed + 1, steps=steps, lr=1e-3,
@@ -219,9 +260,62 @@ def default_configs():
         for wu in (0, 1000):                     # sharp-soft scoring A/B
             cfgs.append(dict(n_prereq=m, n_components=1, n_layers=6, hidden=64,
                              warmup_steps=wu, viol_mode="soft"))
+        for wu in (0, 1000):                     # unbiased pathwise+score A/B
+            cfgs.append(dict(n_prereq=m, n_components=1, n_layers=6, hidden=64,
+                             warmup_steps=wu, viol_mode="hybrid"))
         for K in (16, 64):                       # squashed-GMM: no coupling layers
             cfgs.append(dict(n_prereq=m, n_components=K, n_layers=0, hidden=64))
     return cfgs
+
+
+def estimator_ab_configs(ms=(4, 6)):
+    """Focused estimator comparison: soft vs ST vs hybrid violation scoring,
+    each with and without the weak-k warmup, K=1 affine 6x64.  The question
+    this grid answers (which the K-axis sweep can't isolate): does the
+    unbiased pathwise+score gradient beat the biased ST / sharp-soft ones,
+    and does it interact with the init-slam warmup?  m=2 is omitted by
+    default (essentially solved by every arm)."""
+    cfgs = []
+    for m in ms:
+        for mode in ("soft", "st", "hybrid"):
+            for wu in (0, 1000):
+                cfgs.append(dict(n_prereq=m, n_components=1, n_layers=6,
+                                 hidden=64, warmup_steps=wu, viol_mode=mode))
+    return cfgs
+
+
+def summarize_ab(rows_or_path="results/estimator_ab.jsonl"):
+    """Mean +/- sd over seeds per (m, viol_mode, warmup) arm, printed as a
+    table.  Headline: p_e_given_c (want 0.5); also P(e|~C) (want ~0, the
+    implication check), P(C)/maxent and max prerequisite corr vs its true
+    (nonzero!) target."""
+    if isinstance(rows_or_path, str):
+        rows = [json.loads(l) for l in open(rows_or_path)]
+    else:
+        rows = list(rows_or_path)
+    from collections import defaultdict
+    by = defaultdict(list)
+    for r in rows:
+        by[(r["n_prereq"], r.get("viol_mode", "soft"),
+            r.get("warmup_steps", 0))].append(r)
+    hdr = (f"{'m':>2} {'mode':<7} {'wu':>4} {'n':>2} | "
+           f"{'P(e|C)':>13} {'P(e|~C)':>9} {'P(C)ratio':>13} "
+           f"{'corr (true)':>13}")
+    print(hdr)
+    print("-" * len(hdr))
+    for (m, mode, wu) in sorted(by):
+        rs = by[(m, mode, wu)]
+        stat = lambda key: (np.mean([r[key] for r in rs]),
+                            np.std([r[key] for r in rs]))
+        pec, pec_sd = stat("p_e_given_c")
+        pen, _ = stat("p_e_given_notc")
+        pcr, pcr_sd = stat("p_c_ratio")
+        cor, _ = stat("max_corr")
+        print(f"{m:>2} {mode:<7} {wu:>4} {len(rs):>2} | "
+              f"{pec:6.3f} +-{pec_sd:5.3f} {pen:9.4f} "
+              f"{pcr:6.3f} +-{pcr_sd:5.3f} {cor:6.3f} "
+              f"({rs[0]['corr_true']:.3f})")
+    return by
 
 
 def _key(row):
@@ -255,7 +349,7 @@ def run_sweep(configs=None, seeds=(0, 1, 2), steps=3000, n_samples=4096,
             rows.append(row)
             wu = f" wu{row['warmup_steps']}" if row["warmup_steps"] else ""
             print(f"m={row['n_prereq']} L{row['n_layers']:<2} "
-                  f"K{row['n_components']:<3}{wu} seed{s} | "
+                  f"K{row['n_components']:<3} {row['viol_mode']:<6}{wu} seed{s} | "
                   f"P(e|C)={row['p_e_given_c']:.3f} (want 0.500) "
                   f"P(C)ratio={row['p_c_ratio']:.3f} "
                   f"P(e|~C)={row['p_e_given_notc']:.4f} "

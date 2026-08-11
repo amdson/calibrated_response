@@ -31,6 +31,7 @@ continuous batch; use the smooth factories below for indicators)::
     ("mmd",         sites, ref_samples[, weight]) #  MMD(x[:,sites], ref) -> 0
     ("eqn_det",     r, weight)                     #  residual r(x)      = 0
     ("eqn_dist",    r, sigma, weight)              #  residual r(x)      ~ N(0, sigma)
+    ("eqn_nll",     r, sigma, k[, beta])           #  k·KL(N(0,σ²) ‖ N(μ_r, v_r)), one-sided in v
 
 One-sided ("hinge") variants penalise only the violating side of the bound
 (``direction`` is ``"le"`` for ``<= target`` or ``"ge"`` for ``>= target``)::
@@ -431,6 +432,37 @@ class SamplerModel:
                 r = g(x)
                 return w * ((jnp.mean(r) / sigma) ** 2
                             + (jnp.mean(r * r) / s2 - 1.0) ** 2)
+            return score
+        if kind == "eqn_nll":
+            # Synthetic-likelihood equation belief: "an informant saw the
+            # identity hold on k data points with residual scatter <= sigma".
+            # Their report is the sufficient statistics of k Gaussian residual
+            # draws (mean 0, variance sigma²), whose NLL under the model's
+            # actual residual moments (mu_r, v_r) is
+            #   k · KL( N(0, sigma²) ‖ N(mu_r, v_r) ).
+            # The variance side is one-sided: believing an equation means
+            # "residual *at most* sigma", so a residual tighter than sigma is
+            # free — implemented as v_eff = max(v_r, sigma²), which reduces the
+            # KL to the plain mean term mu_r²/(2 sigma²) below the floor and
+            # doubles as the tau floor (bounded 1/v gradients).  Above the
+            # floor the k·log(v_eff/sigma²) term prices the escape: conflicts
+            # with other constraints resolve by loosening the equation instead
+            # of silently distorting marginals.  beta as in expect_nll.
+            g, sigma, k = cst[1], float(cst[2]), float(cst[3])
+            beta = float(cst[4]) if len(cst) > 4 else 0.5
+            s2 = sigma * sigma
+            def score(x):
+                r = g(x)
+                mu, vr = jnp.mean(r), jnp.var(r)
+                v_eff = jnp.maximum(vr, s2)
+                # debias: E[mu_hat²] = mu² + v_r/N over the batch
+                m2 = mu ** 2 - vr / r.shape[0]
+                kl = 0.5 * (s2 / v_eff + m2 / v_eff - 1.0
+                            + jnp.log(v_eff / s2))
+                # β-scale by the k-sample mean's variance v_eff/k (the analog
+                # of expect_nll's s², floored at σ²/k) so the two kinds price
+                # their escapes on the same footing.
+                return jax.lax.stop_gradient(v_eff / k) ** beta * k * kl
             return score
         if kind == "mmd":
             sites, ref = cst[1], cst[2]
