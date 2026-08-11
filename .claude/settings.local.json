@@ -73,7 +73,38 @@
       "Bash(~/miniconda3/envs/calp/python.exe \"C:/Users/amdic/AppData/Local/Temp/claude/c--Users-amdic-calibrated-response/57ba307a-a27f-42cc-9b26-575046d0913b/scratchpad/capacity_sweep.py\")",
       "Bash(~/miniconda3/envs/calp/python.exe -c ' *)",
       "Bash(PYTHONIOENCODING=utf-8 ~/miniconda3/envs/calp/python.exe -c ' *)",
-      "Bash(PYTHONIOENCODING=utf-8 ~/miniconda3/envs/calp/python.exe \"C:/Users/amdic/AppData/Local/Temp/claude/c--Users-amdic-calibrated-response/57ba307a-a27f-42cc-9b26-575046d0913b/scratchpad/build_nb.py\")"
+      "Bash(PYTHONIOENCODING=utf-8 ~/miniconda3/envs/calp/python.exe \"C:/Users/amdic/AppData/Local/Temp/claude/c--Users-amdic-calibrated-response/57ba307a-a27f-42cc-9b26-575046d0913b/scratchpad/build_nb.py\")",
+      "Bash(git push *)",
+      "Bash(JAX_PLATFORMS=cpu ~/miniconda3/envs/calp/python.exe -c ' *)",
+      "Bash(JAX_PLATFORMS=cpu ~/miniconda3/envs/calp/python.exe -m pytest tests/maxent_sampler/ -q)",
+      "Bash(PYTHONIOENCODING=utf-8 ~/miniconda3/envs/calp/python.exe \"C:/Users/amdic/AppData/Local/Temp/claude/c--Users-amdic-calibrated-response/57ba307a-a27f-42cc-9b26-575046d0913b/scratchpad/build_cap_nb.py\")",
+      "Bash(git commit -q -m ' *)",
+
+      "Bash(~/miniconda3/envs/calp/python.exe:*)",
+      "Bash(C:/Users/amdic/miniconda3/envs/calp/python.exe:*)",
+      "Bash(/c/Users/amdic/miniconda3/envs/calp/python.exe:*)",
+      "Bash(JAX_PLATFORMS=cpu ~/miniconda3/envs/calp/python.exe:*)",
+      "Bash(PYTHONIOENCODING=utf-8 ~/miniconda3/envs/calp/python.exe:*)",
+      "Bash(conda info:*)",
+
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(find:*)",
+      "Bash(which:*)",
+      "Bash(echo:*)",
+      "Bash(sed:*)",
+      "Bash(diff:*)",
+
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)"
     ]
   }
 }

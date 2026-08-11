@@ -448,3 +448,33 @@ effective dims (fine per-block, pointless there since flow entropy is exact).
   Set `eqn_rel_sd` / `noise_sd` explicitly there.
 - No domain guards: `y/x` where `x`'s box straddles zero, or `x**0.5` where `x`
   can go negative, blows up or NaNs. Variable bounds are the only protection.
+- **Soft-indicator leakage floor vs near-zero targets** (found via
+  `benchmarks/prereq_experiment.py`): a (near-)impossibility constraint like
+  `P(e ∧ ¬a) ≈ 0.001` scored with sigmoid indicators has a *floor* — even the
+  exact maxent joint registers soft violation ~0.01 from sigmoid-width mass at
+  the thresholds. If the target sits below that floor, a strong-k constraint
+  penalizes the true solution ~k·(floor − target) per implication, which can
+  exceed the entropy reward for the structure the constraint is *about* — the
+  objective then genuinely prefers the vacuous (event-suppressed) joint; no
+  optimizer or architecture fixes that. Direct-scoring check: the prereq-event
+  problem preferred vacuous at every m until fixed. Fix: **sharpen the
+  violation feature's indicators until the floor drops below the target**
+  (floor ~ density·ln2/sharpness per side; sharpness 800 → floor ~0.0007 for
+  a 1e-3 target; direct scoring then prefers the true joint at every m).
+  Threshold *margins* (`e > t+δ`, `a < t−δ`) are the tempting WRONG fix: they
+  open a dead band the loss cannot see but hard-threshold semantics still
+  count, and entropy fills it (measured: P(e|¬C) jumped to ~0.1). Builder
+  rule of thumb: any elicited `P(...) < ε` needs indicator sharpness ≳
+  (density·ln2·factor-means)/ε on that feature, not a smaller ε. Better
+  still: **straight-through indicators** (forward hard, backward soft — see
+  `st_ind` in `benchmarks/prereq_experiment.py`) make the forward violation
+  exact at any backward sharpness, and in feature *products* each factor's
+  gradient is gated by the other's hard value (corner samples feel zero
+  implication pressure). Neither fixes the init-slam dynamics — a strong-k
+  impossibility crushes the event globally in the first ~100 steps and the
+  vacuous basin is an attractor (longer training makes it worse) — so pair
+  with a weak-k warmup phase (`warmup_steps` there). Open observation at
+  m=6: with implications enforced exactly, the failure mode flips to corner
+  *inflation* — over-correlating the prerequisites enlarges P(all met)
+  beyond maxent (corr 0.28 vs true 0.04) because marginal constraints don't
+  price correlation; same family as the §10/§11 correlation escape.
