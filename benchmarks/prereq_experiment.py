@@ -118,7 +118,7 @@ def st_ind(site: int, threshold: float, sharpness: float = 50.0,
     return f
 
 
-def hybrid_ind_prod(terms, sharpness: float = 50.0):
+def hybrid_ind_prod(terms, sharpness: float = 50.0, score_scale: float = 1.0):
     """Unbiased hard-indicator product via pathwise + score-function gradient.
 
     ``terms`` is a list of ``(site, threshold, direction)``.  Requires the
@@ -132,19 +132,36 @@ def hybrid_ind_prod(terms, sharpness: float = 50.0):
     the REINFORCE variance is confined to the residual ``h - s``, nonzero
     only in the ~1/sharpness boundary band (this is what plain REINFORCE on
     a rare hard indicator lacks).  Mean baseline included (E[grad log q]=0,
-    so it only reduces variance)."""
+    so it only reduces variance).
+
+    ``score_scale`` dials the score term.  The pathwise part is the
+    straight-through PRODUCT (each factor's gradient gated by the other
+    factors' HARD values -- NOT the soft product's soft gating, so 0.0
+    reproduces ``viol_mode="st"`` exactly, gradient and all).  The score
+    residual is still ``h - soft_product`` (the ST product's own forward
+    residual is identically 0), so at 1.0 the estimator is "ST pathwise +
+    the full score correction" -- unbiased up to the hard-vs-soft gating
+    difference, which is itself a boundary-band term.  Full strength
+    diverged in the GPU A/B (marginal violations, NaNs): the score weight's
+    magnitude is set by ``log q`` itself, which GROWS as the flow sharpens
+    -- an unbounded positive-feedback channel.  Small ``score_scale`` keeps
+    ST's stability while retaining a down-weighted reweighting channel that
+    can grow density where transport is walled off."""
     def f(x):
         s = 1.0
+        st = 1.0
         h = 1.0
         for site, thr, dirn in terms:
             d = (x[:, site] - thr) if dirn == "gt" else (thr - x[:, site])
-            s = s * jax.nn.sigmoid(sharpness * d)
-            h = h * (d > 0)
-        h = h.astype(jnp.float32)
+            sj = jax.nn.sigmoid(sharpness * d)
+            hj = (d > 0).astype(jnp.float32)
+            s = s * sj
+            st = st * (sj + jax.lax.stop_gradient(hj - sj))
+            h = h * hj
         lq = x[:, -1]
         w = jax.lax.stop_gradient(h - s)
-        t = (w - jnp.mean(w)) * lq
-        return s + (t - jax.lax.stop_gradient(t)) + jax.lax.stop_gradient(h - s)
+        t = score_scale * (w - jnp.mean(w)) * lq
+        return st + (t - jax.lax.stop_gradient(t))
     return f
 
 
@@ -160,12 +177,16 @@ def build_constraints(n_prereq: int, p_prereq: float = P_PREREQ,
     sharpness-``VIOL_SHARP`` sigmoid scoring for A/B.  ``"hybrid"`` scores
     with :func:`hybrid_ind_prod`: exact forward like ST, but the gradient is
     UNBIASED (pathwise-soft + score-function residual through ``log q``);
-    requires ``constraint_loss(..., with_logq=True)``."""
-    if viol_mode == "hybrid":
+    requires ``constraint_loss(..., with_logq=True)``.  A numeric suffix
+    scales the score term, e.g. ``"hybrid0.1"`` -- the ST<->hybrid dial
+    (see :func:`hybrid_ind_prod`; full strength diverged in the GPU A/B)."""
+    if viol_mode.startswith("hybrid"):
+        lam = float(viol_mode[6:]) if viol_mode[6:] else 1.0
         csts = []
         for i in range(n_prereq):
             csts.append(("prob_nll", soft_gt(i, 0.5), p_prereq, k_obs))
-            violated = hybrid_ind_prod([(n_prereq, 0.5, "gt"), (i, 0.5, "lt")])
+            violated = hybrid_ind_prod(
+                [(n_prereq, 0.5, "gt"), (i, 0.5, "lt")], score_scale=lam)
             csts.append(("prob_nll", violated, P_IMPOSSIBLE, k_hard))
         return csts
     if viol_mode == "st":
@@ -202,7 +223,7 @@ def fit_and_measure(n_prereq=4, n_components=1, n_layers=6, hidden=64,
     m = FlowSamplerModel(sites, n_layers=n_layers, hidden=hidden,
                          n_components=n_components, base_spread=base_spread)
     npar = int(m.net.n_params)
-    wlq = viol_mode == "hybrid"      # score-channel needs the log-q column
+    wlq = viol_mode.startswith("hybrid")  # score channel needs the log-q column
     loss = m.constraint_loss(
         build_constraints(n_prereq, p_prereq, viol_mode=viol_mode),
         entropy_reg=1.0, n_samples=n_samples, with_logq=wlq)
@@ -282,6 +303,17 @@ def estimator_ab_configs(ms=(4, 6)):
                 cfgs.append(dict(n_prereq=m, n_components=1, n_layers=6,
                                  hidden=64, warmup_steps=wu, viol_mode=mode))
     return cfgs
+
+
+def tamed_hybrid_configs(ms=(4, 6), scales=(0.3, 0.1, 0.03)):
+    """The ST<->hybrid dial: score_scale=0 IS straight-through, 1.0 diverged
+    in the GPU A/B (unbounded log-q feedback).  These arms probe whether a
+    down-weighted score channel keeps ST's stability while adding enough
+    reweighting to beat it.  All with warmup (the known-good pairing);
+    compare against the ``st`` wu1000 rows from the A/B run."""
+    return [dict(n_prereq=m, n_components=1, n_layers=6, hidden=64,
+                 warmup_steps=1000, viol_mode=f"hybrid{lam}")
+            for m in ms for lam in scales]
 
 
 def summarize_ab(rows_or_path="results/estimator_ab.jsonl"):
