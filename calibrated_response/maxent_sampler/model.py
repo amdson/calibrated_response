@@ -24,7 +24,7 @@ continuous batch; use the smooth factories below for indicators)::
     ("cond_expect", f, cond, target[, weight])    #  E[f·cond]/E[cond]  = target
     ("expect_nll",      f, target, k[, tau[, beta]])        # t ~ N(E[f], Var[f]/k + tau²)
     ("cond_expect_nll", f, cond, target, k[, tau[, beta]])  # conditional variant
-    ("prob_nll",        f, target, k)                       # binomial: k·KL(t ‖ E[f])
+    ("prob_nll",        f, target, k[, beta])               # binomial: k·KL(t ‖ E[f])
     ("cond_prob_nll",   f, cond, target, k)                 # conditional variant
     ("cov",         f, g, target[, weight])       #  Cov(f, g)          = target
     ("corr",        f, g, target[, weight])       #  Corr(f, g)         = target
@@ -357,12 +357,27 @@ class SamplerModel:
             # curvature k/(p(1-p)) is bounded by the clip, and conflicting
             # targets resolve toward the max-variance p between them, so the
             # Gaussian kinds' beta/tau machinery is unnecessary here.
+            # Optional ``beta``: likelihood tempering on the same footing as
+            # expect_nll/eqn_nll -- the score is scaled by sg(p(1-p)/k)^beta,
+            # the variance of the k-sample binomial mean.  beta=0 (default)
+            # is the plain k*KL; beta=1 cancels k entirely (unit-strength
+            # residual, incapable of dominating the entropy term).  Annealing
+            # beta 1 -> 0 during fitting is an AUTOMATIC per-constraint
+            # warmup: each constraint's strength ramps over a range set by
+            # its own k and variance (power-posterior / homotopy
+            # continuation), so stiff near-impossibility constraints get a
+            # long ramp and mild marginals barely move -- no per-term
+            # schedule to hand-tune.
             f, tg, k = cst[1], cst[2], float(cst[3])
+            beta = float(cst[4]) if len(cst) > 4 else 0.0
             t = float(np.clip(tg, 1e-4, 1.0 - 1e-4))
             def score(x):
                 p = jnp.clip(jnp.mean(f(x)), 1e-4, 1.0 - 1e-4)
-                return k * (t * (np.log(t) - jnp.log(p))
-                            + (1.0 - t) * (np.log1p(-t) - jnp.log1p(-p)))
+                kl = k * (t * (np.log(t) - jnp.log(p))
+                          + (1.0 - t) * (np.log1p(-t) - jnp.log1p(-p)))
+                if beta:
+                    kl = jax.lax.stop_gradient(p * (1.0 - p) / k) ** beta * kl
+                return kl
             return score
         if kind == "cond_prob_nll":
             # Conditional binomial pseudo-counts; k_eff = k·E[cond] as above.

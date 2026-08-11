@@ -539,7 +539,49 @@ effective dims (fine per-block, pointless there since flow entropy is exact).
   a per-sample `log q_θ(stop_grad(x))` column to the feature matrix (one
   extra inverse pass; the forward-path `log N(z) − logdet` is WRONG here —
   its θ-gradient includes the transport term). `hybrid_ind_prod` +
-  `viol_mode="hybrid"` in `benchmarks/prereq_experiment.py`; forward value
-  bit-identical to ST. Caveat to watch: the score term routes constraint
-  pressure through the same `∇log q` machinery as entropy — unknown
-  interaction with the init-slam dynamics, so it still pairs with warmup.
+  `viol_mode="hybrid[λ]"` in `benchmarks/prereq_experiment.py`; forward
+  value bit-identical to ST, `score_scale=0` reproduces ST exactly (ST-gated
+  pathwise part).
+  **Verdict after the GPU estimator A/B + λ-sweep: UNSTABLE at every tested
+  scale (λ ∈ {0.03, 0.1, 0.3, 1.0}) — retired in favor of ST+warmup.** Full
+  strength violated even the k=32 marginals (marg_err up to 0.7, NaNs); the
+  λ-sweep showed the instability is structural, not gain: failures are
+  non-monotone in λ because the per-sample score weight scales with |log q|,
+  which is unbounded and heavy-tailed under a sharpening flow — no fixed λ
+  bounds a single sample carrying hundreds of nats. Tantalizingly, the two
+  runs that stayed stable produced the BEST numbers ever seen on the prereq
+  benchmark (P(e|C) = 0.502, 0.478 at m=4), confirming the Fisher–Rao
+  reweighting theory when the loop doesn't blow up. If revisited: clip or
+  rank-normalize the per-sample score contribution, or prefer the two
+  INHERENTLY bounded reweighting channels — learnable mixture weights
+  (birth-death over K components; score is a softmax over K logits, nothing
+  scales with a deep flow's log q) and Bernoulli/categorical heads (exact
+  Rao-Blackwellized reweighting for discrete events, no estimator at all).
+  Meanwhile the A/B also showed sharp-soft (800) is DOMINATED: it fixed the
+  objective but killed the gradient (support band ~1/800), collapsing at
+  m=6 even with warmup — ST's exact-forward/wide-backward decoupling is
+  what wins. ST *without* warmup at m=6 inflates the corner on every seed
+  (corr up to 0.64, P(C) 2–3× maxent): warmup also damps the correlation
+  escape, and `max_corr` is now a headline metric.
+- **β-annealing (likelihood tempering) as the general warmup — shipped for
+  testing.** The k-warmup question ("how to pick the multi-term schedule in
+  general?") has a one-parameter answer inside the k-sample NLL family:
+  every constraint is a likelihood, so anneal the *temper* rather than
+  per-term weights. `prob_nll` gained an optional `beta` (scaled by
+  `sg(p(1−p)/k)^β`, the k-sample binomial mean's variance — same footing as
+  `expect_nll`/`eqn_nll`'s β): β=0 is the plain k·KL, β=1 cancels k
+  entirely. Measured at the prereq init: constraint loss mass 146.7 nats at
+  β=0 vs 0.145 at β=1 (entropy scale ~1–3) — no slam is *possible* at β=1;
+  and per the loss-scale table (scratchpad `loss_scale_check.py`), β=0.5
+  under-enforces at convergence (equilibrium violation ~1e-2 vs target
+  1e-3), which is precisely why the anneal must END at β=0. Annealing β
+  1→0 is power-posterior / homotopy continuation: each constraint's
+  strength ramps over a range set by its own k and variance — stiff
+  impossibilities get a long ramp, mild marginals barely move, nothing is
+  hand-tuned per term. `fit_and_measure(beta_phases=n)` staircases
+  `linspace(1, 0, n)` over warm-started phases within the same step budget
+  (mutually exclusive with `warmup_steps`); `beta_anneal_configs()` +
+  notebook `MODE="beta"` race it against the hand-tuned `st wu1000`
+  baseline. If it matches or beats k-warmup, the builder-facing version is
+  a single β schedule in `DistributionBuilder.build` and the per-constraint
+  warmup question disappears.

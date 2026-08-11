@@ -167,7 +167,7 @@ def hybrid_ind_prod(terms, sharpness: float = 50.0, score_scale: float = 1.0):
 
 def build_constraints(n_prereq: int, p_prereq: float = P_PREREQ,
                       k_obs: float = K_OBS, k_hard: float = K_HARD,
-                      viol_mode: str = "st"):
+                      viol_mode: str = "st", beta: float = 0.0):
     """Sites 0..m-1 are prerequisites, site m is the event.
 
     ``viol_mode="st"`` (default) scores the implications with
@@ -179,15 +179,20 @@ def build_constraints(n_prereq: int, p_prereq: float = P_PREREQ,
     UNBIASED (pathwise-soft + score-function residual through ``log q``);
     requires ``constraint_loss(..., with_logq=True)``.  A numeric suffix
     scales the score term, e.g. ``"hybrid0.1"`` -- the ST<->hybrid dial
-    (see :func:`hybrid_ind_prod`; full strength diverged in the GPU A/B)."""
+    (see :func:`hybrid_ind_prod`; full strength diverged in the GPU A/B).
+
+    ``beta`` is the prob_nll likelihood-tempering exponent, applied to ALL
+    constraints (that's the point -- one global knob whose effect is
+    per-constraint automatic): 0 is the plain k*KL, 1 cancels k.  Annealing
+    it 1 -> 0 across fit phases is the power-posterior warmup."""
     if viol_mode.startswith("hybrid"):
         lam = float(viol_mode[6:]) if viol_mode[6:] else 1.0
         csts = []
         for i in range(n_prereq):
-            csts.append(("prob_nll", soft_gt(i, 0.5), p_prereq, k_obs))
+            csts.append(("prob_nll", soft_gt(i, 0.5), p_prereq, k_obs, beta))
             violated = hybrid_ind_prod(
                 [(n_prereq, 0.5, "gt"), (i, 0.5, "lt")], score_scale=lam)
-            csts.append(("prob_nll", violated, P_IMPOSSIBLE, k_hard))
+            csts.append(("prob_nll", violated, P_IMPOSSIBLE, k_hard, beta))
         return csts
     if viol_mode == "st":
         g_e = st_ind(n_prereq, 0.5, direction="gt")
@@ -197,18 +202,19 @@ def build_constraints(n_prereq: int, p_prereq: float = P_PREREQ,
         not_as = [soft_lt(i, 0.5, VIOL_SHARP) for i in range(n_prereq)]
     csts = []
     for i in range(n_prereq):
-        csts.append(("prob_nll", soft_gt(i, 0.5), p_prereq, k_obs))
+        csts.append(("prob_nll", soft_gt(i, 0.5), p_prereq, k_obs, beta))
 
         def violated(x, not_a=not_as[i]):  # e holds but prerequisite i doesn't
             return g_e(x) * not_a(x)
-        csts.append(("prob_nll", violated, P_IMPOSSIBLE, k_hard))
+        csts.append(("prob_nll", violated, P_IMPOSSIBLE, k_hard, beta))
     return csts
 
 
 def fit_and_measure(n_prereq=4, n_components=1, n_layers=6, hidden=64,
                     base_spread=1.0, p_prereq=P_PREREQ, steps=3000,
                     n_samples=4096, eval_samples=200_000, seed=0,
-                    warmup_steps=0, warmup_k_hard=8.0, viol_mode="st"):
+                    warmup_steps=0, warmup_k_hard=8.0, viol_mode="st",
+                    beta_phases=0):
     """Fit one model and measure recovery of the analytic maxent solution.
 
     ``warmup_steps > 0`` anneals the implications: that many steps at
@@ -217,7 +223,16 @@ def fit_and_measure(n_prereq=4, n_components=1, n_layers=6, hidden=64,
     starts ~0.1 and the full-strength implication term (loss ~100) crushes e
     globally in the first ~100 steps; the vacuous basin is then an attractor
     (verified: longer single-phase training DECREASES P(e|C)).  A weak-k
-    phase lets the corner structure form before the wall goes up."""
+    phase lets the corner structure form before the wall goes up.
+
+    ``beta_phases >= 2`` uses likelihood-tempering annealing INSTEAD: the
+    prob_nll beta exponent staircases linspace(1, 0, beta_phases) across
+    equal warm-started phases splitting ``steps`` (last phase beta=0 = the
+    true objective).  One global knob, per-constraint-automatic ramp; see
+    the prob_nll comment in model.py.  Mutually exclusive with
+    ``warmup_steps`` (asserted)."""
+    assert not (warmup_steps and beta_phases), \
+        "pick one annealing scheme: warmup_steps (k) or beta_phases (beta)"
     sites = ([ContinuousVar(f"a{i}", 0.0, 1.0, 16) for i in range(n_prereq)]
              + [ContinuousVar("e", 0.0, 1.0, 16)])
     m = FlowSamplerModel(sites, n_layers=n_layers, hidden=hidden,
@@ -228,7 +243,19 @@ def fit_and_measure(n_prereq=4, n_components=1, n_layers=6, hidden=64,
         build_constraints(n_prereq, p_prereq, viol_mode=viol_mode),
         entropy_reg=1.0, n_samples=n_samples, with_logq=wlq)
     t0 = time.time()
-    if warmup_steps:
+    if beta_phases:
+        betas = np.linspace(1.0, 0.0, int(beta_phases))
+        per = max(1, steps // len(betas))
+        params, hist = None, None
+        for j, b in enumerate(betas):
+            loss_b = m.constraint_loss(
+                build_constraints(n_prereq, p_prereq, viol_mode=viol_mode,
+                                  beta=float(b)),
+                entropy_reg=1.0, n_samples=n_samples, with_logq=wlq)
+            params, hist = m.optimize(loss_b, seed=seed + j, steps=per,
+                                      lr=2e-3 if j == 0 else 1e-3,
+                                      grad_clip=5.0, init=params)
+    elif warmup_steps:
         weak = m.constraint_loss(
             build_constraints(n_prereq, p_prereq, k_hard=warmup_k_hard,
                               viol_mode=viol_mode),
@@ -254,6 +281,7 @@ def fit_and_measure(n_prereq=4, n_components=1, n_layers=6, hidden=64,
         n_prereq=int(n_prereq), n_components=int(n_components),
         n_layers=int(n_layers), hidden=int(hidden), seed=int(seed),
         warmup_steps=int(warmup_steps), viol_mode=viol_mode,
+        beta_phases=int(beta_phases),
         params=npar, fit_seconds=round(fit_s, 1),
         entropy=float(m.entropy(params)),
         final_loss=float(np.mean(hist[-50:])),
@@ -281,9 +309,9 @@ def default_configs():
         for wu in (0, 1000):                     # sharp-soft scoring A/B
             cfgs.append(dict(n_prereq=m, n_components=1, n_layers=6, hidden=64,
                              warmup_steps=wu, viol_mode="soft"))
-        for wu in (0, 1000):                     # unbiased pathwise+score A/B
-            cfgs.append(dict(n_prereq=m, n_components=1, n_layers=6, hidden=64,
-                             warmup_steps=wu, viol_mode="hybrid"))
+        # (hybrid arms removed: the score channel was unstable at every
+        #  tested score_scale, 0.03-1.0 -- see the estimator A/B results
+        #  and the solver_additions.md postmortem.  ST + warmup won.)
         for K in (16, 64):                       # squashed-GMM: no coupling layers
             cfgs.append(dict(n_prereq=m, n_components=K, n_layers=0, hidden=64))
     return cfgs
@@ -303,6 +331,18 @@ def estimator_ab_configs(ms=(4, 6)):
                 cfgs.append(dict(n_prereq=m, n_components=1, n_layers=6,
                                  hidden=64, warmup_steps=wu, viol_mode=mode))
     return cfgs
+
+
+def beta_anneal_configs(ms=(4, 6), phases=(2, 4, 8)):
+    """Likelihood-tempering (beta) annealing vs the k-warmup baseline, ST
+    features throughout.  beta staircases linspace(1, 0, phases) over equal
+    warm-started phases within the same total step budget -- so phases=2 is
+    the cheapest possible schedule (half at beta=1, half at the true
+    objective) and phases=8 approximates a smooth ramp.  Compare against
+    the ``st wu1000`` rows: same budget, hand-tuned k-warmup."""
+    return [dict(n_prereq=m, n_components=1, n_layers=6, hidden=64,
+                 beta_phases=p, viol_mode="st")
+            for m in ms for p in phases]
 
 
 def tamed_hybrid_configs(ms=(4, 6), scales=(0.3, 0.1, 0.03)):
@@ -329,21 +369,22 @@ def summarize_ab(rows_or_path="results/estimator_ab.jsonl"):
     by = defaultdict(list)
     for r in rows:
         by[(r["n_prereq"], r.get("viol_mode", "soft"),
-            r.get("warmup_steps", 0))].append(r)
-    hdr = (f"{'m':>2} {'mode':<7} {'wu':>4} {'n':>2} | "
+            r.get("warmup_steps", 0), r.get("beta_phases", 0))].append(r)
+    hdr = (f"{'m':>2} {'mode':<10} {'anneal':>7} {'n':>2} | "
            f"{'P(e|C)':>13} {'P(e|~C)':>9} {'P(C)ratio':>13} "
            f"{'corr (true)':>13}")
     print(hdr)
     print("-" * len(hdr))
-    for (m, mode, wu) in sorted(by):
-        rs = by[(m, mode, wu)]
+    for (m, mode, wu, bp) in sorted(by):
+        rs = by[(m, mode, wu, bp)]
+        anneal = f"wu{wu}" if wu else (f"beta{bp}" if bp else "-")
         stat = lambda key: (np.mean([r[key] for r in rs]),
                             np.std([r[key] for r in rs]))
         pec, pec_sd = stat("p_e_given_c")
         pen, _ = stat("p_e_given_notc")
         pcr, pcr_sd = stat("p_c_ratio")
         cor, _ = stat("max_corr")
-        print(f"{m:>2} {mode:<7} {wu:>4} {len(rs):>2} | "
+        print(f"{m:>2} {mode:<10} {anneal:>7} {len(rs):>2} | "
               f"{pec:6.3f} +-{pec_sd:5.3f} {pen:9.4f} "
               f"{pcr:6.3f} +-{pcr_sd:5.3f} {cor:6.3f} "
               f"({rs[0]['corr_true']:.3f})")
@@ -353,7 +394,8 @@ def summarize_ab(rows_or_path="results/estimator_ab.jsonl"):
 def _key(row):
     return (row["n_prereq"], row["n_layers"], row["hidden"],
             row["n_components"], row.get("warmup_steps", 0),
-            row.get("viol_mode", "soft"), row["seed"])
+            row.get("viol_mode", "soft"), row.get("beta_phases", 0),
+            row["seed"])
 
 
 def run_sweep(configs=None, seeds=(0, 1, 2), steps=3000, n_samples=4096,
@@ -380,8 +422,9 @@ def run_sweep(configs=None, seeds=(0, 1, 2), steps=3000, n_samples=4096,
                 f.write(json.dumps(row) + "\n")
             rows.append(row)
             wu = f" wu{row['warmup_steps']}" if row["warmup_steps"] else ""
+            bp = f" b{row['beta_phases']}" if row.get("beta_phases") else ""
             print(f"m={row['n_prereq']} L{row['n_layers']:<2} "
-                  f"K{row['n_components']:<3} {row['viol_mode']:<6}{wu} seed{s} | "
+                  f"K{row['n_components']:<3} {row['viol_mode']:<6}{wu}{bp} seed{s} | "
                   f"P(e|C)={row['p_e_given_c']:.3f} (want 0.500) "
                   f"P(C)ratio={row['p_c_ratio']:.3f} "
                   f"P(e|~C)={row['p_e_given_notc']:.4f} "
