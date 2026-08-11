@@ -368,16 +368,23 @@ class SamplerModel:
             # continuation), so stiff near-impossibility constraints get a
             # long ramp and mild marginals barely move -- no per-term
             # schedule to hand-tune.
+            # The score also accepts a traced runtime override ``beta_t``
+            # (marked via ``score.takes_beta``): constraint_loss passes it
+            # when built with a per-step ``beta_schedule``, superseding the
+            # baked value.  ``s ** 0.0 == 1.0`` so a schedule ending at 0
+            # lands exactly on the plain k*KL.
             f, tg, k = cst[1], cst[2], float(cst[3])
             beta = float(cst[4]) if len(cst) > 4 else 0.0
             t = float(np.clip(tg, 1e-4, 1.0 - 1e-4))
-            def score(x):
+            def score(x, beta_t=None):
+                b = beta if beta_t is None else beta_t
                 p = jnp.clip(jnp.mean(f(x)), 1e-4, 1.0 - 1e-4)
                 kl = k * (t * (np.log(t) - jnp.log(p))
                           + (1.0 - t) * (np.log1p(-t) - jnp.log1p(-p)))
-                if beta:
-                    kl = jax.lax.stop_gradient(p * (1.0 - p) / k) ** beta * kl
-                return kl
+                if beta_t is None and not beta:
+                    return kl
+                return jax.lax.stop_gradient(p * (1.0 - p) / k) ** b * kl
+            score.takes_beta = True
             return score
         if kind == "cond_prob_nll":
             # Conditional binomial pseudo-counts; k_eff = k·E[cond] as above.

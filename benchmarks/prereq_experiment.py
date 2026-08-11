@@ -214,7 +214,7 @@ def fit_and_measure(n_prereq=4, n_components=1, n_layers=6, hidden=64,
                     base_spread=1.0, p_prereq=P_PREREQ, steps=3000,
                     n_samples=4096, eval_samples=200_000, seed=0,
                     warmup_steps=0, warmup_k_hard=8.0, viol_mode="st",
-                    beta_phases=0):
+                    beta_phases=0, beta_ramp=0.0):
     """Fit one model and measure recovery of the analytic maxent solution.
 
     ``warmup_steps > 0`` anneals the implications: that many steps at
@@ -229,10 +229,18 @@ def fit_and_measure(n_prereq=4, n_components=1, n_layers=6, hidden=64,
     prob_nll beta exponent staircases linspace(1, 0, beta_phases) across
     equal warm-started phases splitting ``steps`` (last phase beta=0 = the
     true objective).  One global knob, per-constraint-automatic ramp; see
-    the prob_nll comment in model.py.  Mutually exclusive with
-    ``warmup_steps`` (asserted)."""
-    assert not (warmup_steps and beta_phases), \
-        "pick one annealing scheme: warmup_steps (k) or beta_phases (beta)"
+    the prob_nll comment in model.py.
+
+    ``beta_ramp`` in (0, 1) is the PER-STEP version (the phases->infinity
+    limit, one jit compile): beta declines linearly 1 -> 0 over the first
+    ``beta_ramp`` fraction of ``steps``, then holds at 0 (the true
+    objective) for the tail -- the hold matters because any beta > 0
+    under-enforces at equilibrium.  lr pairs with it as a step schedule
+    (2e-3 during the ramp, 1e-3 in the hold, mirroring the staircase's
+    phase-1/rest split).  The three annealing schemes are mutually
+    exclusive (asserted)."""
+    assert sum(map(bool, (warmup_steps, beta_phases, beta_ramp))) <= 1, \
+        "pick one annealing scheme: warmup_steps, beta_phases, or beta_ramp"
     sites = ([ContinuousVar(f"a{i}", 0.0, 1.0, 16) for i in range(n_prereq)]
              + [ContinuousVar("e", 0.0, 1.0, 16)])
     m = FlowSamplerModel(sites, n_layers=n_layers, hidden=hidden,
@@ -243,7 +251,20 @@ def fit_and_measure(n_prereq=4, n_components=1, n_layers=6, hidden=64,
         build_constraints(n_prereq, p_prereq, viol_mode=viol_mode),
         entropy_reg=1.0, n_samples=n_samples, with_logq=wlq)
     t0 = time.time()
-    if beta_phases:
+    if beta_ramp:
+        import optax
+        ramp = max(1, int(float(beta_ramp) * steps))
+        sched = lambda step: jnp.maximum(0.0, 1.0 - step / ramp)
+        loss_r = m.constraint_loss(
+            build_constraints(n_prereq, p_prereq, viol_mode=viol_mode),
+            entropy_reg=1.0, n_samples=n_samples, with_logq=wlq,
+            beta_schedule=sched)
+        lr_sched = optax.join_schedules(
+            [optax.constant_schedule(2e-3), optax.constant_schedule(1e-3)],
+            [ramp])
+        params, hist = m.optimize(loss_r, seed=seed, steps=steps,
+                                  lr=lr_sched, grad_clip=5.0)
+    elif beta_phases:
         betas = np.linspace(1.0, 0.0, int(beta_phases))
         per = max(1, steps // len(betas))
         params, hist = None, None
@@ -281,7 +302,7 @@ def fit_and_measure(n_prereq=4, n_components=1, n_layers=6, hidden=64,
         n_prereq=int(n_prereq), n_components=int(n_components),
         n_layers=int(n_layers), hidden=int(hidden), seed=int(seed),
         warmup_steps=int(warmup_steps), viol_mode=viol_mode,
-        beta_phases=int(beta_phases),
+        beta_phases=int(beta_phases), beta_ramp=float(beta_ramp),
         params=npar, fit_seconds=round(fit_s, 1),
         entropy=float(m.entropy(params)),
         final_loss=float(np.mean(hist[-50:])),
@@ -345,6 +366,16 @@ def beta_anneal_configs(ms=(4, 6), phases=(2, 4, 8)):
             for m in ms for p in phases]
 
 
+def beta_ramp_configs(ms=(4, 6), fracs=(0.5, 0.7, 0.85)):
+    """Per-step linear beta ramp (the smooth limit of beta_anneal_configs;
+    one jit compile per fit).  ``fracs`` is the fraction of the step budget
+    spent ramping 1 -> 0; the rest holds at the true objective.  Compare
+    against the b8 staircase and st wu1000 rows at the same total steps."""
+    return [dict(n_prereq=m, n_components=1, n_layers=6, hidden=64,
+                 beta_ramp=f, viol_mode="st")
+            for m in ms for f in fracs]
+
+
 def tamed_hybrid_configs(ms=(4, 6), scales=(0.3, 0.1, 0.03)):
     """The ST<->hybrid dial: score_scale=0 IS straight-through, 1.0 diverged
     in the GPU A/B (unbounded log-q feedback).  These arms probe whether a
@@ -369,15 +400,17 @@ def summarize_ab(rows_or_path="results/estimator_ab.jsonl"):
     by = defaultdict(list)
     for r in rows:
         by[(r["n_prereq"], r.get("viol_mode", "soft"),
-            r.get("warmup_steps", 0), r.get("beta_phases", 0))].append(r)
+            r.get("warmup_steps", 0), r.get("beta_phases", 0),
+            r.get("beta_ramp", 0.0))].append(r)
     hdr = (f"{'m':>2} {'mode':<10} {'anneal':>7} {'n':>2} | "
            f"{'P(e|C)':>13} {'P(e|~C)':>9} {'P(C)ratio':>13} "
            f"{'corr (true)':>13}")
     print(hdr)
     print("-" * len(hdr))
-    for (m, mode, wu, bp) in sorted(by):
-        rs = by[(m, mode, wu, bp)]
-        anneal = f"wu{wu}" if wu else (f"beta{bp}" if bp else "-")
+    for (m, mode, wu, bp, br) in sorted(by):
+        rs = by[(m, mode, wu, bp, br)]
+        anneal = (f"wu{wu}" if wu else f"beta{bp}" if bp
+                  else f"ramp{br}" if br else "-")
         stat = lambda key: (np.mean([r[key] for r in rs]),
                             np.std([r[key] for r in rs]))
         pec, pec_sd = stat("p_e_given_c")
@@ -395,7 +428,7 @@ def _key(row):
     return (row["n_prereq"], row["n_layers"], row["hidden"],
             row["n_components"], row.get("warmup_steps", 0),
             row.get("viol_mode", "soft"), row.get("beta_phases", 0),
-            row["seed"])
+            row.get("beta_ramp", 0.0), row["seed"])
 
 
 def run_sweep(configs=None, seeds=(0, 1, 2), steps=3000, n_samples=4096,
@@ -423,8 +456,9 @@ def run_sweep(configs=None, seeds=(0, 1, 2), steps=3000, n_samples=4096,
             rows.append(row)
             wu = f" wu{row['warmup_steps']}" if row["warmup_steps"] else ""
             bp = f" b{row['beta_phases']}" if row.get("beta_phases") else ""
+            br = f" br{row['beta_ramp']}" if row.get("beta_ramp") else ""
             print(f"m={row['n_prereq']} L{row['n_layers']:<2} "
-                  f"K{row['n_components']:<3} {row['viol_mode']:<6}{wu}{bp} seed{s} | "
+                  f"K{row['n_components']:<3} {row['viol_mode']:<6}{wu}{bp}{br} seed{s} | "
                   f"P(e|C)={row['p_e_given_c']:.3f} (want 0.500) "
                   f"P(C)ratio={row['p_c_ratio']:.3f} "
                   f"P(e|~C)={row['p_e_given_notc']:.4f} "

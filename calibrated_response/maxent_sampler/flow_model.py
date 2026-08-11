@@ -180,9 +180,16 @@ class FlowSamplerModel(SamplerModel):
                 - 0.5 * self.n_flow * log2pi)               # (N, K)
         return jax.nn.logsumexp(comp, axis=1) - jnp.log(self.n_components)
 
-    def _wrap_loss(self, body, n_samples):
-        def loss(params, key):
-            return body(params, self._draw_z_key(key, n_samples))
+    def _wrap_loss(self, body, n_samples, beta_schedule=None):
+        if beta_schedule is None:
+            def loss(params, key):
+                return body(params, self._draw_z_key(key, n_samples))
+        else:
+            # step-aware loss: fit_adam_stochastic detects the third arg and
+            # threads the (traced) step index through the schedule
+            def loss(params, key, step):
+                return body(params, self._draw_z_key(key, n_samples),
+                            beta_schedule(step))
         return loss
 
     # ---- sampling with log-det --------------------------------------
@@ -245,7 +252,7 @@ class FlowSamplerModel(SamplerModel):
                         weight_reg: float = 0.0, n_samples: int = 4096,
                         seed: int = 0, domain_prior: str = "uniform",
                         prior_bound_sds: float = 2.0, ref_mask=None,
-                        with_logq: bool = False):
+                        with_logq: bool = False, beta_schedule=None):
         """Same constraint grammar as :meth:`SamplerModel.constraint_loss`;
         ``entropy_reg`` weights the **exact** joint entropy (default 1.0 — the
         soft-constrained maxent objective).  No histogram proxies needed.
@@ -279,6 +286,16 @@ class FlowSamplerModel(SamplerModel):
         transport term); hence the inverse pass.  With ``n_dummy > 0`` the
         column is the extended-joint density — still the correct score weight,
         since the samples are drawn from that joint.
+
+        ``beta_schedule`` (callable ``step -> beta``, jnp-traceable) makes the
+        returned loss step-aware — ``loss(params, key, step)`` — and passes
+        ``beta(step)`` to every scorer that advertises ``takes_beta`` (the
+        ``prob_nll`` family), overriding any beta baked into the constraint
+        tuples.  This is per-step likelihood-tempering annealing: e.g.
+        ``lambda s: jnp.maximum(0.0, 1.0 - s / ramp_steps)`` ramps 1 -> 0
+        over ``ramp_steps`` then holds at the true objective.
+        :func:`~calibrated_response.maxent_sampler.fit.fit_adam_stochastic`
+        detects the third argument automatically; one jit compile total.
 
         Stochastic ``loss(params, key)`` like the parent: fresh latents every
         step.  This matters doubly for a flow — it is exactly the kind of
@@ -316,7 +333,7 @@ class FlowSamplerModel(SamplerModel):
                     [mask, jnp.zeros(self.n_dummy, jnp.float32)])
             log_norm = -0.5 * jnp.log(2.0 * jnp.pi * ref_sd ** 2)
 
-        def body(params, z):
+        def body(params, z, beta_t=None):
             # One forward pass: constraints score the samples x, the entropy
             # term is the mean per-sample log-likelihood on that SAME batch
             # (log p(x_i) = log N(z_i) - logdet_i; the z-density term is
@@ -334,7 +351,10 @@ class FlowSamplerModel(SamplerModel):
                 x_feat = x
             tot = 0.0
             for score in scorers:
-                tot = tot + score(x_feat)
+                if beta_t is not None and getattr(score, "takes_beta", False):
+                    tot = tot + score(x_feat, beta_t)
+                else:
+                    tot = tot + score(x_feat)
             if gate_scorers:
                 gates = params["gates"]
                 for score in gate_scorers:
@@ -359,4 +379,4 @@ class FlowSamplerModel(SamplerModel):
                 tot = tot + weight_reg * jnp.mean(params["theta"] ** 2)
             return tot
 
-        return self._wrap_loss(body, n_samples)
+        return self._wrap_loss(body, n_samples, beta_schedule)

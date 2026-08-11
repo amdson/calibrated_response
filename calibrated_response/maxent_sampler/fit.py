@@ -106,17 +106,28 @@ def fit_adam_stochastic(loss_fn, params, steps=1500, lr=1e-3, grad_clip=5.0,
         verbatim and *all* of ``lr``/``grad_clip``/``b*``/``eps*``/
         ``weight_decay`` are ignored.
     """
+    import inspect
+
+    import jax.numpy as jnp
     import optax
 
     opt = optimizer if optimizer is not None else _build_optimizer(
         lr, grad_clip, b1, b2, eps, eps_root, weight_decay)
     state = opt.init(params)
     vg = jax.jit(jax.value_and_grad(loss_fn))
+    # A loss may take (params, key, step) instead of (params, key) -- e.g.
+    # constraint_loss(beta_schedule=...) threads the step into a tempering
+    # schedule.  The step is passed as a traced f32 scalar (a Python int
+    # would recompile every iteration).
+    pass_step = len(inspect.signature(loss_fn).parameters) >= 3
     key = jax.random.PRNGKey(seed)
     history = []
     for it in range(steps):
         key, sub = jax.random.split(key)
-        loss, g = vg(params, sub)
+        if pass_step:
+            loss, g = vg(params, sub, jnp.asarray(it, jnp.float32))
+        else:
+            loss, g = vg(params, sub)
         updates, state = opt.update(g, state, params)
         params = optax.apply_updates(params, updates)
         history.append(float(loss))
