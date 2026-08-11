@@ -70,12 +70,30 @@ class FlowSamplerModel(SamplerModel):
     num_bins, tail_bound :
         Spline knobs (``flow_type="spline"`` only): bins per transformed dim and
         the ``[-B, B]`` interval outside which the spline is the identity.
+    n_components : int
+        Base-distribution mixture size.  ``1`` (default) keeps the standard
+        ``z ~ N(0, I)`` base.  ``K > 1`` replaces it with a uniform-weight
+        Gaussian mixture with learnable per-component means and diagonal
+        scales (params leaf ``"base"``).  Multimodal targets then come from
+        component placement instead of forcing the invertible map to tear a
+        unimodal base apart — the usual source of extreme Jacobians.  Entropy
+        stays exact: ``H(x) = -E[log q_mix(z)] + E[log|det J|] + sum log
+        span`` with the mixture density in closed form; the component index
+        carries no parameters (uniform weights), so the reparameterized
+        gradient is unbiased.  :meth:`log_prob` remains exact too.  With
+        ``flow_type="spline"``, keep component means inside ``[-tail_bound,
+        tail_bound]`` (see ``base_spread``) or they land in the identity
+        tails.
+    base_spread : float
+        Init sd of the mixture means (``n_components > 1`` only).  Component
+        log-scales start at 0.
     """
 
     def __init__(self, vars: Sequence[ContinuousVar], n_layers: int = 8,
                  hidden: int = 64, s_max: float = 3.0, n_dummy: int = 0,
                  flow_type: str = "affine", num_bins: int = 8,
-                 tail_bound: float = 4.0):
+                 tail_bound: float = 4.0, n_components: int = 1,
+                 base_spread: float = 1.0):
         self.disc = Discretizer(vars)
         self.n = self.disc.n_sites
         self.dims = self.disc.dims
@@ -99,18 +117,83 @@ class FlowSamplerModel(SamplerModel):
         self.lower = jnp.asarray(lower, jnp.float32)
         self.span = jnp.asarray(upper - lower, jnp.float32)
         self._gate_pbroken = []
+        self.n_components = int(n_components)
+        self.base_spread = float(base_spread)
 
         # H(z) + sum log span: the constant part of H(x).  Dummy spans are 1,
-        # so they add nothing here.
+        # so they add nothing here.  (n_components == 1 only; a mixture base
+        # has no analytic H(z), so the loss uses -E[log q_mix(z)] instead.)
+        self._log_span_sum = float(jnp.sum(jnp.log(self.span)))
         self._h_const = (0.5 * self.n_flow * float(np.log(2.0 * np.pi * np.e))
-                         + float(jnp.sum(jnp.log(self.span))))
+                         + self._log_span_sum)
+
+    # ---- base distribution (standard normal or Gaussian mixture) ------
+    def init_params(self, seed: int = 0):
+        params = super().init_params(seed)
+        if self.n_components > 1:
+            key = jax.random.PRNGKey(seed + 0x5F3759DF)
+            mu = self.base_spread * jax.random.normal(
+                key, (self.n_components, self.n_flow))
+            params["base"] = {
+                "mu": mu.astype(jnp.float32),
+                "log_sig": jnp.zeros((self.n_components, self.n_flow),
+                                     jnp.float32),
+            }
+        return params
+
+    def _draw_z_key(self, key, n_samples: int):
+        """Raw per-sample randomness.  Standard base: ``(N, D)`` normals.
+        Mixture base: ``(N, D + 1)`` — D normals plus one uniform column that
+        selects the component (kept as raw randomness so ``_base_z`` can
+        rebuild ``z`` differentiably from params)."""
+        if self.n_components == 1:
+            return jax.random.normal(key, (n_samples, self.latent_dim))
+        ke, kc = jax.random.split(key)
+        eps = jax.random.normal(ke, (n_samples, self.n_flow))
+        u = jax.random.uniform(kc, (n_samples, 1))
+        return jnp.concatenate([eps, u], axis=1)
+
+    def _draw_z(self, n_samples: int, seed: int):
+        return self._draw_z_key(jax.random.PRNGKey(seed), n_samples)
+
+    def _base_z(self, params, z):
+        """Raw randomness -> actual latent ``z`` (pathwise-differentiable in
+        the mixture params).  Identity for the standard base."""
+        if self.n_components == 1:
+            return z
+        eps, u = z[:, :self.n_flow], z[:, self.n_flow]
+        c = jnp.clip((u * self.n_components).astype(jnp.int32),
+                     0, self.n_components - 1)
+        b = params["base"]
+        return b["mu"][c] + jnp.exp(b["log_sig"])[c] * eps
+
+    def _base_log_prob(self, params, zb):
+        """Exact base log-density at latents ``zb`` (N, n_flow)."""
+        log2pi = float(np.log(2.0 * np.pi))
+        if self.n_components == 1:
+            return (-0.5 * jnp.sum(zb * zb, axis=1)
+                    - 0.5 * self.n_flow * log2pi)
+        b = params["base"]
+        diff = (zb[:, None, :] - b["mu"][None]) * jnp.exp(-b["log_sig"])[None]
+        comp = (-0.5 * jnp.sum(diff * diff, axis=-1)
+                - jnp.sum(b["log_sig"], axis=-1)[None]
+                - 0.5 * self.n_flow * log2pi)               # (N, K)
+        return jax.nn.logsumexp(comp, axis=1) - jnp.log(self.n_components)
+
+    def _wrap_loss(self, body, n_samples):
+        def loss(params, key):
+            return body(params, self._draw_z_key(key, n_samples))
+        return loss
 
     # ---- sampling with log-det --------------------------------------
     def _sample_x_logdet(self, params, z):
         """Full extended batch ``(N, n_flow)`` — dummy columns included (the
-        loss needs the whole invertible image for the entropy term)."""
+        loss needs the whole invertible image for the entropy term).  ``z`` is
+        the *raw* randomness from ``_draw_z``; the mixture base rebuilds the
+        actual latent from it first."""
+        zb = self._base_z(params, z)
         u, ld = jax.vmap(self.net.forward_flat, in_axes=(None, 0))(
-            params["theta"], z)
+            params["theta"], zb)
         return self.lower + self.span * u, ld
 
     def _sample_x(self, params, z):
@@ -124,8 +207,13 @@ class FlowSamplerModel(SamplerModel):
         With ``n_dummy > 0`` this is the entropy of the *extended* joint
         (real sites + dummies) — the quantity the loss regularizes; the
         real-site marginal entropy alone is not tractable."""
-        _, ld = self._sample_x_logdet(params, self._draw_z(n_samples, seed))
-        return float(self._h_const + jnp.mean(ld))
+        z = self._draw_z(n_samples, seed)
+        _, ld = self._sample_x_logdet(params, z)
+        if self.n_components == 1:
+            return float(self._h_const + jnp.mean(ld))
+        zb = self._base_z(params, z)
+        return float(-jnp.mean(self._base_log_prob(params, zb))
+                     + self._log_span_sum + jnp.mean(ld))
 
     def log_prob(self, params, x, chunk: int = 65536):
         """Exact log density at points ``x`` (N, n) in original units (numpy).
@@ -148,8 +236,7 @@ class FlowSamplerModel(SamplerModel):
         out = []
         for k in range(0, len(x), chunk):
             z, ld = inv(params["theta"], u[k:k + chunk])
-            log_n = (-0.5 * jnp.sum(z * z, axis=1)
-                     - 0.5 * self.n * float(np.log(2.0 * np.pi)))
+            log_n = self._base_log_prob(params, z)
             out.append(np.asarray(log_n - ld))
         return np.concatenate(out) - float(jnp.sum(jnp.log(self.span)))
 
@@ -230,7 +317,14 @@ class FlowSamplerModel(SamplerModel):
                 for score in gate_scorers:
                     tot = tot + score(x, gates)
             if entropy_reg:
-                ent = h_const + jnp.mean(ld)               # H(p), exact
+                if self.n_components == 1:
+                    ent = h_const + jnp.mean(ld)           # H(p), exact
+                else:
+                    # mixture base: -E[log q_mix(z)] replaces the analytic
+                    # H(z); still exact in expectation, gradients pathwise
+                    zb = self._base_z(params, z)
+                    ent = (-jnp.mean(self._base_log_prob(params, zb))
+                           + self._log_span_sum + jnp.mean(ld))
                 if domain_prior == "uniform":
                     tot = tot - entropy_reg * ent          # maxent
                 else:

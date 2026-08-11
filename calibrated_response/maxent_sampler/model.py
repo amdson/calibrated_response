@@ -22,6 +22,10 @@ continuous batch; use the smooth factories below for indicators)::
 
     ("expect",      f, target[, weight])          #  E[f(x)]            = target
     ("cond_expect", f, cond, target[, weight])    #  E[f·cond]/E[cond]  = target
+    ("expect_nll",      f, target, k[, tau[, beta]])        # t ~ N(E[f], Var[f]/k + tau²)
+    ("cond_expect_nll", f, cond, target, k[, tau[, beta]])  # conditional variant
+    ("prob_nll",        f, target, k)                       # binomial: k·KL(t ‖ E[f])
+    ("cond_prob_nll",   f, cond, target, k)                 # conditional variant
     ("cov",         f, g, target[, weight])       #  Cov(f, g)          = target
     ("corr",        f, g, target[, weight])       #  Corr(f, g)         = target
     ("mmd",         sites, ref_samples[, weight]) #  MMD(x[:,sites], ref) -> 0
@@ -36,6 +40,11 @@ One-sided ("hinge") variants penalise only the violating side of the bound
     ("logit_expect_ineq",      f, target, weight, direction)   # log-odds hinge
     ("logit_cond_expect_ineq", f, cond, target, weight, direction)
     ("corr_ineq",              f, g, target, weight, direction)
+    ("eqn_ineq",               r, weight, direction)  # residual r(x) >= 0 / <= 0
+
+``eqn_ineq`` is the per-sample member of that family: it hinges the residual
+*inside* the expectation (``E[relu(-r)**2]``), so it restricts the support to
+one side of a surface, where the others hinge an aggregate statistic.
 
 Head-to-head with :mod:`calibrated_response.tn`: build both models from the same
 :class:`~calibrated_response.tn.discretize.ContinuousVar` list and compare on the
@@ -289,6 +298,84 @@ class SamplerModel:
                 den = jnp.mean(c) + _EPS
                 return w * _hinge_pen(_logit(num / den) - lt, direction)
             return score
+        if kind == "expect_nll":
+            # Synthetic-likelihood mean constraint (Wood 2010): the target is
+            # modelled as the mean of k draws from the fitted distribution,
+            #   target ~ N(E[f], Var[f]/k + tau²),
+            # and this scores its negative log-likelihood.  Unlike "expect",
+            # the model's own Var[f] carries gradient: agreeing targets buy a
+            # ½log-var shrink, while targets the mean cannot reach are cheapest
+            # to explain by inflating Var[f] — conflicting estimates become
+            # width instead of a silently-averaged tight fit.  ``k`` is the
+            # unitless strength ("effective observation count"); ``tau`` floors
+            # the implied noise sd, bounding the 1/var mean-gradient and capping
+            # how far a single conflict can inflate the fit; ``beta`` is the
+            # β-NLL exponent (Seitzer et al. 2022) — the NLL is scaled by
+            # sg(Var/k + tau²)^β, so β=1 restores a constant-weight mean
+            # gradient (no variance death spiral) while every β keeps the
+            # width-seeking gradient path through Var.
+            f, tg, k = cst[1], cst[2], float(cst[3])
+            tau = float(cst[4]) if len(cst) > 4 else 0.0
+            beta = float(cst[5]) if len(cst) > 5 else 0.5
+            def score(x):
+                v = f(x)
+                m, var = jnp.mean(v), jnp.var(v)
+                s2 = var / k + tau * tau + _EPS
+                # debias: E[(m - tg)²] = (mu - tg)² + Var/N over the batch
+                r2 = (m - tg) ** 2 - var / v.shape[0]
+                nll = 0.5 * (r2 / s2 + jnp.log(s2))
+                return jax.lax.stop_gradient(s2) ** beta * nll
+            return score
+        if kind == "cond_expect_nll":
+            # Conditional synthetic likelihood.  Strength scales with the
+            # condition mass (k_eff = k·E[cond]: a rare condition is worth
+            # fewer effective observations), with E[cond] stop-gradiented so
+            # the fit gains nothing by starving the condition to mute the
+            # constraint.  Variance is the *conditional* variance of f.
+            f, cond, tg, k = cst[1], cst[2], cst[3], float(cst[4])
+            tau = float(cst[5]) if len(cst) > 5 else 0.0
+            beta = float(cst[6]) if len(cst) > 6 else 0.5
+            def score(x):
+                v, c = f(x), cond(x)
+                pc = jnp.mean(c)
+                pc_g = jax.lax.stop_gradient(pc)
+                m = jnp.mean(v * c) / (pc + _EPS)
+                var = jnp.mean((v - m) ** 2 * c) / (pc + _EPS)
+                k_eff = jnp.maximum(k * pc_g, 1e-3)
+                s2 = var / k_eff + tau * tau + _EPS
+                n_eff = jnp.maximum(v.shape[0] * pc_g, 1.0)
+                r2 = (m - tg) ** 2 - var / n_eff
+                nll = 0.5 * (r2 / s2 + jnp.log(s2))
+                return jax.lax.stop_gradient(s2) ** beta * nll
+            return score
+        if kind == "prob_nll":
+            # Binomial pseudo-count constraint: the target is the empirical
+            # rate of k Bernoulli draws, scored as k·KL(target ‖ E[f]) (the
+            # binomial NLL minus its value at p = target, so a matched
+            # constraint scores 0).  Exact — no CLT, no variance denominator:
+            # curvature k/(p(1-p)) is bounded by the clip, and conflicting
+            # targets resolve toward the max-variance p between them, so the
+            # Gaussian kinds' beta/tau machinery is unnecessary here.
+            f, tg, k = cst[1], cst[2], float(cst[3])
+            t = float(np.clip(tg, 1e-4, 1.0 - 1e-4))
+            def score(x):
+                p = jnp.clip(jnp.mean(f(x)), 1e-4, 1.0 - 1e-4)
+                return k * (t * (np.log(t) - jnp.log(p))
+                            + (1.0 - t) * (np.log1p(-t) - jnp.log1p(-p)))
+            return score
+        if kind == "cond_prob_nll":
+            # Conditional binomial pseudo-counts; k_eff = k·E[cond] as above.
+            f, cond, tg, k = cst[1], cst[2], cst[3], float(cst[4])
+            t = float(np.clip(tg, 1e-4, 1.0 - 1e-4))
+            def score(x):
+                c = cond(x)
+                pc_g = jax.lax.stop_gradient(jnp.mean(c))
+                p = jnp.clip(jnp.mean(f(x) * c) / (jnp.mean(c) + _EPS),
+                             1e-4, 1.0 - 1e-4)
+                k_eff = jnp.maximum(k * pc_g, 1e-3)
+                return k_eff * (t * (np.log(t) - jnp.log(p))
+                                + (1.0 - t) * (np.log1p(-t) - jnp.log1p(-p)))
+            return score
         if kind == "cov":
             # Centred second moment: targets the *dependence* directly, invariant
             # to mean shifts — unlike ("expect", product(i,j), t), which a maxent
@@ -325,6 +412,14 @@ class SamplerModel:
             # r(x) is a per-sample residual closure (see maxent_sampler.equations).
             g, w = cst[1], cst[2]
             return lambda x: w * jnp.mean(g(x) ** 2)
+        if kind == "eqn_ineq":
+            # Inequality lhs > rhs ("ge") / lhs < rhs ("le"): a one-sided
+            # constraint on the same residual. Unlike eqn_det/eqn_dist this
+            # restricts the *support* rather than matching moments, so maxent
+            # spreads over the whole allowed region instead of hugging a line;
+            # 1/sqrt(2w) is the width over which the boundary softens.
+            g, w, direction = cst[1], cst[2], cst[3]
+            return lambda x: w * jnp.mean(_hinge_pen(g(x), direction))
         if kind == "eqn_dist":
             # Noisy identity lhs = rhs + N(0, sigma): match the residual's first
             # two moments (mean 0, variance sigma**2). Maxent completes the pair
@@ -421,6 +516,10 @@ class SamplerModel:
 
             ("expect",            f, target[, weight])
             ("cond_expect",       f, cond, target[, weight])
+            ("expect_nll",        f, target, k[, tau[, beta]])        # synthetic likelihood
+            ("cond_expect_nll",   f, cond, target, k[, tau[, beta]])
+            ("prob_nll",          f, target, k)                       # binomial pseudo-counts
+            ("cond_prob_nll",     f, cond, target, k)
             ("logit_expect",      f, target[, weight])        # log-odds residual
             ("logit_cond_expect", f, cond, target[, weight])  # log-odds residual
             ("cov",               f, g, target[, weight])
@@ -438,6 +537,7 @@ class SamplerModel:
             ("logit_expect_ineq",      f, target, weight, direction)
             ("logit_cond_expect_ineq", f, cond, target, weight, direction)
             ("corr_ineq",              f, g, target, weight, direction)
+            ("eqn_ineq",               r, weight, direction)  # r >= 0 / r <= 0
 
         The ``onoff`` kind is the sample-native robust constraint: a belief that
         ``E[f | given] = target`` with width ``value_sd``, protected by a learnable
@@ -523,7 +623,14 @@ class SamplerModel:
         fresh latent-batch key every step.  ``backend`` is kept for signature
         parity with ``TensorTree.optimize`` but only ``"adam"`` is supported —
         deterministic backends (L-BFGS) would require a fixed batch, which the
-        sampler losses deliberately do not offer."""
+        sampler losses deliberately do not offer.
+
+        ``**kw`` goes to :func:`~calibrated_response.maxent_sampler.fit.fit_adam_stochastic`:
+        ``steps``, ``lr`` (float or optax schedule), ``grad_clip``,
+        ``log_every``, the Adam hyper-parameters ``b1``/``b2``/``eps``/
+        ``eps_root``/``weight_decay``, or ``optimizer=`` for a hand-built optax
+        chain.  ``b2`` and ``eps`` are the ones worth reaching for when a faint
+        gradient signal is competing with the per-step Monte-Carlo noise."""
         if backend != "adam":
             raise ValueError(f"backend {backend!r} not supported: sampler losses "
                              "are stochastic (fresh z per step), adam only")

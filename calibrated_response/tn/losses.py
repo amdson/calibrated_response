@@ -711,7 +711,11 @@ def batched_constraint_loss(model, constraints, regularizers=()):
     regs = [(REGULARIZERS[f] if isinstance(f, str) else f, w) for f, w in regularizers]
 
     def loss(params, targets):
-        cores = model._cores(params)
+        # ``_event_logcontract`` is a path sweep in the classic MPS layout
+        # ((d,r) / (r,d,r) / (r,d)); ``_cores`` is the tree's physical-first
+        # layout.  ``TensorChain`` supplies the adapter.
+        cores = (model._chain_cores(params) if hasattr(model, "_chain_cores")
+                 else model._cores(params))
         contract = lambda ms: _event_logcontract(cores, ms, n, dims, born)
         tot = 0.0
         if prob:

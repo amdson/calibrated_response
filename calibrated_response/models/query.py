@@ -137,32 +137,43 @@ class CorrelationEstimate(Estimate):
 
 
 class EquationEstimate(Estimate):
-    """A structural equation ``lhs = rhs`` over the variables.
+    """A structural relation ``lhs <op> rhs`` over the variables.
 
     ``rhs`` is an arithmetic expression (``+ - * / **``, constants, variable
     names, ``abs``/``min``/``max``, and the threshold indicator ``ind(e > c)``);
-    see :mod:`calibrated_response.maxent_sampler.equations`.  Semantics are set
-    by ``noise_sd``:
+    see :mod:`calibrated_response.maxent_sampler.equations`.  Everything is a
+    statement about the residual ``r = lhs - (rhs)``, and ``relation`` picks
+    which statement:
 
-    * ``None`` — a deterministic identity (the fitted joint is pushed toward
-      ``lhs == rhs`` for every sample).  Use for Fermi links the target is a
-      function of: ``total = a*x + b*y``, ``diff = end - start``,
-      ``record = ind(anomaly > 1.60)``.
-    * a positive float — additive Gaussian noise: ``lhs = rhs + N(0, noise_sd)``.
-      The solver matches the residual's mean (0) and variance (``noise_sd**2``);
-      maxent completes it to Gaussian noise ~independent of the rhs.
-
-    Unlike the moment estimates this is not a bound, so ``relation`` is ignored.
+    * ``"eq"`` — an equation ``lhs = rhs``.  With ``noise_sd=None`` it is a
+      deterministic identity (``r -> 0`` for every sample): Fermi links the
+      target is a function of, ``total = a*x + b*y``, ``diff = end - start``.
+      With a positive ``noise_sd`` it is additive Gaussian noise
+      ``lhs = rhs + N(0, noise_sd)`` — the solver matches the residual's mean
+      (0) and variance (``noise_sd**2``) and maxent completes it to Gaussian
+      noise ~independent of the rhs.
+    * ``"ge"`` / ``"le"`` — an *inequality* ``lhs > rhs`` / ``lhs < rhs``: a
+      one-sided constraint on the residual (``r >= 0`` / ``r <= 0``) carried by
+      a hinge penalty, so only the violating side costs anything.  This is a
+      support restriction rather than a moment match: maxent then spreads
+      freely over the allowed region instead of hugging a line.  Here
+      ``noise_sd`` sets how *soft* the boundary is (the scale over which
+      violations become expensive) rather than a residual spread; ``None``
+      falls back to the solver's deterministic tolerance, i.e. a sharp edge.
+      Use for bounds a quantity must respect: ``revenue > costs``,
+      ``peak_2030 < capacity ~ N(0, 5)``.
     """
     estimate_type: Literal["equation"] = "equation"
     lhs: str = Field(..., description="Left-hand-side variable name")
     rhs: str = Field(..., description="Right-hand-side arithmetic expression over the variables")
     noise_sd: Optional[float] = Field(
         default=None, ge=0.0,
-        description="Additive Gaussian noise sd; None (or 0) = deterministic identity")
+        description="For an equation: additive Gaussian noise sd, None (or 0) = "
+                    "deterministic identity. For an inequality: the softness of "
+                    "the boundary, None = the solver's sharp default tolerance")
 
     def to_query_estimate(self) -> str:
-        base = f"{self.lhs} = {self.rhs}"
+        base = f"{self.lhs} {self._rel_op} {self.rhs}"
         return base if not self.noise_sd else f"{base} ~ N(0, {self.noise_sd})"
 
 

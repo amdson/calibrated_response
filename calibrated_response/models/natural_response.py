@@ -32,13 +32,15 @@ PE_PATTERN = (
 CORR_PATTERN = (
     r"^\s*Corr\s*\(\s*([^,|]+?)\s*,\s*([^,|]+?)\s*\)\s*" + _REL_OP + r"\s*(.+?)\s*$"
 )
-# Structural equation `lhs = rhs [~ N(0, sigma)]` — a bare-identifier LHS is
-# what separates it from the P()/E[]/Corr() forms (those have a bracket right
-# after the head symbol, so they never match a plain `name =`). The rhs is
-# validated loosely here; the real arithmetic grammar is enforced at build time
-# by maxent_sampler.equations.
+# Structural relation `lhs <op> rhs [~ N(0, sigma)]`, op one of = < <= > >= — a
+# bare-identifier LHS is what separates it from the P()/E[]/Corr() forms (those
+# have a bracket right after the head symbol, so they never match a plain
+# `name <op>`). An inequality is a one-sided constraint on the same residual:
+# `y > 1.5*x` keeps the joint above the line, and the optional noise tail sets
+# how soft that boundary is. The rhs is validated loosely here; the real
+# arithmetic grammar is enforced at build time by maxent_sampler.equations.
 NOISE_PATTERN = r"~\s*N\s*\(\s*0\s*,\s*([0-9.eE+\-]+)\s*\)\s*$"
-EQUATION_PATTERN = r"^\s*[A-Za-z_]\w*\s*=\s*.+$"
+EQUATION_PATTERN = r"^\s*[A-Za-z_]\w*\s*(?:<=|>=|<|>|=)\s*.+$"
 # What the pydantic field admits: any of the forms.
 EXPRESSION_PATTERN = (
     f"(?:{PE_PATTERN})|(?:{CORR_PATTERN})|(?:{EQUATION_PATTERN})"
@@ -63,12 +65,16 @@ class NaturalEstimate(BaseModel):
                     "be a one-sided bound when you are only confident about a "
                     "ceiling or floor: 'P(A > 10) < 0.2', 'E[Cost] > 100', "
                     "'Corr(A, B) > 0.3'. Use '<'/'>' for bounds and '=' for a "
-                    "point estimate. You can also state a structural equation "
+                    "point estimate. You can also state a structural relation "
                     "linking variables — 'total = 0.4*x + 0.6*y' for an exact "
                     "identity, 'total = 0.4*x + 0.6*y ~ N(0, 5)' with additive "
                     "noise, or a threshold 'hit = ind(total > 100)' — which is "
                     "far better than guessing a correlation when one variable is "
-                    "a known function of others.",
+                    "a known function of others. The same form with '<' or '>' "
+                    "states an inequality between variables — 'revenue > costs', "
+                    "'peak_2030 < capacity ~ N(0, 5)' (the noise sets how soft "
+                    "the boundary is) — for bounds one quantity must respect "
+                    "relative to another.",
         examples=["E[battery_cost | growth > 40.0] = 125.0",
                   "P(remaining_slams > 2) < 0.15",
                   "net_worth = tesla_price*musk_shares + spacex_stake"]
@@ -189,14 +195,15 @@ def parse_natural_syntax(expression: str) -> EstimateUnion:
         if m_noise:
             noise_sd = float(m_noise.group(1))
             body = body[: m_noise.start()].strip()
-        m_eq = re.match(r"^\s*([A-Za-z_]\w*)\s*=\s*(.+?)\s*$", body)
+        m_eq = re.match(r"^\s*([A-Za-z_]\w*)\s*(<=|>=|<|>|=)\s*(.+?)\s*$", body)
         if m_eq:
-            lhs, rhs = m_eq.group(1), m_eq.group(2).strip()
+            lhs, op, rhs = m_eq.group(1), m_eq.group(2), m_eq.group(3).strip()
             return EquationEstimate(
                 id=f"EQ_{lhs[:16]}",
                 lhs=lhs,
                 rhs=rhs,
                 noise_sd=noise_sd,
+                relation=_OP_TO_RELATION[op],
             )
         raise ValueError(f"Invalid syntax: {expression}")
 

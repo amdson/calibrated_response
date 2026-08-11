@@ -175,20 +175,38 @@ def _equation_loss(builder: "DistributionBuilder", est: EquationEstimate) -> Non
             f"{est.id}: equation constraints are not gated in robust mode "
             f"(no credence)")
 
-    if not est.noise_sd:                       # deterministic identity
-        tol = builder.eqn_rel_sd * builder._span(builder.var_name_to_idx[est.lhs])
-        w = 1.0 / (2.0 * tol * tol)
-        builder.constraints.append(("eqn_det", soft_r, w))
-        target = 0.0
-    else:                                       # lhs = rhs + N(0, noise_sd)
-        sigma = float(est.noise_sd)
-        builder.constraints.append(("eqn_dist", soft_r, sigma, builder.eqn_conf))
-        target = sigma
+    sharp_tol = builder.eqn_rel_sd * builder._span(builder.var_name_to_idx[est.lhs])
 
-    # report the residual RMS against its intended value (0, or the noise sd)
-    def ev(x, hr=hard_r):
-        r = hr(x)
-        return float(np.sqrt(np.mean(r * r)))
+    if est.relation != "eq":                    # lhs > rhs  /  lhs < rhs
+        # One-sided: hinge the residual per sample, so only the violating side
+        # costs anything and maxent spreads freely over the allowed region.
+        # noise_sd here is the *softness* of the boundary, not a residual
+        # spread (an inequality pins no moment); absent it, the edge is as
+        # sharp as a deterministic identity.
+        tol = float(est.noise_sd) if est.noise_sd else sharp_tol
+        w = 1.0 / (2.0 * tol * tol)
+        builder.constraints.append(("eqn_ineq", soft_r, w, est.relation))
+        sign = -1.0 if est.relation == "ge" else 1.0   # violation = relu(sign*r)
+
+        def ev(x, hr=hard_r, sign=sign):        # RMS violation, 0 when satisfied
+            v = np.maximum(sign * hr(x), 0.0)
+            return float(np.sqrt(np.mean(v * v)))
+
+        target = 0.0
+    else:
+        if not est.noise_sd:                   # deterministic identity
+            w = 1.0 / (2.0 * sharp_tol * sharp_tol)
+            builder.constraints.append(("eqn_det", soft_r, w))
+            target = 0.0
+        else:                                   # lhs = rhs + N(0, noise_sd)
+            sigma = float(est.noise_sd)
+            builder.constraints.append(("eqn_dist", soft_r, sigma, builder.eqn_conf))
+            target = sigma
+
+        # report the residual RMS against its intended value (0, or the noise sd)
+        def ev(x, hr=hard_r):
+            r = hr(x)
+            return float(np.sqrt(np.mean(r * r)))
 
     builder._report_rows.append(
         (est.id, est.to_query_estimate(), target, ev, None, None, 1.0))

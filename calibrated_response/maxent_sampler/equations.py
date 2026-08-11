@@ -10,15 +10,24 @@ and the equation becomes a claim about ``r``:
 
     deterministic   lhs = rhs              ->  r == 0        (identity)
     gaussian noise  lhs = rhs + N(0, s)    ->  r ~ N(0, s)   (mean 0, spread s)
+    inequality      lhs > rhs / lhs < rhs  ->  r >= 0 / r <= 0
 
-Both are cheap sample losses (see ``maxent_sampler.model``): the deterministic
-form drives ``mean(r**2) -> 0``; the noisy form matches ``mean(r) -> 0`` and
-``mean(r**2) -> s**2``.  Maxent supplies the rest — given only those two
-moments of the residual, the maximum-entropy completion makes ``r`` Gaussian and
-approximately independent of the right-hand-side variables, i.e. the structural
-equation ``lhs = rhs + independent noise`` — without ever encoding independence.
+All three are cheap sample losses (see ``maxent_sampler.model``): the
+deterministic form drives ``mean(r**2) -> 0``; the noisy form matches
+``mean(r) -> 0`` and ``mean(r**2) -> s**2``.  Maxent supplies the rest — given
+only those two moments of the residual, the maximum-entropy completion makes
+``r`` Gaussian and approximately independent of the right-hand-side variables,
+i.e. the structural equation ``lhs = rhs + independent noise`` — without ever
+encoding independence.
 
-This module only turns the *string* into two closures over the sample matrix:
+The inequality form is different in kind: ``mean(relu(-r)**2) -> 0`` restricts
+the *support* to one side of the surface ``lhs = rhs`` instead of pinning a
+moment, so maxent spreads over the whole admissible region rather than hugging a
+line.  Its optional ``N(0, s)`` sets how softly the boundary is enforced.
+
+Which of the three applies is carried by the estimate (``relation`` +
+``noise_sd``); this module only turns the *string* into two closures over the
+sample matrix:
 
     soft, hard = compile_residual("anomaly", "trend + 0.075*enso_oni", idx, span, k)
     soft(x)   # jax, differentiable — used inside the loss (soft indicators)

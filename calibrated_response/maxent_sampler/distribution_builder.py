@@ -95,7 +95,9 @@ class DistributionBuilder:
         Tolerance for a *deterministic* ``EquationEstimate`` (``lhs = rhs``), as a
         fraction of the lhs variable's span: the residual is believed zero to
         within ``eqn_rel_sd·span``, giving weight ``1 / (2 (eqn_rel_sd·span)²)``.
-        Smaller = a stiffer identity.
+        Smaller = a stiffer identity. Also the default boundary softness of an
+        *inequality* (``lhs > rhs`` with no ``~ N(0, σ)`` tail), where the same
+        weight hinges the residual instead of squaring it.
     eqn_conf : float
         Overall stiffness for a *noisy* ``EquationEstimate``
         (``lhs = rhs ~ N(0, σ)``): the residual's mean/variance moment-match
@@ -411,7 +413,15 @@ class DistributionBuilder:
     # ======================================================================
     def fit(self, steps: int = 3000, lr: float = 1e-3, n_samples: int = 2048,
             entropy_reg: float = 1.0, seed: int = 0, **kw):
-        """Fit the flow by soft-constrained maxent (Adam, fresh latents per step)."""
+        """Fit the flow by soft-constrained maxent (Adam, fresh latents per step).
+
+        ``**kw`` reaches the optimiser
+        (:func:`~calibrated_response.maxent_sampler.fit.fit_adam_stochastic`)
+        untouched: ``grad_clip``, ``log_every``, the Adam hyper-parameters
+        ``b1``/``b2``/``eps``/``eps_root``/``weight_decay``, or a prebuilt
+        ``optimizer=``.  ``lr`` may also be an optax schedule rather than a
+        float.
+        """
         loss = self.model.constraint_loss(
             self.constraints, entropy_reg=entropy_reg, n_samples=n_samples,
             domain_prior=self.domain_prior,
@@ -530,7 +540,9 @@ class DistributionBuilder:
         """Fit and return ``(target marginal or None, info)``.
 
         ``fit_kw`` is forwarded to :meth:`fit` (``steps``, ``lr``, ``n_samples``,
-        ``entropy_reg``, ``seed``, ``log_every``...).
+        ``entropy_reg``, ``seed``, ``log_every``, ``grad_clip``, the Adam
+        hyper-parameters ``b1``/``b2``/``eps``/``eps_root``/``weight_decay``,
+        or a prebuilt ``optimizer=``).
         """
         self.fit(**fit_kw)
         info = {
