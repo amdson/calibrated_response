@@ -97,6 +97,18 @@ class DistributionBuilder:
         Belief width for probability targets in log-odds units (used by
         ``prob_penalty="nll"`` and ``"logit"``); 0.3 ≈ a x1.35 odds
         tolerance.
+    value_penalty : str
+        Penalty family for expectation targets. ``"nll"`` (default): each
+        equality estimate becomes a synthetic-likelihood constraint
+        ``expect_nll(k=1, tau=sd)`` — *one noisy observation of the
+        quantity*, ``target ~ N(E[f], Var[f] + sd²)``.  This carries
+        variance information the squared penalty cannot: a lone estimate
+        leaves the marginal maxent-wide, while n agreeing estimates
+        concentrate it to ``~ sd/sqrt(n)`` — repeated elicitations compound
+        into precision instead of just re-pinning the mean.  ``"square"``:
+        the legacy weighted squared residual (mean-only; marginals stay as
+        wide as entropy allows).  Inequalities and robust gates use the
+        legacy machinery in both settings.
     value_rel_sd : float
         Belief width for expectation targets, as a *fraction of the variable's
         span* (keeps the squared residuals unit-free across mixed domains).
@@ -181,6 +193,7 @@ class DistributionBuilder:
         prob_sd: float = 0.05,
         prob_penalty: str = "nll",
         prob_logit_sd: float = 0.3,
+        value_penalty: str = "nll",
         value_rel_sd: float = 0.05,
         corr_sd: float = 0.15,
         eqn_rel_sd: float = 0.03,
@@ -209,6 +222,10 @@ class DistributionBuilder:
         self.prob_sd = float(prob_sd)
         self.prob_penalty = prob_penalty
         self.prob_logit_sd = float(prob_logit_sd)
+        if value_penalty not in ("nll", "square"):
+            raise ValueError(f"value_penalty must be 'nll' or 'square', "
+                             f"got {value_penalty!r}")
+        self.value_penalty = value_penalty
         self.value_rel_sd = float(value_rel_sd)
         self.corr_sd = float(corr_sd)
         self.eqn_rel_sd = float(eqn_rel_sd)
@@ -370,8 +387,35 @@ class DistributionBuilder:
         ``k = 1/(sd²·t(1-t))``, capped at 1e4 so a 1e-4-tail target cannot
         demand a million pseudo-counts).  Inequalities and robust gates fall
         back to the logit machinery — same belief width, one-sided/gated
-        semantics preserved."""
+        semantics preserved.
+
+        ``space="value"`` (expectation targets) routes by ``value_penalty``:
+        ``"nll"`` (default; equality, non-gated only) emits the synthetic-
+        likelihood kinds with ``k=1, tau=sd, beta=0`` — the estimate is *one
+        noisy observation of the quantity*, ``target ~ N(E[f], Var[f]+sd²)``.
+        Unlike the squared penalty this carries variance information: a
+        single estimate leaves the marginal maxent-wide (the ½log(Var+sd²)
+        Occam term saturates and entropy wins), while n agreeing estimates
+        concentrate it to ``Var ≈ sd²/(n-1)`` — repeated measurements
+        compound into precision, which no number of moment pins can express.
+        ``tau=sd`` floors the implied noise, so there is no variance death
+        spiral and no β-tempering is needed (beta=0 = full strength; the
+        mean-gradient curvature is bounded by 1/sd²).  ``"square"`` (or an
+        inequality / a robust gate) falls through to the legacy machinery."""
         gate = None
+        if space == "value":
+            if self.value_penalty == "nll" and direction == "eq" \
+                    and not (self.robust and gated):
+                if cond is None:
+                    self.constraints.append(
+                        ("expect_nll", f, target, 1.0, sd, 0.0))
+                else:
+                    self.constraints.append(
+                        ("cond_expect_nll", f, cond, target, 1.0, sd, 0.0))
+                self._report_rows.append(
+                    (est_id, desc, target, eval_fn, hard_cond, gate, scale))
+                return
+            space = "abs"                  # legacy: squared residual / hinge
         if space == "nll":
             ineq = direction != "eq"
             if not (ineq or (self.robust and gated)):
@@ -420,11 +464,12 @@ class DistributionBuilder:
     def _prob_sd(self, est, default_sd: float) -> float:
         """Per-estimate probability belief width, else the global default.
 
-        ``est.sd`` is only honoured under the logit penalty (that is the space
-        ``collapse_repeats`` measures the spread in — a log-odds width);
-        under the legacy abs penalty its units would be wrong, so fall back."""
+        ``est.sd`` is honoured under the logit and nll penalties (both
+        consume a log-odds width — the space ``collapse_repeats`` measures
+        spread in; nll Fisher-matches its pseudo-count k from it); under the
+        legacy abs penalty its units would be wrong, so fall back."""
         sd = getattr(est, "sd", None)
-        if sd is not None and self.prob_penalty == "logit":
+        if sd is not None and self.prob_penalty in ("logit", "nll"):
             return float(sd)
         return default_sd
 

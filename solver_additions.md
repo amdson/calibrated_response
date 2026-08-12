@@ -479,6 +479,57 @@ can fake width by inflating the bound gap; this silently breaks the §11
 conflict→width mechanism. kNN/non-parametric entropy also dies above ~10–20
 effective dims (fine per-block, pointless there since flow entropy is exact).
 
+## 14. Estimator + annealing consolidation — *shipped to the builder*
+
+Outcome of the prereq-benchmark campaign (see the sharp-edges bullets for
+the full diagnosis chain), now wired as `DistributionBuilder` defaults:
+
+- **`prob_penalty="nll"` (new default)**: equality probability targets emit
+  `prob_nll` / `cond_prob_nll` (binomial pseudo-counts, `k·KL(t‖p̂)`) with
+  `k = 1/(sd_logit²·t(1−t))` Fisher-matched to the log-odds belief width
+  (t=0.5, sd=0.3 → k≈53; capped at 1e4 for tail targets).  Inequality
+  relations and `robust` gates fall back to the logit machinery unchanged.
+- **`st_indicators=True` (default)**: loss-side proposition indicators are
+  straight-through (`straight_through(soft, hard)` now in `model.py`):
+  forward exact at any backward sharpness — kills the leakage floor;
+  conjunctions inherit hard gating.
+- **`fit(anneal_phases=8)` (default)**: likelihood-tempering staircase β:
+  1→0 via `linspace` over equal step blocks inside ONE optimizer run
+  (`beta_schedule` on `constraint_loss`, step-aware loss, single jit
+  compile, no Adam resets).  No-op when no NLL-family constraints.
+- Smoke-tested end-to-end: a 3-var prereq scenario through the production
+  builder gives P(e|C)=0.39 at 800 steps with violations at 2e-4 —
+  the configuration that used to collapse to ~0.02.
+
+Sweep evidence (estimator_ab.jsonl): β-staircase b4/b8 beats hand-tuned
+k-warmup at m=4 (0.41±0.02 vs 0.27±0.04, with a striking variance
+collapse); m=6 needs budget, not scheme (b8@3000: 0.256 → b8@6000: 0.429,
+seed0 = 0.507 on target).  **Holds are load-bearing**: per-step linear
+ramp *underperformed* the b8 staircase at m=6 (0.07–0.12 vs 0.256) and
+b16/b32 regressed — proper continuation equilibrates at each homotopy
+point.  Rule of thumb: holds ≥ ~500–750 steps, total budget scales with
+the stiffest constraint.
+
+**Explicitly NOT closed** (deliberately parked to move on):
+
+- **Correlation valley**: the remaining m=6 seed spread (0.32–0.51) is
+  drift along a flat, unpriced direction — prerequisite over-correlation
+  inflating P(C) (ratios 1.07–1.26, corr 0.08–0.12 vs true 0.04).  Candidate
+  fix: weak isotropic pairwise `corr → 0` penalties (a factorization prior;
+  NOT corr_true — that's the analytic answer).  Untested.
+- Builder staircase = holds *without* optimizer resets — strictly untested
+  vs the benchmark's phase-refit variant (expected same-or-better).
+- Expectation / equation kinds not annealed (only the prob_nll family has
+  `takes_beta`); `expect_nll`'s baked β=0.5 is a *permanent* β-NLL setting —
+  if annealed later, ramp 1→baked, not 1→0.
+- Per-step ramp needs a minimum-hold guard if revisited (br0.85's corr
+  inflation = hold squeezed to 450 steps).
+- Variance/ESS ideas parked: Polyak-EMA eval weights (cheap, do first),
+  loss-statistic EMA for rare-event p̂ (stateful loss refactor),
+  `b2=0.9999`.
+- Mixture base (K>1) × β-anneal combination never tested — all K>1 rows
+  predate the anneal machinery.
+
 ## Known sharp edges (not additions — things to fix or document)
 
 - `ind(x > 0.5)` is span-normalised, but `ind(x > y)` silently falls back to raw
@@ -585,3 +636,84 @@ effective dims (fine per-block, pointless there since flow entropy is exact).
   baseline. If it matches or beats k-warmup, the builder-facing version is
   a single β schedule in `DistributionBuilder.build` and the per-constraint
   warmup question disappears.
+
+## 15. Peer-reliability benchmark — big-setting test of the CURRENT api
+
+`benchmarks/reliability_experiment.py` + `colab_reliability_sweep.ipynb`
+(thin git-pull shell, same pattern as the prereq sweep). 25 people,
+`r_i ~ Beta(8, 2)` (strongly weighted reliable); each rates 6 random others
+(connected 6-out digraph, resampled if not) with noise
+`sigma(r_rater) = 0.40 - 0.35*r_rater` — the self-referential setting
+eigenvector methods (EigenTrust) roughly solve. Ground truth by
+construction, so no NUTS reference needed for v1: score (a) RMSE of the
+posterior mean vs the iterative eigenvector-style baseline and the
+prior-shrunk mean, (b) 80%-interval coverage across replications (the
+calibration claim point-estimate baselines cannot make). Deliberately ZERO
+solver/api changes — misspecification tolerance is part of what is measured:
+
+- `mode="fixed"`: every eval an `ExpectationEstimate` at one global
+  sd = 0.12 (rater identity discarded — misspecified). Structural ceiling
+  is the shrunk mean; measures degradation under ~150 mutually-inconsistent
+  fixed-strength constraints.
+- `mode="eqn"`: heteroscedastic model expressed in the EXISTING equation
+  language via a variance-stabilised residual
+  `r_j = r_j - (r_j - s_ij)*SIG0/sigma(r_i) ~ N(0, SIG0)` -> eqn_dist.
+  When the fit thinks rater i is unreliable the residual shrinks — the
+  likelihood's reweighting, via moment matching. This arm competes for the
+  mean->eig headroom (+0.003 rmse over 40 seeds — small because the shrunk
+  mean is already strong at 6 evals; sparsity chosen exactly so intervals
+  matter).
+- Baseline gotcha (fixed): raw inverse-MSE rater weights OVERFIT at 6 evals
+  per rater and lose to the plain shrunk mean; the shipped baseline shrinks
+  each rater's noise estimate with 4 pseudo-evals at the average sd.
+- Both modes + the eig baseline get the same prior info (`E[r_i]=0.8`,
+  sd 0.121) so the comparison is fair.
+- Open/v2: NUTS reference posterior for per-dataset shape debugging when a
+  replication fails coverage; note eqn_dist matches residual mean/var of
+  the joint sample — a maxent relaxation of the true per-observation
+  likelihood, and eqn kinds are not annealed (section 14), both of which
+  this benchmark now exercises at scale.
+
+## 16. value_penalty="nll" — expectations as noisy observations (new default)
+
+Motivated directly by the reliability benchmark's fixed-mode error-bar plot:
+posterior means matched the eig baseline but 80% widths were ~0.45 (vs the
+~0.13 Bayes-ideal for 6 evals at sd 0.12), because plain `expect` pins ONLY
+the mean — repeated estimates of the same quantity re-argue the mean and
+add zero precision, and maxent correctly inflates the marginal to the
+widest shape with that mean (the exponential-tilt bars hugging the domain
+edge). Precision accumulation is not expressible as moment pins at all.
+
+Fix: `ExpectationEstimate` / `ConditionalExpectationEstimate` (equality,
+non-gated) now route to `expect_nll` / `cond_expect_nll` with **k=1,
+tau=sd, beta=0** — "this estimate is one noisy observation of the
+quantity": target ~ N(E[f], Var[f] + sd^2), the exact marginal likelihood
+of a noisy observation. Properties (all verified, scratchpad
+`value_nll_smoke.py`):
+- 1 estimate: the half-log Occam term saturates at sd^2, entropy wins, the
+  marginal stays maxent-wide (measured sd 0.204) — a lone belief does not
+  fake precision.
+- n agreeing estimates: Var -> sd^2/(n-1), i.e. sd/sqrt(n) Bayesian
+  concentration. Measured: n=4 -> 0.058 (Bayes 0.050), n=16 -> 0.026
+  (0.025). Startlingly exact.
+- tau=sd floors the implied noise -> no variance death spiral, so beta=0
+  (full strength) is safe; curvature bounded by 1/sd^2, so no anneal
+  needed either (and the builder staircase does not touch expect_nll —
+  no takes_beta marker — which is fine at these bounded strengths).
+- `value_penalty="square"` restores the legacy weighted squared residual;
+  inequalities and robust gates use the legacy machinery in both settings.
+Also fixed in passing: `_prob_sd` now honours per-estimate sd under
+prob_penalty="nll" (previously logit-only — repeat-collapse widths were
+silently ignored by the nll default).
+
+Default-kind map after this: probabilities prob_nll/cond_prob_nll,
+expectations expect_nll/cond_expect_nll; correlations (corr weight) and
+equations (eqn_det/eqn_dist; eqn_nll exists unrouted) are still NOT nll —
+the un-annealed, un-nll eqn path is the reliability benchmark's prime
+suspect for the eqn arm's rmse gap + seed spread.
+
+Immediate effect on the reliability smoke (pop=8): fixed-arm width80
+0.456 -> 0.225, rmse 0.039 -> 0.035 (now beating the eig baseline at that
+scale). The fixed arm is no longer a pure degradation probe — with
+accumulation it is a genuine homoscedastic-Bayes competitor; re-run the
+Colab sweep to see both arms under the new default.

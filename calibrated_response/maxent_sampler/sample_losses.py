@@ -88,7 +88,8 @@ def _expectation_loss(builder: "DistributionBuilder", est: ExpectationEstimate) 
     builder._add(f, None, tg, builder._value_sd(est, idx),
                  est.id, est.to_query_estimate(),
                  lambda x, f=f: float(np.mean(f(x))), None,
-                 scale=builder._span(idx), direction=est.relation)
+                 scale=builder._span(idx), space="value",
+                 direction=est.relation)
 
 
 def _conditional_probability_loss(
@@ -129,7 +130,8 @@ def _conditional_expectation_loss(
 
     builder._add(f, soft_c, tg, builder._value_sd(est, idx),
                  est.id, est.to_query_estimate(), ev, hard_c,
-                 scale=builder._span(idx), direction=est.relation)
+                 scale=builder._span(idx), space="value",
+                 direction=est.relation)
 
 
 def _correlation_loss(builder: "DistributionBuilder", est: CorrelationEstimate) -> None:
