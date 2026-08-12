@@ -104,10 +104,11 @@ def _connected(pop: int, edges) -> bool:
 
 
 BAD_A, BAD_B = 2.0, 6.0        # dud-reviewer reliability prior (mean 0.25)
+SIG_SYM = 0.12                 # constant eval noise in the symmetric variant
 
 
 def generate(pop: int = 25, n_evals: int = 6, seed: int = 0,
-             flip: float = 0.0, n_bad: int = 0):
+             flip: float = 0.0, n_bad: int = 0, sym: bool = False):
     """Draw reliabilities, a connected random n_evals-out graph, and scores.
 
     ``flip`` scales per-eval inversion: with probability
@@ -120,12 +121,25 @@ def generate(pop: int = 25, n_evals: int = 6, seed: int = 0,
     prior — under flip they are near-inverters, so the hard case exists on
     every seed instead of riding the Beta(8, 2) tail.  The solver's priors
     still say E[r]=0.8 for everyone (it must *discover* the duds); the
-    fixed indices make inspection easy.  Returns ``(r, evals)`` with
-    ``evals`` a list of ``(i, j, s_ij)``."""
+    fixed indices make inspection easy.
+
+    ``sym=True`` is the EXACT-MIRROR variant (a pure representation test):
+    flip probability ``p(r) = 1 - r`` (so ``p(1-r) = 1 - p(r)``), constant
+    noise ``SIG_SYM``, and a symmetric population (50/50 mixture of
+    Beta(8,2) honest and Beta(2,8) anti raters).  The likelihood is then
+    exactly invariant under the global mirror ``r -> 1 - r``: the true
+    posterior has two equal-mass modes, and a good sampler must show BOTH
+    (two clusters in the pairwise plots).  ``flip``/``n_bad`` are ignored.
+    Returns ``(r, evals)`` with ``evals`` a list of ``(i, j, s_ij)``."""
     rng = np.random.default_rng(seed)
-    r = rng.beta(PRIOR_A, PRIOR_B, size=pop)
-    if n_bad:
-        r[:n_bad] = rng.beta(BAD_A, BAD_B, size=n_bad)
+    if sym:
+        hon = rng.beta(PRIOR_A, PRIOR_B, size=pop)
+        anti = rng.beta(PRIOR_B, PRIOR_A, size=pop)
+        r = np.where(rng.uniform(size=pop) < 0.5, hon, anti)
+    else:
+        r = rng.beta(PRIOR_A, PRIOR_B, size=pop)
+        if n_bad:
+            r[:n_bad] = rng.beta(BAD_A, BAD_B, size=n_bad)
     for _ in range(100):
         edges = []
         for i in range(pop):
@@ -138,13 +152,19 @@ def generate(pop: int = 25, n_evals: int = 6, seed: int = 0,
         raise RuntimeError("could not sample a connected eval graph")
     evals = []
     for i, j in edges:
-        # NB: only touch the rng when flip is on, so flip=0 draws the exact
-        # same eval stream as the original generator (rows stay comparable)
+        # NB: only touch the rng when flip/sym is on, so flip=0 draws the
+        # exact same eval stream as the original generator (rows comparable)
         base = r[j]
-        if flip and rng.uniform() < flip_prob(r[i], flip):
-            base = 1.0 - r[j]
+        if sym:
+            if rng.uniform() < 1.0 - r[i]:
+                base = 1.0 - r[j]
+            sd = SIG_SYM
+        else:
+            if flip and rng.uniform() < flip_prob(r[i], flip):
+                base = 1.0 - r[j]
+            sd = sigma_of_r(r[i])
         evals.append((i, j, float(np.clip(
-            base + rng.normal(0.0, sigma_of_r(r[i])), 0.001, 0.999))))
+            base + rng.normal(0.0, sd), 0.001, 0.999))))
     return r, evals
 
 
@@ -208,31 +228,48 @@ def build_variables(pop: int):
             for i in range(pop)]
 
 
-def build_estimates(pop: int, evals, mode: str = "eqn", flip: float = 0.0):
+def build_estimates(pop: int, evals, mode: str = "eqn", flip: float = 0.0,
+                    sym: bool = False):
     """``flip`` here is what the *solver* is told about the flip mechanism
     (the true generator value for a correctly-specified eqn arm).  The
     two-component mixture likelihood is moment-matched: the eqn residual
     uses the flip-adjusted mean ``r_j + p(r_i)(1-2 r_j)`` and total sd
     ``(sigma(r_i)^2 + p(1-p)(1-2 r_j)^2)^0.5`` — all inside the existing
-    equation grammar.  The fixed arm stays flip-blind (misspecified)."""
-    ests = [ExpectationEstimate(id=f"prior_{i}", variable=_name(i),
-                                expected_value=PRIOR_MEAN, sd=PRIOR_SD)
-            for i in range(pop)]
+    equation grammar.  The fixed arm stays flip-blind (misspecified).
+
+    ``sym=True``: the exact-mirror model, ``p = 1 - r_i`` and constant
+    ``SIG_SYM``; the prior estimates become the SYMMETRIC ``E[r]=0.5``
+    (weak) so nothing in the constraint set breaks the mirror — the
+    correct posterior is the 50/50 two-mode joint by construction."""
+    if sym:
+        ests = [ExpectationEstimate(id=f"prior_{i}", variable=_name(i),
+                                    expected_value=0.5, sd=0.25)
+                for i in range(pop)]
+    else:
+        ests = [ExpectationEstimate(id=f"prior_{i}", variable=_name(i),
+                                    expected_value=PRIOR_MEAN, sd=PRIOR_SD)
+                for i in range(pop)]
     for n, (i, j, s) in enumerate(evals):
         if mode == "fixed":
             ests.append(ExpectationEstimate(
                 id=f"s{n}_{i}_{j}", variable=_name(j),
-                expected_value=s, sd=SD_AVG))
+                expected_value=s, sd=0.35 if sym else SD_AVG))
         elif mode == "eqn":
             ri, rj = _name(i), _name(j)
-            sig_i = f"({SIG_HI} - {SIG_HI - SIG_LO} * {ri})"
-            if flip:
-                p = f"({flip} * (1 - {ri}) ** 2)"
-                mean = f"({rj} + {p} * (1 - 2 * {rj}))"
-                sd_tot = (f"({sig_i} ** 2 "
-                          f"+ {p} * (1 - {p}) * (1 - 2 * {rj}) ** 2) ** 0.5")
+            if sym:
+                # p = 1 - r_i exactly; p(1-p) = r_i(1-r_i)
+                mean = f"({rj} + (1 - {ri}) * (1 - 2 * {rj}))"
+                sd_tot = (f"({SIG_SYM} ** 2 "
+                          f"+ {ri} * (1 - {ri}) * (1 - 2 * {rj}) ** 2) ** 0.5")
             else:
-                mean, sd_tot = rj, sig_i
+                sig_i = f"({SIG_HI} - {SIG_HI - SIG_LO} * {ri})"
+                if flip:
+                    p = f"({flip} * (1 - {ri}) ** 2)"
+                    mean = f"({rj} + {p} * (1 - 2 * {rj}))"
+                    sd_tot = (f"({sig_i} ** 2 "
+                              f"+ {p} * (1 - {p}) * (1 - 2 * {rj}) ** 2) ** 0.5")
+                else:
+                    mean, sd_tot = rj, sig_i
             # residual = (mean - s) * SIG0 / sd_tot  ~  N(0, SIG0)
             rhs = f"{rj} - ({mean} - {s:.4f}) * {SIG0} / {sd_tot}"
             ests.append(EquationEstimate(
@@ -248,7 +285,8 @@ def fit_and_measure(pop: int = 25, n_evals: int = 6, mode: str = "eqn",
                     steps: int = 3000, n_samples: int = 2048,
                     eval_samples: int = 20000, seed: int = 0,
                     lr: float = 2e-3, flip: float = 0.0, n_bad: int = 0,
-                    return_fit: bool = False, **builder_kw):
+                    sym: bool = False, return_fit: bool = False,
+                    **builder_kw):
     """Run one replication; returns the metrics row.
 
     With ``return_fit=True`` returns ``(row, fit)`` where ``fit`` is a dict
@@ -256,7 +294,7 @@ def fit_and_measure(pop: int = 25, n_evals: int = 6, mode: str = "eqn",
     ``builder`` (query ``builder.sample_dict(n)``, ``builder.constraint_report()``),
     the ground truth ``r``, the raw ``evals``, the readout ``samples``, and
     both baseline estimates."""
-    r, evals = generate(pop, n_evals, seed, flip=flip, n_bad=n_bad)
+    r, evals = generate(pop, n_evals, seed, flip=flip, n_bad=n_bad, sym=sym)
     b_mean = baseline_mean(pop, evals)
     b_eig = baseline_eig(pop, evals)
 
@@ -267,7 +305,7 @@ def fit_and_measure(pop: int = 25, n_evals: int = 6, mode: str = "eqn",
     builder_kw.setdefault("eqn_conf", 1.0)
     builder = DistributionBuilder(build_variables(pop),
                                   build_estimates(pop, evals, mode,
-                                                  flip=flip),
+                                                  flip=flip, sym=sym),
                                   **builder_kw)
     assert not builder.skipped, builder.skipped
     builder.fit(steps=steps, lr=lr, n_samples=n_samples, seed=seed)
@@ -281,10 +319,20 @@ def fit_and_measure(pop: int = 25, n_evals: int = 6, mode: str = "eqn",
     def rmse(a):
         return float(np.sqrt(np.mean((a - r) ** 2)))
 
+    # per-sample hypothesis alignment: a = cos(x - 1/2, r - 1/2).  sign(a)
+    # says which global mode the sample lives in, |a| whether it commits to
+    # a hypothesis at all.  In the sym variant the truth is 50/50 twin
+    # modes: want balance ~ 0.5 with commit HIGH (two tight clusters);
+    # commit high + balance ~ 1.0 = mode collapse; commit ~ 0 = blur
+    # (samples split the difference instead of choosing).  In the normal
+    # variants balance ~ 1.0 is correct.
+    u, v = x - 0.5, r - 0.5
+    a = (u @ v) / (np.linalg.norm(u, axis=1) * np.linalg.norm(v) + 1e-12)
     row = dict(
         pop=pop, n_evals=n_evals, mode=mode, steps=steps,
         n_samples=n_samples, seed=seed, flip=flip, n_bad=n_bad,
-        K=int(builder_kw.get("n_components", 1)),
+        sym=bool(sym), K=int(builder_kw.get("n_components", 1)),
+        balance=float(np.mean(a > 0)), commit=float(np.mean(np.abs(a))),
         rmse_fit=rmse(mean), rmse_mean=rmse(b_mean), rmse_eig=rmse(b_eig),
         cover80=float(np.mean((q10 <= r) & (r <= q90))),
         width80=float(np.mean(q90 - q10)),
@@ -330,11 +378,25 @@ def flip_configs(pop: int = 25, n_evals: int = 6, steps: int = 3000,
     return cfgs
 
 
+def sym_configs(pop: int = 15, n_evals: int = 6, steps: int = 3000,
+                Ks=(1, 8, 32), seeds=range(3)):
+    """The exact-mirror representation test: the true posterior is two
+    equal-mass twin modes by construction (see ``generate(sym=True)``).
+    Judge on ``balance`` (~0.5) x ``commit`` (high) and the two-cluster
+    pairwise plots, NOT rmse_fit — the posterior mean is 0.5 everywhere at
+    the ideal answer, so rmse_fit ~ sd(r) is expected and correct.
+    eqn-only: the fixed arm has no mirror (its likelihood is unimodal)."""
+    return [dict(pop=pop, n_evals=n_evals, mode="eqn", steps=steps,
+                 sym=True, n_components=K, seed=s)
+            for K in Ks for s in seeds]
+
+
 def _key(row):
     # rows record the mixture size as "K"; configs pass it as "n_components"
     k = row.get("K", row.get("n_components", 1))
     return (row["pop"], row["n_evals"], row["mode"], row["steps"],
-            row.get("flip", 0.0), row.get("n_bad", 0), int(k), row["seed"])
+            row.get("flip", 0.0), row.get("n_bad", 0),
+            int(bool(row.get("sym", False))), int(k), row["seed"])
 
 
 def run_sweep(configs, out_path: str = "results/reliability.jsonl"):
@@ -368,13 +430,17 @@ def run_sweep(configs, out_path: str = "results/reliability.jsonl"):
         flip_tag = f" flip={row['flip']}" if row.get("flip") else ""
         if row.get("n_bad"):
             flip_tag += f" bad={row['n_bad']}"
+        if row.get("sym"):
+            flip_tag += " sym"
         if row.get("K", 1) != 1:
             flip_tag += f" K={row['K']}"
+        sym_tag = (f"  bal={row['balance']:.2f} commit={row['commit']:.2f}"
+                   if row.get("sym") else "")
         print(f"pop={row['pop']} m={row['n_evals']} {row['mode']:>5}"
               f"{flip_tag} seed={row['seed']}  rmse fit={row['rmse_fit']:.4f} "
               f"mean={row['rmse_mean']:.4f} eig={row['rmse_eig']:.4f}  "
-              f"cover80={row['cover80']:.2f} width={row['width80']:.3f} "
-              f"({row['secs']:.0f}s)")
+              f"cover80={row['cover80']:.2f} width={row['width80']:.3f}"
+              f"{sym_tag} ({row['secs']:.0f}s)")
     return rows, fits
 
 
@@ -388,24 +454,30 @@ def summarize(rows_or_path="results/reliability.jsonl"):
     for row in rows:
         groups.setdefault((row["pop"], row["n_evals"], row["mode"],
                            row["steps"], row.get("flip", 0.0),
-                           row.get("n_bad", 0), row.get("K", 1)),
-                          []).append(row)
+                           row.get("n_bad", 0),
+                           int(bool(row.get("sym", False))),
+                           row.get("K", 1)), []).append(row)
     print(f"{'pop':>4} {'m':>3} {'mode':>6} {'steps':>6} {'flip':>5} "
-          f"{'bad':>4} {'K':>3} {'n':>3}  "
+          f"{'bad':>4} {'sym':>3} {'K':>3} {'n':>3}  "
           f"{'rmse_fit':>15} {'rmse_mean':>10} {'rmse_eig':>10}  "
-          f"{'cover80':>8} {'width80':>8}")
+          f"{'cover80':>8} {'width80':>8} {'balance':>8} {'commit':>7}")
     for key in sorted(groups):
         g = groups[key]
 
         def ms(field):
-            v = [row[field] for row in g]
+            v = [row.get(field) for row in g]
+            v = [x for x in v if x is not None]
+            if not v:
+                return float("nan"), float("nan")
             return float(np.mean(v)), float(np.std(v))
 
         f_m, f_s = ms("rmse_fit")
         print(f"{key[0]:>4} {key[1]:>3} {key[2]:>6} {key[3]:>6} {key[4]:>5} "
-              f"{key[5]:>4} {key[6]:>3} {len(g):>3}  {f_m:>8.4f}±{f_s:<6.4f} "
+              f"{key[5]:>4} {key[6]:>3} {key[7]:>3} {len(g):>3}  "
+              f"{f_m:>8.4f}±{f_s:<6.4f} "
               f"{ms('rmse_mean')[0]:>10.4f} {ms('rmse_eig')[0]:>10.4f}  "
-              f"{ms('cover80')[0]:>8.2f} {ms('width80')[0]:>8.3f}")
+              f"{ms('cover80')[0]:>8.2f} {ms('width80')[0]:>8.3f} "
+              f"{ms('balance')[0]:>8.2f} {ms('commit')[0]:>7.2f}")
 
 
 if __name__ == "__main__":
