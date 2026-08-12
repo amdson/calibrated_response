@@ -76,6 +76,18 @@ def sigma_of_r(r):
     return SIG_HI - (SIG_HI - SIG_LO) * r
 
 
+def flip_prob(r, flip: float):
+    """P(this eval is inverted) as a function of the rater's reliability.
+
+    Quadratic in unreliability: typical prior-mass raters (r ~ 0.8) flip
+    ~4% of their evals at flip=1, while a dud at r=0.3 flips ~half — the
+    hard regime where "target is bad" and "rater is a flipper" are
+    competing explanations (a bimodal likelihood the eigenvector baseline
+    cannot express: it can down-weight an inconsistent rater but never
+    *invert* one)."""
+    return flip * (1.0 - r) ** 2
+
+
 def _connected(pop: int, edges) -> bool:
     """Is the undirected union of the eval graph connected?"""
     adj = [[] for _ in range(pop)]
@@ -91,10 +103,15 @@ def _connected(pop: int, edges) -> bool:
     return len(seen) == pop
 
 
-def generate(pop: int = 25, n_evals: int = 6, seed: int = 0):
+def generate(pop: int = 25, n_evals: int = 6, seed: int = 0,
+             flip: float = 0.0):
     """Draw reliabilities, a connected random n_evals-out graph, and scores.
 
-    Returns ``(r, evals)`` with ``evals`` a list of ``(i, j, s_ij)``."""
+    ``flip`` scales per-eval inversion: with probability
+    ``flip_prob(r_i, flip)`` the rater scores ``1 - r_j`` instead of
+    ``r_j`` (before adding noise).  flip=0 recovers the plain
+    heteroscedastic model.  Returns ``(r, evals)`` with ``evals`` a list
+    of ``(i, j, s_ij)``."""
     rng = np.random.default_rng(seed)
     r = rng.beta(PRIOR_A, PRIOR_B, size=pop)
     for _ in range(100):
@@ -107,9 +124,11 @@ def generate(pop: int = 25, n_evals: int = 6, seed: int = 0):
             break
     else:
         raise RuntimeError("could not sample a connected eval graph")
-    evals = [(i, j, float(np.clip(r[j] + rng.normal(0.0, sigma_of_r(r[i])),
-                                  0.001, 0.999)))
-             for i, j in edges]
+    evals = []
+    for i, j in edges:
+        base = 1.0 - r[j] if rng.uniform() < flip_prob(r[i], flip) else r[j]
+        evals.append((i, j, float(np.clip(
+            base + rng.normal(0.0, sigma_of_r(r[i])), 0.001, 0.999))))
     return r, evals
 
 
@@ -173,7 +192,13 @@ def build_variables(pop: int):
             for i in range(pop)]
 
 
-def build_estimates(pop: int, evals, mode: str = "eqn"):
+def build_estimates(pop: int, evals, mode: str = "eqn", flip: float = 0.0):
+    """``flip`` here is what the *solver* is told about the flip mechanism
+    (the true generator value for a correctly-specified eqn arm).  The
+    two-component mixture likelihood is moment-matched: the eqn residual
+    uses the flip-adjusted mean ``r_j + p(r_i)(1-2 r_j)`` and total sd
+    ``(sigma(r_i)^2 + p(1-p)(1-2 r_j)^2)^0.5`` — all inside the existing
+    equation grammar.  The fixed arm stays flip-blind (misspecified)."""
     ests = [ExpectationEstimate(id=f"prior_{i}", variable=_name(i),
                                 expected_value=PRIOR_MEAN, sd=PRIOR_SD)
             for i in range(pop)]
@@ -183,11 +208,19 @@ def build_estimates(pop: int, evals, mode: str = "eqn"):
                 id=f"s{n}_{i}_{j}", variable=_name(j),
                 expected_value=s, sd=SD_AVG))
         elif mode == "eqn":
-            # residual = (r_j - s) * SIG0 / sigma(r_i)  ~  N(0, SIG0)
-            rhs = (f"{_name(j)} - ({_name(j)} - {s:.4f}) * {SIG0} / "
-                   f"({SIG_HI} - {SIG_HI - SIG_LO} * {_name(i)})")
+            ri, rj = _name(i), _name(j)
+            sig_i = f"({SIG_HI} - {SIG_HI - SIG_LO} * {ri})"
+            if flip:
+                p = f"({flip} * (1 - {ri}) ** 2)"
+                mean = f"({rj} + {p} * (1 - 2 * {rj}))"
+                sd_tot = (f"({sig_i} ** 2 "
+                          f"+ {p} * (1 - {p}) * (1 - 2 * {rj}) ** 2) ** 0.5")
+            else:
+                mean, sd_tot = rj, sig_i
+            # residual = (mean - s) * SIG0 / sd_tot  ~  N(0, SIG0)
+            rhs = f"{rj} - ({mean} - {s:.4f}) * {SIG0} / {sd_tot}"
             ests.append(EquationEstimate(
-                id=f"s{n}_{i}_{j}", lhs=_name(j), rhs=rhs, noise_sd=SIG0))
+                id=f"s{n}_{i}_{j}", lhs=rj, rhs=rhs, noise_sd=SIG0))
         else:
             raise ValueError(f"unknown mode {mode!r}")
     return ests
@@ -198,8 +231,8 @@ def build_estimates(pop: int, evals, mode: str = "eqn"):
 def fit_and_measure(pop: int = 25, n_evals: int = 6, mode: str = "eqn",
                     steps: int = 3000, n_samples: int = 2048,
                     eval_samples: int = 20000, seed: int = 0,
-                    lr: float = 2e-3, return_fit: bool = False,
-                    **builder_kw):
+                    lr: float = 2e-3, flip: float = 0.0,
+                    return_fit: bool = False, **builder_kw):
     """Run one replication; returns the metrics row.
 
     With ``return_fit=True`` returns ``(row, fit)`` where ``fit`` is a dict
@@ -207,13 +240,14 @@ def fit_and_measure(pop: int = 25, n_evals: int = 6, mode: str = "eqn",
     ``builder`` (query ``builder.sample_dict(n)``, ``builder.constraint_report()``),
     the ground truth ``r``, the raw ``evals``, the readout ``samples``, and
     both baseline estimates."""
-    r, evals = generate(pop, n_evals, seed)
+    r, evals = generate(pop, n_evals, seed, flip=flip)
     b_mean = baseline_mean(pop, evals)
     b_eig = baseline_eig(pop, evals)
 
     t0 = time.time()
     builder = DistributionBuilder(build_variables(pop),
-                                  build_estimates(pop, evals, mode),
+                                  build_estimates(pop, evals, mode,
+                                                  flip=flip),
                                   **builder_kw)
     assert not builder.skipped, builder.skipped
     builder.fit(steps=steps, lr=lr, n_samples=n_samples, seed=seed)
@@ -229,7 +263,7 @@ def fit_and_measure(pop: int = 25, n_evals: int = 6, mode: str = "eqn",
 
     row = dict(
         pop=pop, n_evals=n_evals, mode=mode, steps=steps,
-        n_samples=n_samples, seed=seed,
+        n_samples=n_samples, seed=seed, flip=flip,
         rmse_fit=rmse(mean), rmse_mean=rmse(b_mean), rmse_eig=rmse(b_eig),
         cover80=float(np.mean((q10 <= r) & (r <= q90))),
         width80=float(np.mean(q90 - q10)),
@@ -256,9 +290,17 @@ def quick_configs():
             for mode in ("fixed", "eqn") for s in range(2)]
 
 
+def flip_configs(pop: int = 25, n_evals: int = 6, steps: int = 3000,
+                 flip: float = 1.0, seeds=range(5)):
+    """The hard variant: unreliable raters invert reviews before noising."""
+    return [dict(pop=pop, n_evals=n_evals, mode=mode, steps=steps,
+                 flip=flip, seed=s)
+            for mode in ("fixed", "eqn") for s in seeds]
+
+
 def _key(row):
     return (row["pop"], row["n_evals"], row["mode"], row["steps"],
-            row["seed"])
+            row.get("flip", 0.0), row["seed"])
 
 
 def run_sweep(configs, out_path: str = "results/reliability.jsonl"):
@@ -289,8 +331,9 @@ def run_sweep(configs, out_path: str = "results/reliability.jsonl"):
         fits[_key(row)] = fit
         with open(out_path, "a") as fh:
             fh.write(json.dumps(row) + "\n")
-        print(f"pop={row['pop']} m={row['n_evals']} {row['mode']:>5} "
-              f"seed={row['seed']}  rmse fit={row['rmse_fit']:.4f} "
+        flip_tag = f" flip={row['flip']}" if row.get("flip") else ""
+        print(f"pop={row['pop']} m={row['n_evals']} {row['mode']:>5}"
+              f"{flip_tag} seed={row['seed']}  rmse fit={row['rmse_fit']:.4f} "
               f"mean={row['rmse_mean']:.4f} eig={row['rmse_eig']:.4f}  "
               f"cover80={row['cover80']:.2f} width={row['width80']:.3f} "
               f"({row['secs']:.0f}s)")
@@ -306,9 +349,9 @@ def summarize(rows_or_path="results/reliability.jsonl"):
     groups: dict = {}
     for row in rows:
         groups.setdefault((row["pop"], row["n_evals"], row["mode"],
-                           row["steps"]), []).append(row)
-    print(f"{'pop':>4} {'m':>3} {'mode':>6} {'steps':>6} {'n':>3}  "
-          f"{'rmse_fit':>15} {'rmse_mean':>10} {'rmse_eig':>10}  "
+                           row["steps"], row.get("flip", 0.0)), []).append(row)
+    print(f"{'pop':>4} {'m':>3} {'mode':>6} {'steps':>6} {'flip':>5} "
+          f"{'n':>3}  {'rmse_fit':>15} {'rmse_mean':>10} {'rmse_eig':>10}  "
           f"{'cover80':>8} {'width80':>8}")
     for key in sorted(groups):
         g = groups[key]
@@ -318,7 +361,7 @@ def summarize(rows_or_path="results/reliability.jsonl"):
             return float(np.mean(v)), float(np.std(v))
 
         f_m, f_s = ms("rmse_fit")
-        print(f"{key[0]:>4} {key[1]:>3} {key[2]:>6} {key[3]:>6} "
+        print(f"{key[0]:>4} {key[1]:>3} {key[2]:>6} {key[3]:>6} {key[4]:>5} "
               f"{len(g):>3}  {f_m:>8.4f}±{f_s:<6.4f} "
               f"{ms('rmse_mean')[0]:>10.4f} {ms('rmse_eig')[0]:>10.4f}  "
               f"{ms('cover80')[0]:>8.2f} {ms('width80')[0]:>8.3f}")

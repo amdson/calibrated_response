@@ -717,3 +717,24 @@ Immediate effect on the reliability smoke (pop=8): fixed-arm width80
 scale). The fixed arm is no longer a pure degradation probe — with
 accumulation it is a genuine homoscedastic-Bayes competitor; re-run the
 Colab sweep to see both arms under the new default.
+
+### 15b. Flip variant — the hard version (decoy mode, quantified)
+
+`flip` knob in the reliability benchmark: an eval is inverted
+(`s = 1 - r_j + noise`) with probability `flip * (1 - r_i)^2` — typical
+raters flip ~4%, duds ~half. The eqn arm moment-matches the true mixture
+(mean `r_j + p(1-2r_j)`, sd `(sigma^2 + p(1-p)(1-2r_j)^2)^0.5` — the
+grammar's `**0.5` makes this expressible; validated: residuals at true r
+are mean ~0, sd ~SIG0). The fixed arm stays flip-blind; the eig baseline
+can down-weight but never invert a rater.
+
+Why it is hard (measured, `flip_residual_check.py`): the mirrored
+configuration (all reliabilities inverted) is a DECOY BASIN. At flip=0 its
+moment penalty is ~700x the truth's; at flip=1 only ~40x, because calling
+everyone a flipper inflates every observation's variance normalizer and
+shrinks all stabilized residuals below target — only the (weak) variance
+match resists. A tiny 250-step CPU fit fell exactly into the mirror
+(rmse 0.67 = inverted estimates, cover80 = 0). The 25 weak priors
+(E[r]=0.8) are the intended symmetry-breaker. This makes the flip sweep a
+direct test of basin selection (anneal / mixture base) against a
+quantified decoy — notebook `MODE="flip"`.
