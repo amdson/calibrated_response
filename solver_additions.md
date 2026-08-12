@@ -766,3 +766,36 @@ cover80=0) now lands at rmse 0.060 — beating the mean baseline — with the
 anneal walking it past the decoy. The plain eqn smoke is width-inflated at
 this budget (holds eat most of 250 steps); judge on the 3000-step GPU
 sweep: pass = eqn <= eig rmse on 5/5 seeds at cover80 ~ 0.8.
+
+## 18. Weak-estimates fusion benchmark (KL vs m, ~1/m target)
+
+`benchmarks/weak_estimates_experiment.py` + `benchmarks/colab_weak_estimates_sweep.ipynb`.
+The world is a fixed bivariate normal (X, Y) (mu=(0.5,-0.5), sd=(1.0,1.5),
+rho=0.6); the solver only sees weak empirical estimates, each computed from
+N_PER_EST=5 iid draws: empirical E[X], E[X*Y], E[X^2], P(X>2), P(X>Y), ...
+sampled with replacement from a 20-functional menu. Oracle weighting: every
+estimate carries its TRUE sampling sd at n=5 (value units for expectations;
+log-odds 1/sqrt(n p(1-p)) for probabilities, Jeffreys-smoothed p-hat), so a
+Bayes-optimal fuser's KL falls ~1/m. Claim under test: KL(fit||true)
+decreases (near-)monotonically as estimates accumulate — expect_nll FUSES
+weak evidence rather than averaging it.
+
+Design points:
+- Composite functionals ride through DETERMINISTIC EquationEstimate links
+  (xy = x*y, xx = x*x, xpy, xmy, ...) to aux variables, then plain
+  Expectation/Probability estimates on the aux var — doubles as a Fermi-link
+  load test (`link_err` = RMS(aux - f(x,y))/sd(f) is a first-class metric).
+- Aux domains by interval arithmetic over the (x,y) box so a link can never
+  be forced outside its variable's domain.
+- Per seed ONE pool of 64 estimates; the m-ladder (0,2,4,8,16,32,64) takes
+  prefixes — each rung strictly ADDS evidence (monotonicity is about adding,
+  not resampling). m=0 = links only = maxent no-information anchor.
+- Scoring vs the closed-form truth, no reference posterior: kl_gauss
+  (moment-matched Gaussian KL) + kl_knn (Kozachenko-Leonenko 1-NN entropy +
+  exact cross-entropy — catches non-Gaussian pathology kl_gauss forgives);
+  kl_uniform_ref() ~ 9.98 nats is the uniform-box anchor. summarize() prints
+  per-seed ladder-step monotonicity fractions.
+
+Smoke (250-step CPU, pool=16): kl_gauss 2.95 (m=0) -> 1.79 (m=4) -> 0.33
+(m=16); link_err ~0.7 at this starved budget — watch it at 3000 GPU steps
+before trusting the aux-variable channel.
