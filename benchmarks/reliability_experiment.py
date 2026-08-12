@@ -284,6 +284,7 @@ def fit_and_measure(pop: int = 25, n_evals: int = 6, mode: str = "eqn",
     row = dict(
         pop=pop, n_evals=n_evals, mode=mode, steps=steps,
         n_samples=n_samples, seed=seed, flip=flip, n_bad=n_bad,
+        K=int(builder_kw.get("n_components", 1)),
         rmse_fit=rmse(mean), rmse_mean=rmse(b_mean), rmse_eig=rmse(b_eig),
         cover80=float(np.mean((q10 <= r) & (r <= q90))),
         width80=float(np.mean(q90 - q10)),
@@ -311,17 +312,29 @@ def quick_configs():
 
 
 def flip_configs(pop: int = 25, n_evals: int = 6, steps: int = 3000,
-                 flip: float = 1.0, n_bad: int = 3, seeds=range(5)):
+                 flip: float = 1.0, n_bad: int = 3, Ks=(1, 8, 32),
+                 seeds=range(5)):
     """The hard variant: unreliable raters invert reviews before noising,
-    with a guaranteed dud subpopulation (persons 0..n_bad-1)."""
-    return [dict(pop=pop, n_evals=n_evals, mode=mode, steps=steps,
-                 flip=flip, n_bad=n_bad, seed=s)
-            for mode in ("fixed", "eqn") for s in seeds]
+    with a guaranteed dud subpopulation (persons 0..n_bad-1).  ``Ks``
+    sweeps the mixture-base size on the eqn arm — K > 1 is the mechanism
+    for *keeping both hypotheses* (reliable vs inverter) in one joint:
+    components can reweight across basins where a K=1 flow would have to
+    transport mass through a desert.  Success criterion beyond rmse: a
+    dud's marginal coming out bimodal in the pairwise plot.  The fixed arm
+    stays K=1 (flip-blind; K would not help it)."""
+    cfgs = [dict(pop=pop, n_evals=n_evals, mode="fixed", steps=steps,
+                 flip=flip, n_bad=n_bad, seed=s) for s in seeds]
+    cfgs += [dict(pop=pop, n_evals=n_evals, mode="eqn", steps=steps,
+                  flip=flip, n_bad=n_bad, n_components=K, seed=s)
+             for K in Ks for s in seeds]
+    return cfgs
 
 
 def _key(row):
+    # rows record the mixture size as "K"; configs pass it as "n_components"
+    k = row.get("K", row.get("n_components", 1))
     return (row["pop"], row["n_evals"], row["mode"], row["steps"],
-            row.get("flip", 0.0), row.get("n_bad", 0), row["seed"])
+            row.get("flip", 0.0), row.get("n_bad", 0), int(k), row["seed"])
 
 
 def run_sweep(configs, out_path: str = "results/reliability.jsonl"):
@@ -355,6 +368,8 @@ def run_sweep(configs, out_path: str = "results/reliability.jsonl"):
         flip_tag = f" flip={row['flip']}" if row.get("flip") else ""
         if row.get("n_bad"):
             flip_tag += f" bad={row['n_bad']}"
+        if row.get("K", 1) != 1:
+            flip_tag += f" K={row['K']}"
         print(f"pop={row['pop']} m={row['n_evals']} {row['mode']:>5}"
               f"{flip_tag} seed={row['seed']}  rmse fit={row['rmse_fit']:.4f} "
               f"mean={row['rmse_mean']:.4f} eig={row['rmse_eig']:.4f}  "
@@ -373,9 +388,10 @@ def summarize(rows_or_path="results/reliability.jsonl"):
     for row in rows:
         groups.setdefault((row["pop"], row["n_evals"], row["mode"],
                            row["steps"], row.get("flip", 0.0),
-                           row.get("n_bad", 0)), []).append(row)
+                           row.get("n_bad", 0), row.get("K", 1)),
+                          []).append(row)
     print(f"{'pop':>4} {'m':>3} {'mode':>6} {'steps':>6} {'flip':>5} "
-          f"{'bad':>4} {'n':>3}  "
+          f"{'bad':>4} {'K':>3} {'n':>3}  "
           f"{'rmse_fit':>15} {'rmse_mean':>10} {'rmse_eig':>10}  "
           f"{'cover80':>8} {'width80':>8}")
     for key in sorted(groups):
@@ -387,7 +403,7 @@ def summarize(rows_or_path="results/reliability.jsonl"):
 
         f_m, f_s = ms("rmse_fit")
         print(f"{key[0]:>4} {key[1]:>3} {key[2]:>6} {key[3]:>6} {key[4]:>5} "
-              f"{key[5]:>4} {len(g):>3}  {f_m:>8.4f}±{f_s:<6.4f} "
+              f"{key[5]:>4} {key[6]:>3} {len(g):>3}  {f_m:>8.4f}±{f_s:<6.4f} "
               f"{ms('rmse_mean')[0]:>10.4f} {ms('rmse_eig')[0]:>10.4f}  "
               f"{ms('cover80')[0]:>8.2f} {ms('width80')[0]:>8.3f}")
 

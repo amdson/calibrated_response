@@ -187,6 +187,13 @@ class DistributionBuilder:
     num_bins, tail_bound :
         Spline knobs (``flow_type="spline"``): bins per transformed dim and the
         ``[-B, B]`` interval outside which the spline is the identity.
+    n_components : int
+        Gaussian-mixture base size (see :class:`FlowSamplerModel`).  K > 1
+        is the multimodality mechanism: base components can occupy separate
+        posterior basins and reallocate *weight* between them, which a
+        K=1 flow can only do by transporting mass through a low-density
+        desert (it never does).  Use for problems with competing discrete
+        hypotheses — e.g. "reviewer is reliable" vs "reviewer inverts".
     n_dummy : int
         Extra flow dimensions carrying no variable (see
         :class:`FlowSamplerModel`): a pure expressiveness knob — no
@@ -221,6 +228,7 @@ class DistributionBuilder:
         n_layers: int = 8,
         hidden: int = 64,
         s_max: float = 3.0,
+        n_components: int = 1,
         n_dummy: int = 0,
         flow_type: str = "affine",
         num_bins: int = 8,
@@ -297,7 +305,8 @@ class DistributionBuilder:
         self.model = FlowSamplerModel(self.cvars, n_layers=n_layers,
                                       hidden=hidden, s_max=s_max,
                                       n_dummy=n_dummy, flow_type=flow_type,
-                                      num_bins=num_bins, tail_bound=tail_bound)
+                                      num_bins=num_bins, tail_bound=tail_bound,
+                                      n_components=n_components)
 
         # ---- estimates → constraints + evaluation rows -----------------------
         self.constraints: list = []
