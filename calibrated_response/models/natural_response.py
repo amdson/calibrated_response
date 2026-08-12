@@ -18,19 +18,39 @@ from calibrated_response.models.query import (
 # `< / > / <= / >=` for a one-sided bound (`P(x>5) < 0.3`); the inner `>`/`<`
 # of a proposition stays inside the bracketed term, so the two never collide.
 #
+# A belief may carry two orthogonal trailing strength terms, in this order,
+# each optional:
+#   `~ w` — noise width: the informant's uncertainty about the estimate
+#           ITSELF (`E[Cost] = 100 ~ 20`, `P(A > 10) = 0.3 ~ 1.0`): value
+#           units for expectations, log-odds for probabilities, correlation
+#           units for Corr.  Fills Estimate.sd, the channel repeat-collapse
+#           writes.  (Equations keep their own `~ N(0, sigma)` noise tail —
+#           different semantics: spread of the residual, not confidence in
+#           a stated number.)
+#   `@ n` — effective sample size: how many observations the number
+#           summarizes (`E[Cost] = 100 @ 25` = the mean of 25 measurements;
+#           `P(A > 10) = 0.6 @ 5` = 3-of-5 frequency).  Fills Estimate.n,
+#           the nll penalties' pseudo-count k.
+#
 # Breakdown:
 #   ^\s*([PE])\s*            -> P or E (group 1)
 #   [\[\(](.+?)              -> opening ( or [, then the main term (group 2)
 #   (?:\s*\|\s*(.+?))?       -> optional | conditions, any spacing (group 3)
 #   [\]\)]\s*(<=|>=|<|>|=)\s* -> closing ) or ], then the relation (group 4)
-#   (.+?)\s*$                -> the value (group 5)
+#   (.+?)                    -> the value (group 5)
+#   (?:\s*~\s*(...))?        -> optional ~ width (group 6)
+#   (?:\s*@\s*(...))?\s*$    -> optional @ sample size (group 7)
 _REL_OP = r"(<=|>=|<|>|=)"
+_NUM = r"[0-9.eE+\-]+"
+_SD_TAIL = (r"(?:\s*~\s*(" + _NUM + r"))?(?:\s*@\s*(" + _NUM + r"))?\s*$")
 PE_PATTERN = (
-    r"^\s*([PE])\s*[\[\(](.+?)(?:\s*\|\s*(.+?))?[\]\)]\s*" + _REL_OP + r"\s*(.+?)\s*$"
+    r"^\s*([PE])\s*[\[\(](.+?)(?:\s*\|\s*(.+?))?[\]\)]\s*" + _REL_OP
+    + r"\s*(.+?)" + _SD_TAIL
 )
 # Corr(X, Y) = r  — scale-free pairwise dependence (also one-sided-bound aware)
 CORR_PATTERN = (
-    r"^\s*Corr\s*\(\s*([^,|]+?)\s*,\s*([^,|]+?)\s*\)\s*" + _REL_OP + r"\s*(.+?)\s*$"
+    r"^\s*Corr\s*\(\s*([^,|]+?)\s*,\s*([^,|]+?)\s*\)\s*" + _REL_OP
+    + r"\s*(.+?)" + _SD_TAIL
 )
 # Structural relation `lhs <op> rhs [~ N(0, sigma)]`, op one of = < <= > >= — a
 # bare-identifier LHS is what separates it from the P()/E[]/Corr() forms (those
@@ -74,7 +94,18 @@ class NaturalEstimate(BaseModel):
                     "states an inequality between variables — 'revenue > costs', "
                     "'peak_2030 < capacity ~ N(0, 5)' (the noise sets how soft "
                     "the boundary is) — for bounds one quantity must respect "
-                    "relative to another.",
+                    "relative to another. An estimate may carry trailing "
+                    "strength terms, each optional, in this order: '~ w' "
+                    "states your uncertainty about the number itself "
+                    "('E[Cost] = 100 ~ 20' in value units; "
+                    "'P(A > 10) = 0.3 ~ 1.0' in log-odds: ~1.5 weak hunch, "
+                    "~0.5 confident), and '@ n' states the effective sample "
+                    "size it summarizes ('E[Cost] = 100 @ 25' = mean of 25 "
+                    "measurements, 'P(A > 10) = 0.6 @ 5' = a 3-of-5 "
+                    "frequency, 'total = a + b ~ N(0, 5) @ 30' = identity "
+                    "held on 30 cases). Omit both when unsure — repeated "
+                    "estimates of the same quantity also sharpen it "
+                    "automatically.",
         examples=["E[battery_cost | growth > 40.0] = 125.0",
                   "P(remaining_slams > 2) < 0.15",
                   "net_worth = tesla_price*musk_shares + spacex_stake"]
@@ -175,21 +206,29 @@ def parse_natural_syntax(expression: str) -> EstimateUnion:
     # 1. Regex Extraction (same grammar the pydantic field validates against)
     corr = re.match(CORR_PATTERN, expression)
     if corr:
-        var_a, var_b, op, value_str = corr.groups()
+        var_a, var_b, op, value_str, sd_str, n_str = corr.groups()
         return CorrelationEstimate(
             id=f"C_{var_a.strip()[:12]}_{var_b.strip()[:12]}",
             variable_a=var_a.strip(),
             variable_b=var_b.strip(),
             correlation=float(value_str.strip().rstrip(".")),
             relation=_OP_TO_RELATION[op],
+            sd=float(sd_str) if sd_str else None,
+            n=float(n_str) if n_str else None,
         )
 
     match = re.match(PE_PATTERN, expression)
 
     if not match:
         # Not a P()/E[]/Corr() form — try a structural equation `lhs = rhs`,
-        # peeling off an optional `~ N(0, sigma)` noise tail first.
+        # peeling off the optional `@ n` count and `~ N(0, sigma)` noise
+        # tails first (in that order: `lhs = rhs ~ N(0, 5) @ 30`).
         body = expression.strip()
+        eq_n = None
+        m_n = re.search(r"@\s*(" + _NUM + r")\s*$", body)
+        if m_n:
+            eq_n = float(m_n.group(1))
+            body = body[: m_n.start()].strip()
         noise_sd = None
         m_noise = re.search(NOISE_PATTERN, body)
         if m_noise:
@@ -204,14 +243,18 @@ def parse_natural_syntax(expression: str) -> EstimateUnion:
                 rhs=rhs,
                 noise_sd=noise_sd,
                 relation=_OP_TO_RELATION[op],
+                n=eq_n,
             )
         raise ValueError(f"Invalid syntax: {expression}")
 
-    type_char, main_term, condition_str, op, value_str = match.groups()
+    type_char, main_term, condition_str, op, value_str, sd_str, n_str = \
+        match.groups()
     relation = _OP_TO_RELATION[op]
 
     # 2. Parse Value (tolerate a trailing period / percent phrasing slip)
     est_value = float(value_str.strip().rstrip("."))
+    est_sd = float(sd_str) if sd_str else None
+    est_n = float(n_str) if n_str else None
     
     # 3. Parse Conditions (if any)
     conditions = []
@@ -234,14 +277,18 @@ def parse_natural_syntax(expression: str) -> EstimateUnion:
                 proposition=main_prop,
                 conditions=conditions,
                 probability=est_value,
-                relation=relation
+                relation=relation,
+                sd=est_sd,
+                n=est_n
             )
         else:
             return ProbabilityEstimate(
                 id=est_id,
                 proposition=main_prop,
                 probability=est_value,
-                relation=relation
+                relation=relation,
+                sd=est_sd,
+                n=est_n
             )
 
     elif type_char == 'E':
@@ -254,14 +301,18 @@ def parse_natural_syntax(expression: str) -> EstimateUnion:
                 variable=variable_name,
                 conditions=conditions,
                 expected_value=est_value,
-                relation=relation
+                relation=relation,
+                sd=est_sd,
+                n=est_n
             )
         else:
             return ExpectationEstimate(
                 id=est_id,
                 variable=variable_name,
                 expected_value=est_value,
-                relation=relation
+                relation=relation,
+                sd=est_sd,
+                n=est_n
             )
             
     raise ValueError(f"Unknown estimate type: {type_char}")

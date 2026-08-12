@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
+import jax
 import numpy as np
 
 from calibrated_response.models.distribution import (
@@ -43,6 +44,7 @@ from calibrated_response.models.variable import (
     Variable,
 )
 from calibrated_response.tn.discretize import ContinuousVar
+from calibrated_response.maxent_sampler.equations import compile_expression
 from calibrated_response.maxent_sampler.flow_model import FlowSamplerModel
 from calibrated_response.maxent_sampler.model import (soft_gt, soft_lt,
                                                       straight_through)
@@ -334,7 +336,31 @@ class DistributionBuilder:
         """
         name = prop.variable
         if name not in self.var_name_to_idx:
-            raise ValueError(f"unknown variable {name!r}")
+            # expression fallback: an inequality whose subject is any
+            # grammar expression over the variables — P(x * y > 0),
+            # P(x - y > 1), ...  compile_expression raises (-> skipped)
+            # on genuinely unknown names / bad syntax.
+            if not isinstance(prop, InequalityProposition):
+                raise ValueError(f"unknown variable {name!r}")
+            soft_e, hard_e, scale = self._expr_quantity(name)
+            thr, sign = float(prop.threshold), \
+                (1.0 if prop.is_lower_bound else -1.0)
+            k = self.sharpness / scale
+
+            def soft(x, f=soft_e, k=k, s=sign, t=thr):
+                return jax.nn.sigmoid(k * s * (f(x) - t))
+
+            # exact step written with operators only, so it is safe both on
+            # numpy batches (readout) and inside a jax trace (ST forward)
+            def hard(x, f=hard_e, s=sign, t=thr):
+                return (s * (f(x) - t) > 0.0).astype(np.float32)
+
+            def hard_soft(x, f=soft_e, s=sign, t=thr):
+                return (s * (f(x) - t) > 0.0).astype(np.float32)
+
+            if self.st_indicators:
+                return straight_through(soft, hard_soft), hard
+            return soft, hard
         idx = self.var_name_to_idx[name]
 
         if isinstance(prop, InequalityProposition):
@@ -361,6 +387,40 @@ class DistributionBuilder:
             raise ValueError(f"unknown variable {var_name!r}")
         idx = self.var_name_to_idx[var_name]
         return (lambda x: x[:, idx]), idx
+
+    def _expr_quantity(self, expr: str):
+        """Grammar expression → ``(soft_f, hard_f, scale)``.
+
+        ``scale`` is the expression's range over a fixed uniform sweep of the
+        variable box — the substitute for a declared span, used for the
+        default-sd fallback, report normalisation, and indicator sharpness.
+        Raises ``ValueError`` (→ skipped) on unknown names / bad syntax."""
+        span = {n: self._span(i) for n, i in self.var_name_to_idx.items()}
+        soft, hard = compile_expression(expr, self.var_name_to_idx, span,
+                                        self.sharpness)
+        rng = np.random.default_rng(0)
+        u = np.stack([rng.uniform(cv.lower, cv.upper, 512)
+                      for cv in self.cvars], axis=1).astype(np.float32)
+        z = np.asarray(hard(u), dtype=np.float64)
+        if not np.all(np.isfinite(z)):
+            raise ValueError(f"expression {expr!r} not finite on the domain")
+        scale = float(max(z.max() - z.min(), 1e-9))
+        return soft, hard, scale
+
+    def _moment_quantity(self, quantity: str):
+        """Expectation subject → ``(soft_f, hard_f, idx_or_None, scale)``.
+
+        A bare variable name keeps its site index (target clipping and span
+        semantics unchanged); anything else compiles as a grammar expression
+        over the variables (``x * y``, ``x ** 2``, ...) — the front door to
+        ``expect_nll``'s arbitrary-callable support.  Expressions have no
+        declared domain, so ``idx`` is None (no target clipping)."""
+        if quantity in self.var_name_to_idx:
+            idx = self.var_name_to_idx[quantity]
+            f = lambda x: x[:, idx]                        # noqa: E731
+            return f, f, idx, self._span(idx)
+        soft, hard, scale = self._expr_quantity(quantity)
+        return soft, hard, None, scale
 
     def _clip_target(self, est_id: str, idx: int, value: float) -> float:
         cv = self.cvars[idx]
@@ -391,7 +451,7 @@ class DistributionBuilder:
 
     def _add(self, f, cond, target, sd, est_id, desc, eval_fn, hard_cond,
              scale: float = 1.0, space: str = "abs", gated: bool = True,
-             direction: str = "eq"):
+             direction: str = "eq", n=None, sd_is_default: bool = False):
         """Append one constraint (plain or robust) plus its report row.
 
         ``scale`` is the natural unit of the residual (the variable span for
@@ -432,12 +492,21 @@ class DistributionBuilder:
         if space == "value":
             if self.value_penalty == "nll" and direction == "eq" \
                     and not (self.robust and gated):
+                # n = effective sample size behind the estimate (the k
+                # pseudo-count), orthogonal to sd (noise per observation).
+                # n WITHOUT an explicit sd means "the mean of n clean
+                # samples": tau=0, and the kind-default beta=0.5 tempers
+                # the now-unfloored 1/var mean gradient (with tau=sd>0 the
+                # curvature is bounded and beta=0 full strength is safe).
+                k = float(n) if n else 1.0
+                tau = 0.0 if (n and sd_is_default) else sd
+                beta = 0.5 if tau == 0.0 else 0.0
                 if cond is None:
                     self.constraints.append(
-                        ("expect_nll", f, target, 1.0, sd, 0.0))
+                        ("expect_nll", f, target, k, tau, beta))
                 else:
                     self.constraints.append(
-                        ("cond_expect_nll", f, cond, target, 1.0, sd, 0.0))
+                        ("cond_expect_nll", f, cond, target, k, tau, beta))
                 self._report_rows.append(
                     (est_id, desc, target, eval_fn, hard_cond, gate, scale))
                 return
@@ -446,7 +515,10 @@ class DistributionBuilder:
             ineq = direction != "eq"
             if not (ineq or (self.robust and gated)):
                 tc = float(np.clip(target, 1e-4, 1.0 - 1e-4))
-                k = min(1e4, 1.0 / (sd * sd * tc * (1.0 - tc)))
+                # a stated sample size IS the binomial pseudo-count; it
+                # takes precedence over the sd-derived Fisher match
+                k = (float(n) if n
+                     else min(1e4, 1.0 / (sd * sd * tc * (1.0 - tc))))
                 if cond is None:
                     self.constraints.append(("prob_nll", f, target, k))
                 else:
@@ -499,13 +571,14 @@ class DistributionBuilder:
             return float(sd)
         return default_sd
 
-    def _value_sd(self, est, idx: int) -> float:
+    def _value_sd(self, est, scale: float) -> float:
         """Per-estimate expectation belief width (value units), else the
-        span-scaled global default."""
+        scale-relative global default (``scale`` = the variable span, or an
+        expression's range over the domain box)."""
         sd = getattr(est, "sd", None)
         if sd is not None:
             return float(sd)
-        return self.value_rel_sd * self._span(idx)
+        return self.value_rel_sd * scale
 
     def _build_constraints(self) -> None:
         """Dispatch each estimate to its :data:`SAMPLE_LOSSES` builder.

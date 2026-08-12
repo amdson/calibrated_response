@@ -145,6 +145,21 @@ def _compile(node, ctx: dict, xp, soft: bool) -> Callable:
         f"unsupported expression element: {type(node).__name__}")
 
 
+def compile_expression(expr: str, idx_of: dict, span: dict,
+                       sharpness: float):
+    """``(soft, hard)`` closures for a bare grammar expression (no residual).
+
+    Same contract as :func:`compile_residual` but for a QUANTITY rather than
+    an equation: lets the builder accept ``E[x * y]`` / ``P(x - y > 0)``
+    style estimates whose subject is any expression over the variables.
+    """
+    tree = ast.parse(f"({expr})", mode="eval")
+    ctx = {"idx_of": idx_of, "span": span, "sharpness": float(sharpness)}
+    soft = _compile(tree, ctx, jnp, True)
+    hard = _compile(tree, ctx, np, False)
+    return soft, hard
+
+
 def compile_residual(lhs: str, rhs: str, idx_of: dict, span: dict,
                      sharpness: float):
     """``(soft, hard)`` closures for the residual ``lhs - (rhs)``.

@@ -136,9 +136,14 @@ def _interval(v: str) -> tuple[float, float]:
     raise ValueError(v)
 
 
-def build_variables():
+def build_variables(encode: str = "aux"):
+    """``encode="aux"``: (x, y) plus one variable per composite functional,
+    pinned by deterministic links.  ``encode="expr"``: just (x, y) — the
+    composite functionals become expression subjects (``E[x * y]``) that
+    constrain the 2-D joint directly, no links to leak through."""
+    names = _TRANSFORMS if encode == "aux" else ("x", "y")
     out = []
-    for v in _TRANSFORMS:
+    for v in names:
         lo, hi = _interval(v)
         desc = {"x": "first coordinate", "y": "second coordinate"}.get(
             v, f"auxiliary: {_LINKS.get(v, v)}")
@@ -152,18 +157,24 @@ def build_links():
             for v, expr in _LINKS.items()]
 
 
-def draw_pool(pool_size: int, seed: int):
+def draw_pool(pool_size: int, seed: int, encode: str = "aux"):
     """One pool of weak estimates: each picks a random menu functional and
-    a FRESH 5-point sample of the true distribution."""
+    a FRESH 5-point sample of the true distribution.
+
+    ``encode`` picks the subject form only — the rng stream, functionals,
+    values, and sds are identical, so aux-vs-expr is a controlled A/B:
+    ``"aux"`` targets the linked auxiliary variable (``E[xy]``), ``"expr"``
+    the expression itself (``E[x * y]``) via the expression-quantity path."""
     rng = np.random.default_rng(seed)
     ests = []
     for n in range(pool_size):
         kind, v, t = MENU[int(rng.integers(len(MENU)))]
         z = _TRANSFORMS[v](sample_true(N_PER_EST, rng))
+        subject = v if encode == "aux" else _LINKS.get(v, v)
         if kind == "E":
             _, sd_v = ORACLE[v]
             ests.append(ExpectationEstimate(
-                id=f"e{n:03d}_E_{v}", variable=v,
+                id=f"e{n:03d}_E_{v}", variable=subject,
                 expected_value=float(z.mean()),
                 sd=sd_v / np.sqrt(N_PER_EST)))
         else:
@@ -172,7 +183,8 @@ def draw_pool(pool_size: int, seed: int):
             ests.append(ProbabilityEstimate(
                 id=f"e{n:03d}_P_{v}_gt_{t:g}",
                 proposition=InequalityProposition(
-                    variable=v, threshold=float(t), is_lower_bound=True),
+                    variable=subject, threshold=float(t),
+                    is_lower_bound=True),
                 probability=phat,
                 sd=1.0 / np.sqrt(N_PER_EST * p * (1.0 - p))))
     return ests
@@ -220,18 +232,20 @@ def kl_uniform_ref(n: int = 200_000) -> float:
 
 def fit_and_measure(m: int, pool_size: int = 64, steps: int = 3000,
                     n_samples: int = 2048, eval_samples: int = 30_000,
-                    seed: int = 0, lr: float = 2e-3,
+                    seed: int = 0, lr: float = 2e-3, encode: str = "aux",
                     return_fit: bool = False, **builder_kw):
     """Fit on the first ``m`` estimates of seed's pool; score KL to truth.
 
-    ``m = 0`` fits the deterministic links alone — the maxent no-information
+    ``m = 0`` fits the deterministic links alone (``encode="aux"``) or the
+    bare unconstrained box (``encode="expr"``) — the maxent no-information
     answer, which should land near ``kl_uniform_ref()`` on (x, y)."""
     assert m <= pool_size, (m, pool_size)
-    pool = draw_pool(pool_size, seed)
+    pool = draw_pool(pool_size, seed, encode=encode)
     used = pool[:m]
 
     t0 = time.time()
-    builder = DistributionBuilder(build_variables(), build_links() + used,
+    links = build_links() if encode == "aux" else []
+    builder = DistributionBuilder(build_variables(encode), links + used,
                                   **builder_kw)
     assert not builder.skipped, builder.skipped
     builder.fit(steps=steps, lr=lr, n_samples=n_samples, seed=seed)
@@ -240,14 +254,16 @@ def fit_and_measure(m: int, pool_size: int = 64, steps: int = 3000,
 
     pts = np.stack([s["x"], s["y"]], axis=1)
     mq, cq = pts.mean(axis=0), np.cov(pts.T)
-    # deterministic-link fidelity: RMS(aux - f(x, y)) in units of sd(f)
-    link_err = float(np.mean(
+    # deterministic-link fidelity: RMS(aux - f(x, y)) in units of sd(f).
+    # expr mode has no links, hence nothing to leak — record None.
+    link_err = (float(np.mean(
         [np.sqrt(np.mean((s[v] - _TRANSFORMS[v](pts)) ** 2)) / ORACLE[v][1]
-         for v in _LINKS]))
+         for v in _LINKS])) if encode == "aux" else None)
 
     row = dict(
         m=m, pool_size=pool_size, steps=steps, n_samples=n_samples,
-        seed=seed, K=int(builder_kw.get("n_components", 1)),
+        seed=seed, encode=encode,
+        K=int(builder_kw.get("n_components", 1)),
         kl_gauss=kl_gauss(pts), kl_knn=kl_knn(pts),
         err_mean_x=float(mq[0] - MU[0]), err_mean_y=float(mq[1] - MU[1]),
         err_sd_x=float(np.sqrt(cq[0, 0]) - SDS[0]),
@@ -267,21 +283,32 @@ def fit_and_measure(m: int, pool_size: int = 64, steps: int = 3000,
 # ---- sweep runner (mirrors reliability_experiment) ---------------------------
 
 def full_configs(ms=(0, 2, 4, 8, 16, 32, 64), pool_size: int = 64,
-                 steps: int = 3000, seeds=range(3)):
+                 steps: int = 3000, seeds=range(3), encode: str = "aux"):
     """The m-ladder per seed: prefixes of one pool, so each rung strictly
     ADDS evidence to the previous one."""
-    return [dict(m=m, pool_size=pool_size, steps=steps, seed=s)
+    return [dict(m=m, pool_size=pool_size, steps=steps, seed=s,
+                 encode=encode)
             for s in seeds for m in ms]
 
 
+def expr_configs(**kw):
+    """The A/B arm: identical pools, but composite functionals constrain the
+    2-D joint DIRECTLY as expressions (``E[x * y]``) — no aux variables, no
+    deterministic links to leak through.  Compare against the aux rows on
+    kl_* and err_corr; the aux arm's link_err is the suspected culprit."""
+    return full_configs(encode="expr", **kw)
+
+
 def quick_configs():
-    return [dict(m=m, pool_size=16, steps=800, n_samples=1024, seed=0)
-            for m in (0, 4, 16)]
+    return [dict(m=m, pool_size=16, steps=800, n_samples=1024, seed=0,
+                 encode=enc)
+            for enc in ("aux", "expr") for m in (0, 4, 16)]
 
 
 def _key(row):
     k = row.get("K", row.get("n_components", 1))
-    return (row["pool_size"], row["m"], row["steps"], int(k), row["seed"])
+    return (row["pool_size"], row["m"], row["steps"], int(k), row["seed"],
+            row.get("encode", "aux"))
 
 
 def run_sweep(configs, out_path: str = "results/weak_estimates.jsonl"):
@@ -307,9 +334,12 @@ def run_sweep(configs, out_path: str = "results/weak_estimates.jsonl"):
         with open(out_path, "a") as fh:
             fh.write(json.dumps(row) + "\n")
         k_tag = f" K={row['K']}" if row.get("K", 1) != 1 else ""
-        print(f"m={row['m']:>3}{k_tag} seed={row['seed']}  "
+        le = row.get("link_err")
+        link_tag = f" link={le:.3f}" if le is not None else ""
+        print(f"m={row['m']:>3} {row.get('encode', 'aux'):>4}{k_tag} "
+              f"seed={row['seed']}  "
               f"kl_gauss={row['kl_gauss']:.4f} kl_knn={row['kl_knn']:.4f}  "
-              f"corr_err={row['err_corr']:+.3f} link={row['link_err']:.3f} "
+              f"corr_err={row['err_corr']:+.3f}{link_tag} "
               f"({row['secs']:.0f}s)")
     return rows, fits
 
@@ -323,10 +353,11 @@ def summarize(rows_or_path="results/weak_estimates.jsonl"):
     groups: dict = {}
     for row in rows:
         groups.setdefault((row["pool_size"], row["steps"],
-                           row.get("K", 1), row["m"]), []).append(row)
+                           row.get("K", 1), row.get("encode", "aux"),
+                           row["m"]), []).append(row)
 
     print(f"uniform-box reference: KL = {kl_uniform_ref():.4f}\n")
-    print(f"{'pool':>5} {'steps':>6} {'K':>3} {'m':>3} {'n':>3}  "
+    print(f"{'pool':>5} {'steps':>6} {'K':>3} {'enc':>4} {'m':>3} {'n':>3}  "
           f"{'kl_gauss':>16} {'kl_knn':>16}  "
           f"{'err_corr':>9} {'link_err':>9}")
     for key in sorted(groups):
@@ -341,7 +372,8 @@ def summarize(rows_or_path="results/weak_estimates.jsonl"):
 
         kg, kgs = ms("kl_gauss")
         kk, kks = ms("kl_knn")
-        print(f"{key[0]:>5} {key[1]:>6} {key[2]:>3} {key[3]:>3} {len(g):>3}  "
+        print(f"{key[0]:>5} {key[1]:>6} {key[2]:>3} {key[3]:>4} {key[4]:>3} "
+              f"{len(g):>3}  "
               f"{kg:>9.4f}±{kgs:<6.4f} {kk:>9.4f}±{kks:<6.4f}  "
               f"{ms('err_corr')[0]:>+9.3f} {ms('link_err')[0]:>9.3f}")
 
@@ -349,7 +381,8 @@ def summarize(rows_or_path="results/weak_estimates.jsonl"):
     by_seed: dict = {}
     for row in rows:
         by_seed.setdefault((row["pool_size"], row["steps"],
-                            row.get("K", 1), row["seed"]), []).append(row)
+                            row.get("K", 1), row.get("encode", "aux"),
+                            row["seed"]), []).append(row)
     for metric in ("kl_gauss", "kl_knn"):
         drops = tot = 0
         for g in by_seed.values():

@@ -31,7 +31,11 @@ class EqualityProposition(Proposition):
         return f"{self.variable} = {self.value}"
 
 class InequalityProposition(Proposition):
-    """Inequality condition: X > value or X < value."""
+    """Inequality condition: X > value or X < value.
+
+    ``variable`` may also be an arithmetic expression over the variables
+    (``P(x - y > 0)`` for P(X > Y), ``P(x * y > 0)``), evaluated in the
+    equation grammar."""
     proposition_type: Literal["inequality"] = "inequality"
     variable_type: Literal["continuous", "discrete"] = "continuous"
     threshold: float = Field(..., description="Threshold value for inequality")
@@ -65,10 +69,22 @@ class Estimate(BaseModel):
         default=None,
         description="Optional belief width for THIS estimate, in the penalty's "
                     "native residual space (log-odds for probabilities under "
-                    "the logit penalty, value units for expectations). None "
-                    "means use the solver's global default. Set by "
-                    "repeat-collapse to encode agreement/disagreement across "
-                    "repeated elicitations of the same quantity.")
+                    "the logit/nll penalties, value units for expectations, "
+                    "correlation units for Corr). None means use the solver's "
+                    "global default. Set by repeat-collapse to encode "
+                    "agreement/disagreement across repeated elicitations of "
+                    "the same quantity, or elicited directly via the string "
+                    "DSL's trailing '~ w' width term.")
+    n: Optional[float] = Field(
+        default=None, gt=0,
+        description="Optional effective sample size behind THIS estimate — "
+                    "how many observations the stated number summarizes, "
+                    "orthogonal to sd (noise per observation). Maps to the "
+                    "nll penalties' pseudo-count k: an empirical mean of 25 "
+                    "measurements is n=25; a one-off impression is n=1 (the "
+                    "default). For equations, overrides the solver-wide "
+                    "eqn_conf. Elicited via the string DSL's trailing "
+                    "'@ n' term.")
 
     def to_query_estimate(self) -> str:
         """Get a string representation suitable for queries."""
@@ -89,9 +105,16 @@ class ProbabilityEstimate(Estimate):
         return f"P({self.proposition.to_query_proposition()}) {self._rel_op} {self.probability}"
 
 class ExpectationEstimate(Estimate):
-    """Estimate for expectation E[X]."""
+    """Estimate for expectation E[X].
+
+    The subject may also be an arithmetic expression over the variables in
+    the equation grammar (``E[x * y]``, ``E[cost ** 2]``, ``E[a - b]``) —
+    a direct constraint on that functional of the joint, without needing an
+    auxiliary variable."""
     estimate_type: Literal["expectation"] = "expectation"
-    variable: str = Field(..., description="Name of the variable")
+    variable: str = Field(..., description="Variable name, or an arithmetic "
+                                           "expression over variables (e.g. "
+                                           "'x * y', 'cost ** 2')")
     expected_value: float = Field(..., description="Estimated expected value")
 
     def to_query_estimate(self) -> str:

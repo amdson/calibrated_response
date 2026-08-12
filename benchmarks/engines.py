@@ -223,6 +223,17 @@ class FlowEngine:
     Weights are Gaussian belief widths ``w = 1/(2 sd^2)``, matching the
     LLM-facing ``maxent_sampler.DistributionBuilder``.
 
+    ``penalty="nll"`` instead emits the builder's current default constraint
+    kinds with the builder's own mapping rules: probability targets (marginal
+    cdf pins, pairwise and conditional probs) become binomial pseudo-count
+    constraints ``prob_nll`` / ``cond_prob_nll`` with the pseudo-count
+    Fisher-matched to ``prob_logit_sd`` (``k = 1/(sd² t(1-t))``, capped 1e4),
+    conditional expectations become ``cond_expect_nll`` with ``k=1,
+    tau=expect_sd`` (one noisy observation), and ``fit`` runs the builder's
+    likelihood-tempering staircase (``anneal_phases`` blocks, β 1→0) over the
+    tempered kinds.  Registered as ``flow_nll``; the legacy ``"square"`` mode
+    stays registered as ``flow`` so old-vs-new is itself a sweep axis.
+
     Scoring: ``marginal`` / ``pair_marginal`` histogram one big cached sample;
     ``log_prob_rows`` uses the **exact** flow density (the flow is invertible)
     MC-averaged over each test row's bin box, times the bin volume.
@@ -235,8 +246,12 @@ class FlowEngine:
                  prob_sd: float = 0.05, expect_sd: float = 0.05,
                  marginal_mode: str = "cdf", mmd_weight: float = 100.0,
                  mmd_ref_n: int = 512,
-                 n_mc_score: int = 400_000, nll_mc: int = 8):
-        self.name = f"flow_l{n_layers}"
+                 n_mc_score: int = 400_000, nll_mc: int = 8,
+                 penalty: str = "square", prob_logit_sd: float = 0.3,
+                 anneal_phases: int = 8):
+        if penalty not in ("square", "nll"):
+            raise ValueError(f"penalty must be 'square' or 'nll', got {penalty!r}")
+        self.name = f"flow_nll_l{n_layers}" if penalty == "nll" else f"flow_l{n_layers}"
         self.n_layers, self.hidden, self.s_max = n_layers, hidden, s_max
         self.steps, self.lr, self.n_samples = steps, lr, n_samples
         self.entropy_reg = entropy_reg
@@ -245,6 +260,14 @@ class FlowEngine:
         self.marginal_mode = marginal_mode
         self.mmd_weight, self.mmd_ref_n = mmd_weight, mmd_ref_n
         self.n_mc_score, self.nll_mc = n_mc_score, nll_mc
+        self.penalty, self.prob_logit_sd = penalty, prob_logit_sd
+        self.anneal_phases = anneal_phases
+
+    def _k_of(self, target: float) -> float:
+        """Binomial pseudo-count Fisher-matched to ``prob_logit_sd`` — the
+        DistributionBuilder's exact mapping."""
+        t = float(np.clip(target, 1e-4, 1.0 - 1e-4))
+        return min(1e4, 1.0 / (self.prob_logit_sd ** 2 * t * (1.0 - t)))
 
     # ---- bag -> native constraint tuples -----------------------------
     def _indicator(self, enc, iv: Interval, sharp: float):
@@ -286,19 +309,37 @@ class FlowEngine:
                 else:                       # "cdf": survival at interior edges
                     tail = 1.0 - np.cumsum(p)
                     for k in range(d - 1):
-                        csts.append(("expect",
-                                     soft_gt(site, (k + 1) / d,
-                                             self.marginal_sharpness),
-                                     float(tail[k]), w_p))
+                        ind = soft_gt(site, (k + 1) / d, self.marginal_sharpness)
+                        t = float(tail[k])
+                        if self.penalty == "nll":
+                            csts.append(("prob_nll", ind, t, self._k_of(t)))
+                        else:
+                            csts.append(("expect", ind, t, w_p))
             elif isinstance(c, ProbConstraint):
-                csts.append(("expect", self._event(enc, c.events),
-                             c.target, w_p))
+                if self.penalty == "nll":
+                    csts.append(("prob_nll", self._event(enc, c.events),
+                                 c.target, self._k_of(c.target)))
+                else:
+                    csts.append(("expect", self._event(enc, c.events),
+                                 c.target, w_p))
             elif isinstance(c, CondProbConstraint):
-                csts.append(("cond_expect", self._event(enc, c.event),
-                             self._event(enc, c.given), c.target, w_p))
+                if self.penalty == "nll":
+                    csts.append(("cond_prob_nll", self._event(enc, c.event),
+                                 self._event(enc, c.given), c.target,
+                                 self._k_of(c.target)))
+                else:
+                    csts.append(("cond_expect", self._event(enc, c.event),
+                                 self._event(enc, c.given), c.target, w_p))
             elif isinstance(c, CondExpectConstraint):
-                csts.append(("cond_expect", moment(enc.site[c.var]),
-                             self._event(enc, c.given), c.target, w_e))
+                if self.penalty == "nll":
+                    # builder's value_penalty="nll" mapping: one noisy
+                    # observation — k=1, tau=sd, beta=0
+                    csts.append(("cond_expect_nll", moment(enc.site[c.var]),
+                                 self._event(enc, c.given), c.target,
+                                 1.0, self.expect_sd, 0.0))
+                else:
+                    csts.append(("cond_expect", moment(enc.site[c.var]),
+                                 self._event(enc, c.given), c.target, w_e))
             else:
                 raise TypeError(f"unknown constraint {type(c).__name__}")
         return csts
@@ -307,9 +348,21 @@ class FlowEngine:
         from calibrated_response.maxent_sampler import FlowSamplerModel
         model = FlowSamplerModel(enc.tn_vars(), n_layers=self.n_layers,
                                  hidden=self.hidden, s_max=self.s_max)
-        loss = model.constraint_loss(self._convert(enc, bag, seed),
+        csts = self._convert(enc, bag, seed)
+        beta_schedule = None
+        if self.penalty == "nll" and int(self.anneal_phases) >= 2 and any(
+                c[0] in ("prob_nll", "cond_prob_nll", "eqn_nll") for c in csts):
+            # DistributionBuilder.fit's likelihood-tempering staircase:
+            # beta holds per block, 1 -> 0, last block untempered
+            import jax.numpy as jnp
+            n = int(self.anneal_phases)
+            per = max(1.0, self.steps / n)
+            beta_schedule = (lambda step, n=n, per=per: jnp.maximum(
+                0.0, 1.0 - jnp.floor(step / per) / (n - 1)))
+        loss = model.constraint_loss(csts,
                                      entropy_reg=self.entropy_reg,
-                                     n_samples=self.n_samples)
+                                     n_samples=self.n_samples,
+                                     beta_schedule=beta_schedule)
         params, history = model.optimize(loss, backend="adam", seed=seed,
                                          steps=self.steps, lr=self.lr)
         return _FlowFit(enc, model, params, history,
@@ -731,6 +784,10 @@ ENGINES = {
     "tn": TensorChainEngine,
     "tree": TensorTreeEngine,
     "flow": FlowEngine,
+    # builder-default constraint kinds (prob_nll pseudo-counts + annealing);
+    # sharpness 80 matches the builder's nll-mode default (log-odds precision
+    # needs the soft mean to track the hard probability into the tails)
+    "flow_nll": lambda: FlowEngine(penalty="nll", sharpness=80.0),
     "gaussian": GaussianEngine,
     "copula": GaussianCopulaEngine,
     "pc": PCEngine,

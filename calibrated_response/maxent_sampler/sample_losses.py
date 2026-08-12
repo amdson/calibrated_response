@@ -79,17 +79,22 @@ def _probability_loss(builder: "DistributionBuilder", est: ProbabilityEstimate) 
     builder._add(soft, None, tg, builder._prob_sd(est, p_sd),
                  est.id, est.to_query_estimate(),
                  lambda x, h=hard: float(np.mean(h(x))), None,
-                 space=p_space, gated=not is_anchor, direction=est.relation)
+                 space=p_space, gated=not is_anchor, direction=est.relation,
+                 n=getattr(est, "n", None))
 
 
 def _expectation_loss(builder: "DistributionBuilder", est: ExpectationEstimate) -> None:
-    f, idx = builder._moment_events(est.variable)
-    tg = builder._clip_target(est.id, idx, float(est.expected_value))
-    builder._add(f, None, tg, builder._value_sd(est, idx),
+    # the subject may be a bare variable name OR a grammar expression
+    # (E[x * y] = 0.65); expressions have no declared domain, so no clipping
+    f, hard_f, idx, scale = builder._moment_quantity(est.variable)
+    tg = (builder._clip_target(est.id, idx, float(est.expected_value))
+          if idx is not None else float(est.expected_value))
+    builder._add(f, None, tg, builder._value_sd(est, scale),
                  est.id, est.to_query_estimate(),
-                 lambda x, f=f: float(np.mean(f(x))), None,
-                 scale=builder._span(idx), space="value",
-                 direction=est.relation)
+                 lambda x, hf=hard_f: float(np.mean(hf(x))), None,
+                 scale=scale, space="value",
+                 direction=est.relation, n=getattr(est, "n", None),
+                 sd_is_default=est.sd is None)
 
 
 def _conditional_probability_loss(
@@ -110,7 +115,7 @@ def _conditional_probability_loss(
     p_sd, p_space = builder._prob_belief()
     builder._add(soft, soft_c, tg, builder._prob_sd(est, p_sd),
                  est.id, est.to_query_estimate(), ev, hard_c, space=p_space,
-                 direction=est.relation)
+                 direction=est.relation, n=getattr(est, "n", None))
 
 
 def _conditional_expectation_loss(
@@ -118,27 +123,32 @@ def _conditional_expectation_loss(
 ) -> None:
     if not est.conditions:
         raise ValueError("conditional estimate with no conditions")
-    f, idx = builder._moment_events(est.variable)
-    tg = builder._clip_target(est.id, idx, float(est.expected_value))
+    f, hard_f, idx, scale = builder._moment_quantity(est.variable)
+    tg = (builder._clip_target(est.id, idx, float(est.expected_value))
+          if idx is not None else float(est.expected_value))
     pairs = [builder._proposition_events(c) for c in est.conditions]
     soft_c = _and_all([s for s, _ in pairs])
     hard_c = _and_all([h for _, h in pairs])
 
-    def ev(x, f=f, hc=hard_c):
+    def ev(x, hf=hard_f, hc=hard_c):
         c = hc(x)
-        return float(np.sum(f(x) * c) / (np.sum(c) + _EPS))
+        return float(np.sum(hf(x) * c) / (np.sum(c) + _EPS))
 
-    builder._add(f, soft_c, tg, builder._value_sd(est, idx),
+    builder._add(f, soft_c, tg, builder._value_sd(est, scale),
                  est.id, est.to_query_estimate(), ev, hard_c,
-                 scale=builder._span(idx), space="value",
-                 direction=est.relation)
+                 scale=scale, space="value",
+                 direction=est.relation, n=getattr(est, "n", None),
+                 sd_is_default=est.sd is None)
 
 
 def _correlation_loss(builder: "DistributionBuilder", est: CorrelationEstimate) -> None:
     fa, ia = builder._moment_events(est.variable_a)
     fb, ib = builder._moment_events(est.variable_b)
     tg = float(est.correlation)
-    w = 1.0 / (2.0 * builder.corr_sd * builder.corr_sd)
+    # per-estimate belief width (correlation units), else the global default
+    c_sd = float(est.sd) if getattr(est, "sd", None) is not None \
+        else builder.corr_sd
+    w = 1.0 / (2.0 * c_sd * c_sd)
     # scale-free "corr" constraint; the loss correlates raw site values
     # (binary sites live on [0,1]), the report uses thresholded binaries for
     # consistency with sample_dict semantics. A one-sided bound (relation
@@ -202,16 +212,20 @@ def _equation_loss(builder: "DistributionBuilder", est: EquationEstimate) -> Non
             target = 0.0
         else:                                   # lhs = rhs + N(0, noise_sd)
             sigma = float(est.noise_sd)
+            # per-estimate effective observation count, else the solver-wide
+            # default ("this identity held on n points I have seen")
+            conf = float(est.n) if getattr(est, "n", None) \
+                else builder.eqn_conf
             if builder.eqn_penalty == "nll":
-                # synthetic-likelihood: eqn_conf plays k, the effective
+                # synthetic-likelihood: conf plays k, the effective
                 # observation count behind the equation belief; beta=0 =
                 # full strength (the v_eff >= sigma^2 floor bounds the
                 # curvature, and fit()'s beta_schedule supplies the anneal)
                 builder.constraints.append(
-                    ("eqn_nll", soft_r, sigma, builder.eqn_conf, 0.0))
+                    ("eqn_nll", soft_r, sigma, conf, 0.0))
             else:
                 builder.constraints.append(
-                    ("eqn_dist", soft_r, sigma, builder.eqn_conf))
+                    ("eqn_dist", soft_r, sigma, conf))
             target = sigma
 
         # report the residual RMS against its intended value (0, or the noise sd)

@@ -799,3 +799,98 @@ Design points:
 Smoke (250-step CPU, pool=16): kl_gauss 2.95 (m=0) -> 1.79 (m=4) -> 0.33
 (m=16); link_err ~0.7 at this starved budget — watch it at 3000 GPU steps
 before trusting the aux-variable channel.
+
+## 19. Expression quantities: E[x * y], P(x - y > 0) through the front door
+
+The DSL gap inventory (weak-estimates benchmark, correlation stall) showed
+the solver grammar takes arbitrary callables everywhere while both DSLs
+truncated quantities to bare variable names — the aux-variable + deterministic
+link workaround was leaking (link_err ~0.7, corr pinned ~0.1 vs true 0.6,
+and the residual ~0.25-0.30 nats of KL at m=64 was almost exactly the
+missing-correlation cost).
+
+Change (front-end only, no new constraint kinds):
+- equations.py: `compile_expression(expr, ...)` — the residual compiler minus
+  the lhs, exposing the existing grammar (+ - * / ** abs min max ind) for
+  bare quantities.
+- distribution_builder: `_moment_quantity` — an expectation subject that is
+  not a variable name compiles as an expression; `_proposition_events` gains
+  the same fallback for InequalityProposition (P(x*y > 0), P(x - y > 1)).
+  Expressions have no declared domain, so: no target clipping; default sd,
+  report scale, and indicator sharpness use the expression's range over a
+  fixed 512-point uniform sweep of the variable box (`_expr_quantity`).
+  Bad expressions raise -> skipped, as always.
+- The STRING DSL gets this for free: `E[x * y] = 0.65` and
+  `P(x - y > 0) = 0.8` already parse (main term passes through verbatim);
+  only the builder used to reject them.
+- eqn_ineq stays hinge-only deliberately: an inequality pins no moment, so
+  there is no observation distribution for an nll to synthesize; note
+  eqn_nll's variance channel is already one-sided (v_eff = max(v_r, s^2)).
+
+Benchmark A/B: weak_estimates_experiment grows `encode="aux"|"expr"` —
+IDENTICAL pools (same rng stream, values, sds), differing only in subject
+form (E[xy] on a linked aux var vs E[x * y] on the 2-D joint directly).
+`expr_configs()` + MODE="expr" in the sweep notebook. Old jsonl rows parse
+as encode="aux".
+
+Smoke signals (250-step CPU, NOT dispositive): 5 expression moment
+estimates alone pull corr to +0.54 (true +0.60) where the aux-link route
+managed ~+0.27; in the m=16 A/B the expr arm's corr_err flips from -0.32
+(aux) to +0.24 and it runs ~40% faster (7 fewer dims + no link penalties).
+Judge the KL ladder on the 3000-step GPU sweep.
+
+## 20. String DSL: trailing `~ w` width term (+ Corr honours est.sd)
+
+The last elicitation-facing gap from the constraint inventory: the string
+grammar had no syntax for Estimate.sd, so the LLM could not state
+confidence in an estimate except by repeating it (repeat-collapse).
+
+- `E[Cost] = 100 ~ 20`, `P(A > 10) = 0.3 ~ 1.0`, `Corr(A, B) = 0.4 ~ 0.2`
+  — an optional `~ w` tail on point AND one-sided P/E/Corr forms fills
+  Estimate.sd. Units are the penalty's native residual space: value units
+  for expectations (expect_nll tau), log-odds for probabilities (prob_nll
+  Fisher-matched k), correlation units for Corr.
+- One shared `_SD_TAIL` regex fragment feeds both PE_PATTERN and
+  CORR_PATTERN, and EXPRESSION_PATTERN (the pydantic field the LLM is
+  validated against) is composed from the same patterns — grammar and
+  parser cannot drift.
+- Equations keep their separate `~ N(0, sigma)` noise tail: different
+  semantics (spread of a residual, not confidence in a stated number).
+- Companion fix: _correlation_loss now honours est.sd
+  (w = 1/(2 sd^2)) instead of silently using the global corr_sd — the
+  same silent-ignore bug class as the _prob_sd nll fix in §16.
+- NaturalEstimate's field description teaches the LLM the tail with
+  calibration hints (log-odds ~1.5 = weak hunch, ~0.5 = confident) and
+  says to omit it when unsure.
+
+With §19's expression subjects, the string DSL now reaches everything the
+builder front door supports: the playground notebook's extras cell is
+pure strings — `est("E[x * y] = 0.65 ~ 0.37")`.
+
+## 21. Effective sample size: Estimate.n + the `@ n` string tail
+
+sd and n are ORTHOGONAL strength dials the nll machinery always had but the
+DSL conflated: sd = noise per observation (tau), n = how many observations
+the statement summarizes (the pseudo-count k). k couples the constraint to
+the FITTED variance ("mean of 25 samples" informs Var[f], not just the
+mean) — the part no single sd scalar can carry.
+
+- `Estimate.n` (optional, >0) on the base class; string DSL trailing
+  `@ n` after the optional `~ w` (`E[Cost] = 100 ~ 20 @ 25`); equations:
+  `total = a + b ~ N(0, 5) @ 30`.
+- Plumbing per kind:
+  * expect_nll / cond_expect_nll: k=n.  n WITHOUT an explicit sd = "the
+    mean of n clean samples": tau=0 and the kind-default beta=0.5 tempers
+    the un-floored 1/var mean gradient (with tau=sd>0, beta=0 stays).
+    sd-only keeps k=1, tau=sd (unchanged §16 semantics).
+  * prob_nll / cond_prob_nll: a stated count IS the binomial pseudo-count —
+    k=n takes precedence over the sd-derived Fisher match.
+  * eqn_nll / eqn_dist: per-estimate n overrides the global eqn_conf
+    ("this identity held on the 30 cases I saw").
+  * corr: n parsed and stored, unused until a corr nll form exists.
+- Self-weighting consequence: `E[x*y] = 0.9 @ 5` needs NO oracle sd — the
+  Var[f]/n channel calibrates the estimate's strength from the fitted
+  variance itself.  Smoke: five n=5 moment estimates with no sds anywhere
+  fit stably (tau=0) and pull corr to +0.41 at 300 CPU steps.  This is the
+  honest encoding for the weak-estimates benchmark (drop the oracle
+  weights); a `weights="n"` pool variant is the natural follow-up A/B.
