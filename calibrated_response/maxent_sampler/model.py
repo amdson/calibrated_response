@@ -347,23 +347,27 @@ class SamplerModel:
                 return jax.lax.stop_gradient(s2) ** beta * nll
             return score
         if kind == "cond_expect_nll":
-            # Conditional synthetic likelihood.  Strength scales with the
-            # condition mass (k_eff = k·E[cond]: a rare condition is worth
-            # fewer effective observations), with E[cond] stop-gradiented so
-            # the fit gains nothing by starving the condition to mute the
-            # constraint.  Variance is the *conditional* variance of f.
+            # Conditional synthetic likelihood: tg ~ N(mu_cond, var_cond/k
+            # + tau²).  The likelihood depends only on the *conditional*
+            # moments — "worth k observations of the slice" — so P(cond)
+            # never scales the strength.  Every pc factor below is Monte
+            # Carlo estimator bookkeeping and carries live gradients: the
+            # −var/n_eff debias then cancels (in expectation) the spurious
+            # ∇[var/(N·pc)] hidden in ∇(m − tg)², same as expect_nll.  Mass
+            # may shift in/out of the condition, but only via the membership
+            # gradients of the slice moments, priced against entropy.
             f, cond, tg, k = cst[1], cst[2], cst[3], float(cst[4])
             tau = float(cst[5]) if len(cst) > 5 else 0.0
             beta = float(cst[6]) if len(cst) > 6 else 0.5
             def score(x):
                 v, c = f(x), cond(x)
+                N = v.shape[0]
                 pc = jnp.mean(c)
-                pc_g = jax.lax.stop_gradient(pc)
-                m = jnp.mean(v * c) / (pc + _EPS)
-                var = jnp.mean((v - m) ** 2 * c) / (pc + _EPS)
-                k_eff = jnp.maximum(k * pc_g, 1e-3)
-                s2 = var / k_eff + tau * tau + _EPS
-                n_eff = jnp.maximum(v.shape[0] * pc_g, 1.0)
+                denom = jnp.maximum(pc, 1.0 / N)
+                m = jnp.mean(v * c) / denom
+                var = jnp.mean((v - m) ** 2 * c) / denom
+                s2 = var / k + tau * tau + _EPS
+                n_eff = jnp.maximum(N * pc, 1.0)
                 r2 = (m - tg) ** 2 - var / n_eff
                 nll = 0.5 * (r2 / s2 + jnp.log(s2))
                 return jax.lax.stop_gradient(s2) ** beta * nll

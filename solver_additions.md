@@ -894,3 +894,50 @@ mean) — the part no single sd scalar can carry.
   fit stably (tau=0) and pull corr to +0.41 at 300 CPU steps.  This is the
   honest encoding for the weak-estimates benchmark (drop the oracle
   weights); a `weights="n"` pool variant is the natural follow-up A/B.
+
+## 22. Post-mortem machinery: what the SpaceX-IPO forecast test exposed
+
+Live calibration test (Aug 2026): beliefs elicited as of the Jan-2026
+cutoff, fused, then resolved against reality (SpaceX listed whole-company
+on June 12 at $1.75T — outside the valuation variable's [100, 1200]
+domain). The fusion itself behaved (fused beat raw stated numbers on 3 of
+4 scoreable rows); every serious failure was on the elicitation surface.
+Candidate machinery, in rough priority order:
+
+- **Boundary-mass diagnostic** (cheap, high value): report the fraction of
+  samples within eps of each continuous variable's bounds; warn above a
+  threshold. A hard domain bound is an infinite-confidence estimate the
+  constraint report is completely blind to — truth at 1750 vs a 1200 cap
+  produced NO diagnostic anywhere. Could live in `constraint_report()` as
+  synthetic rows per variable.
+- **Sensitivity readout** d P(query) / d target_i: the fit is
+  differentiable end-to-end, so the influence of each estimate's target on
+  a designated query node is one jacobian away. Would have flagged that
+  P(ipo) hinged on P(xai_entanglement) and E[private_capacity] — the two
+  numbers that were most wrong. Alternative cheap proxy: leave-one-out
+  refits at starved budget.
+- **Anchor-vs-mechanism tension**: with the topline anchor on, the fit
+  matched it almost exactly (0.06); without it, the mechanism drifted to
+  0.09 — which scored better. The machinery exists already (`~ w` / `@ n`
+  weaken an anchor), but the *report* should surface "this estimate is
+  fighting the rest of the joint by X nats" (per-constraint loss share at
+  the optimum, signed by pull direction on a query node), so the user sees
+  the disagreement instead of the anchor silently winning.
+- **Soft-tailed domains**: an opt-in unbounded/log-scale variable type
+  (soft barrier instead of hard box truncation) so bounds stop being
+  secret certainty. Interim convention: set bounds at 2x the imaginable
+  extreme and state a deliberate tail estimate near the edge.
+- **Cumulative-event / hazard family**: `ipo_by_aug` and `ipo_by_eoy` are
+  one event observed at two horizons; encoding them as separate binaries
+  plus a hand-written implication conditional is ad hoc. A monotone
+  P(event by t) family (single latent time variable, thresholds per
+  horizon) would make timing beliefs coherent by construction.
+
+Elicitation guidelines that came out of the same test (informant-side, no
+code): treat cutoff-adjacent "in discussions" chatter as already in motion
+(the xAI acquisition closed 3 weeks past cutoff and was THE causal
+driver); never derive two forecasts (timing + structure) from the same
+upstream belief without branching on it explicitly; when stated tail
+probabilities contradict the stated mean, widen the mean's sd rather than
+trimming the tail; base-rate process latencies (S-1 to pricing 3-6
+months) don't transfer to priority projects of agentic founders.

@@ -19,7 +19,18 @@
       "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" -c \"import json; nb = json.load\\(open\\(r'c:\\\\Users\\\\amdic\\\\calibrated_response\\\\benchmarks\\\\colab_spacex_ipo_forecast.ipynb'\\)\\); [compile\\(''.join\\(l for l in c['source'] if not l.lstrip\\(\\).startswith\\(\\('%','!'\\)\\)\\), f'cell{i}', 'exec'\\) for i, c in enumerate\\(nb['cells']\\) if c['cell_type']=='code']; print\\('all', sum\\(c['cell_type']=='code' for c in nb['cells']\\), 'code cells compile'\\)\")",
       "PowerShell(git -C c:\\\\Users\\\\amdic\\\\calibrated_response status --short)",
       "PowerShell(git -C c:\\\\Users\\\\amdic\\\\calibrated_response log --oneline -3)",
-      "PowerShell(git -C c:\\\\Users\\\\amdic\\\\calibrated_response log origin/main --oneline -1)"
+      "PowerShell(git -C c:\\\\Users\\\\amdic\\\\calibrated_response log origin/main --oneline -1)",
+      "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" \"C:\\\\Users\\\\amdic\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-amdic-calibrated-response\\\\97d3a8b5-db70-47ec-833b-dd353373d48e\\\\scratchpad\\\\spacex_causal_smoke.py\")",
+      "PowerShell(Get-Content c:\\\\Users\\\\amdic\\\\calibrated_response\\\\solver_additions.md -Tail 15; Write-Output \"---\"; Select-String -Path c:\\\\Users\\\\amdic\\\\calibrated_response\\\\solver_additions.md -Pattern \"^## \" | Select-Object -Last 3 | ForEach-Object Line)",
+      "Edit(/.claude/skills/solver-forecast/**)",
+      "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" \"C:\\\\Users\\\\amdic\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-amdic-calibrated-response\\\\97d3a8b5-db70-47ec-833b-dd353373d48e\\\\scratchpad\\\\gas_forecast_smoke.py\")",
+      "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" \"C:\\\\Users\\\\amdic\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-amdic-calibrated-response\\\\97d3a8b5-db70-47ec-833b-dd353373d48e\\\\scratchpad\\\\gas_nan_bisect.py\")",
+      "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" \"C:\\\\Users\\\\amdic\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-amdic-calibrated-response\\\\97d3a8b5-db70-47ec-833b-dd353373d48e\\\\scratchpad\\\\gas_nan_bisect2.py\")",
+      "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" \"C:\\\\Users\\\\amdic\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-amdic-calibrated-response\\\\97d3a8b5-db70-47ec-833b-dd353373d48e\\\\scratchpad\\\\gas_lr_probe.py\")",
+      "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" \"C:\\\\Users\\\\amdic\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-amdic-calibrated-response\\\\97d3a8b5-db70-47ec-833b-dd353373d48e\\\\scratchpad\\\\gas_init_errors.py\")",
+      "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" \"C:\\\\Users\\\\amdic\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-amdic-calibrated-response\\\\97d3a8b5-db70-47ec-833b-dd353373d48e\\\\scratchpad\\\\gas_nan_bisect3.py\")",
+      "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" \"C:\\\\Users\\\\amdic\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-amdic-calibrated-response\\\\97d3a8b5-db70-47ec-833b-dd353373d48e\\\\scratchpad\\\\gas_nan_binary_test.py\")",
+      "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" \"C:\\\\Users\\\\amdic\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-amdic-calibrated-response\\\\97d3a8b5-db70-47ec-833b-dd353373d48e\\\\scratchpad\\\\gas_nan_trace.py\")"
     ]
   }
 }
