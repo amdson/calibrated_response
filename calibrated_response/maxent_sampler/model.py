@@ -25,7 +25,7 @@ continuous batch; use the smooth factories below for indicators)::
     ("expect_nll",      f, target, k[, tau[, beta]])        # t ~ N(E[f], Var[f]/k + tau²)
     ("cond_expect_nll", f, cond, target, k[, tau[, beta]])  # conditional variant
     ("prob_nll",        f, target, k[, beta])               # binomial: k·KL(t ‖ E[f])
-    ("cond_prob_nll",   f, cond, target, k)                 # conditional variant
+    ("cond_prob_nll",   f, cond, target, k[, beta])         # conditional variant
     ("cov",         f, g, target[, weight])       #  Cov(f, g)          = target
     ("corr",        f, g, target[, weight])       #  Corr(f, g)         = target
     ("mmd",         sites, ref_samples[, weight]) #  MMD(x[:,sites], ref) -> 0
@@ -109,6 +109,25 @@ def soft_between(site: int, lower: float, upper: float,
 def hard_gt(site: int, threshold: float) -> Callable:
     """Exact indicator ``1[x_site > threshold]`` — for evaluation, not the loss."""
     return lambda x: (x[:, site] > threshold).astype(jnp.float32)
+
+
+def straight_through(soft_f: Callable, hard_f: Callable) -> Callable:
+    """Forward = ``hard_f`` exactly, backward = ``soft_f``'s gradient.
+
+    Fixes the soft-indicator *leakage floor*: a sigmoid at sharpness ``s``
+    reads ~``density·ln2/s`` of spurious event mass per side, which for a
+    near-impossibility target (elicited ``P < eps``) can exceed the target
+    itself and flip the optimum to a vacuous joint (see solver_additions.md).
+    The ST form measures the event exactly at ANY backward sharpness, so the
+    gradient keeps a wide support band while the objective stays unbiased.
+    In *products* of ST features each factor's gradient is gated by the other
+    factors' hard values — e.g. samples inside an implication's satisfied
+    region feel zero violation gradient.  Validated against sharp-soft and
+    pathwise+score alternatives on the prereq benchmark (ST won)."""
+    def f(x):
+        s = soft_f(x)
+        return s + jax.lax.stop_gradient(hard_f(x) - s)
+    return f
 
 
 def _logit(p):
@@ -388,16 +407,24 @@ class SamplerModel:
             return score
         if kind == "cond_prob_nll":
             # Conditional binomial pseudo-counts; k_eff = k·E[cond] as above.
+            # beta / traced beta_t temper exactly as in prob_nll.
             f, cond, tg, k = cst[1], cst[2], cst[3], float(cst[4])
+            beta = float(cst[5]) if len(cst) > 5 else 0.0
             t = float(np.clip(tg, 1e-4, 1.0 - 1e-4))
-            def score(x):
+            def score(x, beta_t=None):
+                b = beta if beta_t is None else beta_t
                 c = cond(x)
                 pc_g = jax.lax.stop_gradient(jnp.mean(c))
                 p = jnp.clip(jnp.mean(f(x) * c) / (jnp.mean(c) + _EPS),
                              1e-4, 1.0 - 1e-4)
                 k_eff = jnp.maximum(k * pc_g, 1e-3)
-                return k_eff * (t * (np.log(t) - jnp.log(p))
-                                + (1.0 - t) * (np.log1p(-t) - jnp.log1p(-p)))
+                kl = k_eff * (t * (np.log(t) - jnp.log(p))
+                              + (1.0 - t) * (np.log1p(-t) - jnp.log1p(-p)))
+                if beta_t is None and not beta:
+                    return kl
+                return (jax.lax.stop_gradient(p * (1.0 - p) / k_eff) ** b
+                        * kl)
+            score.takes_beta = True
             return score
         if kind == "cov":
             # Centred second moment: targets the *dependence* directly, invariant

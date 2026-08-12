@@ -44,7 +44,8 @@ from calibrated_response.models.variable import (
 )
 from calibrated_response.tn.discretize import ContinuousVar
 from calibrated_response.maxent_sampler.flow_model import FlowSamplerModel
-from calibrated_response.maxent_sampler.model import soft_gt, soft_lt
+from calibrated_response.maxent_sampler.model import (soft_gt, soft_lt,
+                                                      straight_through)
 from calibrated_response.maxent_sampler.sample_losses import (
     SAMPLE_LOSSES,
     _hard_event,
@@ -77,14 +78,25 @@ class DistributionBuilder:
         Belief width for probability targets in ABSOLUTE probability units
         (only used when ``prob_penalty="abs"``): weight ``1 / (2 prob_sd²)``.
     prob_penalty : str
-        ``"logit"`` (default): probability residuals are penalised in
+        ``"nll"`` (default): equality probability targets become binomial
+        pseudo-count constraints (``prob_nll`` / ``cond_prob_nll``,
+        ``k·KL(t ‖ p̂)``) with the pseudo-count Fisher-matched to
+        ``prob_logit_sd``: ``k = 1 / (sd² · t(1-t))``, capped at 1e4 — the
+        same multiplicative-odds slack as the logit penalty, but with the
+        curvature of a real likelihood (conflicting targets resolve toward
+        the max-variance point instead of a silent average) and support for
+        likelihood-tempering annealing in :meth:`fit` (the validated defence
+        against strong constraints crushing structure at init).  Inequality
+        relations and robust (``onoff``) gating fall back to the logit
+        machinery.  ``"logit"``: probability residuals penalised in
         log-odds, so belief slack is multiplicative and uniform across the
         scale — an absolute penalty gives tail targets (p=0.02, sd=0.05)
         several-x odds of nearly-free slack that the entropy term spends
         inflating rare events. ``"abs"``: legacy absolute-scale penalty.
     prob_logit_sd : float
-        Belief width for probability targets in log-odds units (used when
-        ``prob_penalty="logit"``); 0.3 ≈ a x1.35 odds tolerance.
+        Belief width for probability targets in log-odds units (used by
+        ``prob_penalty="nll"`` and ``"logit"``); 0.3 ≈ a x1.35 odds
+        tolerance.
     value_rel_sd : float
         Belief width for expectation targets, as a *fraction of the variable's
         span* (keeps the squared residuals unit-free across mixed domains).
@@ -106,9 +118,17 @@ class DistributionBuilder:
     sharpness : float, optional
         Soft-indicator sharpness in span-normalised units — the effective
         sigmoid slope at a threshold on variable ``i`` is ``sharpness / span_i``.
-        Default: 80 under ``prob_penalty="logit"`` (log-odds precision needs
-        the soft mean to track the hard probability into the tails), 20 under
-        ``"abs"``.
+        Default: 80 under ``prob_penalty="nll"``/``"logit"`` (log-odds
+        precision needs the soft mean to track the hard probability into the
+        tails), 20 under ``"abs"``.  With ``st_indicators`` this is the
+        *backward* bandwidth only — the measured probability is exact.
+    st_indicators : bool
+        If True (default), proposition indicators used in the loss are
+        straight-through: forward = the exact hard event, backward = the
+        sigmoid at ``sharpness``.  Removes the soft-leakage floor that made
+        near-impossibility targets (elicited ``P < eps``) prefer vacuous
+        joints, at any backward sharpness; conjunctions inherit hard gating.
+        Set False to restore pure-soft indicators.
     robust : bool
         If True, every estimate becomes an ``onoff`` constraint: a learnable
         Bernoulli credence can convict a contradicted estimate at a KL price of
@@ -159,13 +179,14 @@ class DistributionBuilder:
         variables: Sequence[Variable],
         estimates: Sequence[EstimateUnion],
         prob_sd: float = 0.05,
-        prob_penalty: str = "logit",
+        prob_penalty: str = "nll",
         prob_logit_sd: float = 0.3,
         value_rel_sd: float = 0.05,
         corr_sd: float = 0.15,
         eqn_rel_sd: float = 0.03,
         eqn_conf: float = 10.0,
         sharpness: Optional[float] = None,
+        st_indicators: bool = True,
         robust: bool = False,
         p_broken: float = 0.05,
         anchor_variable: Optional[str] = None,
@@ -182,8 +203,8 @@ class DistributionBuilder:
     ):
         self.variables = list(variables)
         self.estimates = list(estimates)
-        if prob_penalty not in ("logit", "abs"):
-            raise ValueError(f"prob_penalty must be 'logit' or 'abs', "
+        if prob_penalty not in ("nll", "logit", "abs"):
+            raise ValueError(f"prob_penalty must be 'nll', 'logit' or 'abs', "
                              f"got {prob_penalty!r}")
         self.prob_sd = float(prob_sd)
         self.prob_penalty = prob_penalty
@@ -198,8 +219,9 @@ class DistributionBuilder:
         # odds error to a logit one (validated: 80 lands p=0.02 within 10%
         # in odds; 20 lands at 0.002)
         if sharpness is None:
-            sharpness = 80.0 if prob_penalty == "logit" else 20.0
+            sharpness = 20.0 if prob_penalty == "abs" else 80.0
         self.sharpness = float(sharpness)
+        self.st_indicators = bool(st_indicators)
         self.robust = bool(robust)
         self.p_broken = float(p_broken)
         self.anchor_variable = anchor_variable
@@ -285,7 +307,10 @@ class DistributionBuilder:
 
         k = self.sharpness / self._span(idx)
         soft = soft_gt(idx, thr, k) if greater else soft_lt(idx, thr, k)
-        return soft, _hard_event(idx, thr, greater)
+        hard = _hard_event(idx, thr, greater)
+        if self.st_indicators:
+            return straight_through(soft, hard), hard
+        return soft, hard
 
     def _moment_events(self, var_name: str):
         """Variable name → (value feature, its site index)."""
@@ -337,8 +362,30 @@ class DistributionBuilder:
         ``direction`` (``"eq"`` default, else ``"le"``/``"ge"``) turns the
         two-sided squared residual into a one-sided hinge — a soft ceiling
         (``le``) or floor (``ge``) on the fitted quantity — routing to the
-        ``*_ineq`` constraint kinds (or a directional ``onoff`` gate)."""
+        ``*_ineq`` constraint kinds (or a directional ``onoff`` gate).
+
+        ``space="nll"`` (equality, non-gated only) emits the binomial
+        pseudo-count kinds instead: ``k`` is Fisher-matched to the log-odds
+        belief width (``var[logit p̂] ≈ 1/(k·t(1-t))`` ⇒
+        ``k = 1/(sd²·t(1-t))``, capped at 1e4 so a 1e-4-tail target cannot
+        demand a million pseudo-counts).  Inequalities and robust gates fall
+        back to the logit machinery — same belief width, one-sided/gated
+        semantics preserved."""
         gate = None
+        if space == "nll":
+            ineq = direction != "eq"
+            if not (ineq or (self.robust and gated)):
+                tc = float(np.clip(target, 1e-4, 1.0 - 1e-4))
+                k = min(1e4, 1.0 / (sd * sd * tc * (1.0 - tc)))
+                if cond is None:
+                    self.constraints.append(("prob_nll", f, target, k))
+                else:
+                    self.constraints.append(
+                        ("cond_prob_nll", f, cond, target, k))
+                self._report_rows.append(
+                    (est_id, desc, target, eval_fn, hard_cond, gate, scale))
+                return
+            space = "logit"                # fallback: same sd, logit units
         w = 1.0 / (2.0 * sd * sd)
         ineq = direction != "eq"
         if self.robust and gated:
@@ -364,6 +411,8 @@ class DistributionBuilder:
 
     def _prob_belief(self) -> tuple[float, str]:
         """(sd, space) for probability targets under the configured penalty."""
+        if self.prob_penalty == "nll":
+            return self.prob_logit_sd, "nll"
         if self.prob_penalty == "logit":
             return self.prob_logit_sd, "logit"
         return self.prob_sd, "abs"
@@ -412,8 +461,25 @@ class DistributionBuilder:
     # fit
     # ======================================================================
     def fit(self, steps: int = 3000, lr: float = 1e-3, n_samples: int = 2048,
-            entropy_reg: float = 1.0, seed: int = 0, **kw):
+            entropy_reg: float = 1.0, seed: int = 0, anneal_phases: int = 8,
+            **kw):
         """Fit the flow by soft-constrained maxent (Adam, fresh latents per step).
+
+        ``anneal_phases > 0`` (default 8) staircases the likelihood-tempering
+        exponent of the ``prob_nll``-family constraints from 1 down to 0
+        across equal step blocks (β holds constant within a block; the last
+        block runs the true untempered objective).  This is the validated
+        defence against the init-slam attractor: a strong constraint whose
+        init loss mass dwarfs the entropy term (e.g. an elicited
+        near-impossibility at high pseudo-count) otherwise crushes structure
+        in the first ~100 steps that later gradients cannot rebuild, and
+        each constraint's ramp automatically scales with its own stiffness —
+        no per-constraint schedule.  Within-block holds matter (a per-step
+        ramp underperformed at high stiffness); unlike the benchmark's
+        multi-phase refits this is ONE optimizer run — no Adam-moment resets,
+        one jit compile.  No-op for constraint kinds without tempering
+        support and under ``robust=True`` (gates use the logit machinery),
+        so it is safe to leave on.  Set 0 to disable.
 
         ``**kw`` reaches the optimiser
         (:func:`~calibrated_response.maxent_sampler.fit.fit_adam_stochastic`)
@@ -422,12 +488,22 @@ class DistributionBuilder:
         ``optimizer=``.  ``lr`` may also be an optax schedule rather than a
         float.
         """
+        beta_schedule = None
+        if int(anneal_phases) >= 2 and any(
+                getattr(c, "__len__", None) and c[0] in
+                ("prob_nll", "cond_prob_nll") for c in self.constraints):
+            import jax.numpy as jnp
+            n = int(anneal_phases)
+            per = max(1.0, steps / n)
+            beta_schedule = (lambda step, n=n, per=per: jnp.maximum(
+                0.0, 1.0 - jnp.floor(step / per) / (n - 1)))
         loss = self.model.constraint_loss(
             self.constraints, entropy_reg=entropy_reg, n_samples=n_samples,
             domain_prior=self.domain_prior,
             prior_bound_sds=self.prior_bound_sds,
             # binary sites keep their Uniform(0,1) reference in gaussian mode
-            ref_mask=[0.0 if b else 1.0 for b in self.is_binary])
+            ref_mask=[0.0 if b else 1.0 for b in self.is_binary],
+            beta_schedule=beta_schedule)
         self.params, self.history = self.model.optimize(
             loss, steps=steps, lr=lr, seed=seed, **kw)
         return self.params, self.history
