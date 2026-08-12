@@ -202,7 +202,16 @@ def _equation_loss(builder: "DistributionBuilder", est: EquationEstimate) -> Non
             target = 0.0
         else:                                   # lhs = rhs + N(0, noise_sd)
             sigma = float(est.noise_sd)
-            builder.constraints.append(("eqn_dist", soft_r, sigma, builder.eqn_conf))
+            if builder.eqn_penalty == "nll":
+                # synthetic-likelihood: eqn_conf plays k, the effective
+                # observation count behind the equation belief; beta=0 =
+                # full strength (the v_eff >= sigma^2 floor bounds the
+                # curvature, and fit()'s beta_schedule supplies the anneal)
+                builder.constraints.append(
+                    ("eqn_nll", soft_r, sigma, builder.eqn_conf, 0.0))
+            else:
+                builder.constraints.append(
+                    ("eqn_dist", soft_r, sigma, builder.eqn_conf))
             target = sigma
 
         # report the residual RMS against its intended value (0, or the noise sd)

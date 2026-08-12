@@ -738,3 +738,31 @@ match resists. A tiny 250-step CPU fit fell exactly into the mirror
 (E[r]=0.8) are the intended symmetry-breaker. This makes the flip sweep a
 direct test of basin selection (anneal / mixture base) against a
 quantified decoy — notebook `MODE="flip"`.
+
+## 17. eqn_penalty="nll" + annealed equations (new default)
+
+Lever #2 from the reliability run (eqn arm calibrated on average but
+bimodal across seeds — basin selection, same shape as pre-anneal prereq):
+
+- `eqn_nll` now takes the traced `beta_t` override (`takes_beta`), so
+  `fit()`'s staircase anneals equation stiffness on the same power-posterior
+  footing as the prob kinds; the anneal trigger includes `eqn_nll`.
+- Noisy `EquationEstimate`s route to `eqn_nll` by default
+  (`eqn_penalty="nll"`; `"dist"` = legacy moment match). Emitted with baked
+  beta=0 — the `v_eff >= sigma^2` floor bounds curvature so full strength is
+  safe at convergence, and the schedule supplies the warmup.
+- `eqn_conf` is reinterpreted under nll as k, the effective observation
+  count behind the belief (informant saw the identity hold on k points).
+  Default 10 suits elicited structural identities; the reliability
+  benchmark sets eqn_conf=1 (each equation IS one measurement).
+- eqn_nll's one-sided variance also structurally weakens the mirror decoy:
+  residuals tighter than sigma are free but buy nothing, so the
+  "declare everyone a flipper to shrink residuals" escape earns no reward
+  (it only ever paid through eqn_dist's two-sided variance match).
+
+Immediate smoke signal (250-step CPU, pop=8, NOT dispositive): the flip=1
+eqn fit that previously locked into the mirror basin (rmse 0.67,
+cover80=0) now lands at rmse 0.060 — beating the mean baseline — with the
+anneal walking it past the decoy. The plain eqn smoke is width-inflated at
+this budget (holds eat most of 250 steps); judge on the 3000-step GPU
+sweep: pass = eqn <= eig rmse on 5/5 seeds at cover80 ~ 0.8.

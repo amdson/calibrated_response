@@ -123,10 +123,22 @@ class DistributionBuilder:
         *inequality* (``lhs > rhs`` with no ``~ N(0, σ)`` tail), where the same
         weight hinges the residual instead of squaring it.
     eqn_conf : float
-        Overall stiffness for a *noisy* ``EquationEstimate``
-        (``lhs = rhs ~ N(0, σ)``): the residual's mean/variance moment-match
-        terms are already unit-free (normalised by ``σ``), so this is just a
-        confidence multiplier on that constraint.
+        Strength of a *noisy* ``EquationEstimate`` (``lhs = rhs ~ N(0, σ)``).
+        Under ``eqn_penalty="nll"`` it is ``k``, the effective observation
+        count behind the belief ("an informant saw the identity hold on k
+        points with scatter ≤ σ") — set 1.0 when each equation encodes a
+        single measurement.  Under ``"dist"`` it is the legacy confidence
+        multiplier on the moment-match terms.
+    eqn_penalty : str
+        Penalty family for noisy equations.  ``"nll"`` (default): the
+        synthetic-likelihood ``eqn_nll`` kind — mean term is the Gaussian
+        NLL, variance is one-sided (a residual *tighter* than σ is free —
+        no reward for the "inflate everyone's noise" escape), the
+        ``v_eff ≥ σ²`` floor bounds curvature, and the kind participates in
+        ``fit()``'s β-anneal (emitted with baked β=0, tempered 1→0 by the
+        staircase like the prob kinds).  ``"dist"``: the legacy un-annealed
+        ``eqn_dist`` moment match.  Deterministic identities and
+        inequalities are unaffected.
     sharpness : float, optional
         Soft-indicator sharpness in span-normalised units — the effective
         sigmoid slope at a threshold on variable ``i`` is ``sharpness / span_i``.
@@ -198,6 +210,7 @@ class DistributionBuilder:
         corr_sd: float = 0.15,
         eqn_rel_sd: float = 0.03,
         eqn_conf: float = 10.0,
+        eqn_penalty: str = "nll",
         sharpness: Optional[float] = None,
         st_indicators: bool = True,
         robust: bool = False,
@@ -230,6 +243,10 @@ class DistributionBuilder:
         self.corr_sd = float(corr_sd)
         self.eqn_rel_sd = float(eqn_rel_sd)
         self.eqn_conf = float(eqn_conf)
+        if eqn_penalty not in ("nll", "dist"):
+            raise ValueError(f"eqn_penalty must be 'nll' or 'dist', "
+                             f"got {eqn_penalty!r}")
+        self.eqn_penalty = eqn_penalty
         # log-odds penalties need soft indicators that track the hard event
         # to tail precision: at sharpness 20 the soft mean picks up ~0.02 of
         # sub-threshold leakage — invisible to an absolute penalty, a ~10x
@@ -511,7 +528,8 @@ class DistributionBuilder:
         """Fit the flow by soft-constrained maxent (Adam, fresh latents per step).
 
         ``anneal_phases > 0`` (default 8) staircases the likelihood-tempering
-        exponent of the ``prob_nll``-family constraints from 1 down to 0
+        exponent of the ``prob_nll``-family and ``eqn_nll`` constraints
+        from 1 down to 0
         across equal step blocks (β holds constant within a block; the last
         block runs the true untempered objective).  This is the validated
         defence against the init-slam attractor: a strong constraint whose
@@ -536,7 +554,8 @@ class DistributionBuilder:
         beta_schedule = None
         if int(anneal_phases) >= 2 and any(
                 getattr(c, "__len__", None) and c[0] in
-                ("prob_nll", "cond_prob_nll") for c in self.constraints):
+                ("prob_nll", "cond_prob_nll", "eqn_nll")
+                for c in self.constraints):
             import jax.numpy as jnp
             n = int(anneal_phases)
             per = max(1.0, steps / n)

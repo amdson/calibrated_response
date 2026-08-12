@@ -496,11 +496,16 @@ class SamplerModel:
             # doubles as the tau floor (bounded 1/v gradients).  Above the
             # floor the k·log(v_eff/sigma²) term prices the escape: conflicts
             # with other constraints resolve by loosening the equation instead
-            # of silently distorting marginals.  beta as in expect_nll.
+            # of silently distorting marginals.  beta as in expect_nll; like
+            # prob_nll it also accepts a traced runtime override ``beta_t``
+            # (marked via ``score.takes_beta``) so a per-step beta_schedule
+            # anneals equation stiffness on the same footing as the
+            # pseudo-count kinds.
             g, sigma, k = cst[1], float(cst[2]), float(cst[3])
             beta = float(cst[4]) if len(cst) > 4 else 0.5
             s2 = sigma * sigma
-            def score(x):
+            def score(x, beta_t=None):
+                b = beta if beta_t is None else beta_t
                 r = g(x)
                 mu, vr = jnp.mean(r), jnp.var(r)
                 v_eff = jnp.maximum(vr, s2)
@@ -511,7 +516,8 @@ class SamplerModel:
                 # β-scale by the k-sample mean's variance v_eff/k (the analog
                 # of expect_nll's s², floored at σ²/k) so the two kinds price
                 # their escapes on the same footing.
-                return jax.lax.stop_gradient(v_eff / k) ** beta * k * kl
+                return jax.lax.stop_gradient(v_eff / k) ** b * k * kl
+            score.takes_beta = True
             return score
         if kind == "mmd":
             sites, ref = cst[1], cst[2]
