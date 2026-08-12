@@ -271,7 +271,7 @@ class SamplerModel:
             def score(x):
                 c = cond(x)
                 num = jnp.mean(f(x) * c)
-                den = jnp.mean(c) + _EPS
+                den = jnp.maximum(jnp.mean(c), 1.0 / c.shape[0])
                 return w * (num / den - tg) ** 2
             return score
         if kind == "cond_expect_ineq":
@@ -279,7 +279,7 @@ class SamplerModel:
             def score(x):
                 c = cond(x)
                 num = jnp.mean(f(x) * c)
-                den = jnp.mean(c) + _EPS
+                den = jnp.maximum(jnp.mean(c), 1.0 / c.shape[0])
                 return w * _hinge_pen(num / den - tg, direction)
             return score
         if kind == "logit_expect":
@@ -306,7 +306,7 @@ class SamplerModel:
             def score(x):
                 c = cond(x)
                 num = jnp.mean(f(x) * c)
-                den = jnp.mean(c) + _EPS
+                den = jnp.maximum(jnp.mean(c), 1.0 / c.shape[0])
                 return w * (_logit(num / den) - lt) ** 2
             return score
         if kind == "logit_cond_expect_ineq":
@@ -315,7 +315,7 @@ class SamplerModel:
             def score(x):
                 c = cond(x)
                 num = jnp.mean(f(x) * c)
-                den = jnp.mean(c) + _EPS
+                den = jnp.maximum(jnp.mean(c), 1.0 / c.shape[0])
                 return w * _hinge_pen(_logit(num / den) - lt, direction)
             return score
         if kind == "expect_nll":
@@ -410,23 +410,24 @@ class SamplerModel:
             score.takes_beta = True
             return score
         if kind == "cond_prob_nll":
-            # Conditional binomial pseudo-counts; k_eff = k·E[cond] as above.
-            # beta / traced beta_t temper exactly as in prob_nll.
+            # Conditional binomial pseudo-counts: "k Bernoulli draws *within
+            # the slice*", so P(cond) never scales the strength (same
+            # semantics as cond_expect_nll).  The slice-rate denominator is
+            # floored at one effective sample.  beta / traced beta_t temper
+            # exactly as in prob_nll.
             f, cond, tg, k = cst[1], cst[2], cst[3], float(cst[4])
             beta = float(cst[5]) if len(cst) > 5 else 0.0
             t = float(np.clip(tg, 1e-4, 1.0 - 1e-4))
             def score(x, beta_t=None):
                 b = beta if beta_t is None else beta_t
                 c = cond(x)
-                pc_g = jax.lax.stop_gradient(jnp.mean(c))
-                p = jnp.clip(jnp.mean(f(x) * c) / (jnp.mean(c) + _EPS),
-                             1e-4, 1.0 - 1e-4)
-                k_eff = jnp.maximum(k * pc_g, 1e-3)
-                kl = k_eff * (t * (np.log(t) - jnp.log(p))
-                              + (1.0 - t) * (np.log1p(-t) - jnp.log1p(-p)))
+                denom = jnp.maximum(jnp.mean(c), 1.0 / c.shape[0])
+                p = jnp.clip(jnp.mean(f(x) * c) / denom, 1e-4, 1.0 - 1e-4)
+                kl = k * (t * (np.log(t) - jnp.log(p))
+                          + (1.0 - t) * (np.log1p(-t) - jnp.log1p(-p)))
                 if beta_t is None and not beta:
                     return kl
-                return (jax.lax.stop_gradient(p * (1.0 - p) / k_eff) ** b
+                return (jax.lax.stop_gradient(p * (1.0 - p) / k) ** b
                         * kl)
             score.takes_beta = True
             return score
