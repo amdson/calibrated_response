@@ -508,7 +508,8 @@ class DistributionBuilder:
                     self.constraints.append(
                         ("cond_expect_nll", f, cond, target, k, tau, beta))
                 self._report_rows.append(
-                    (est_id, desc, target, eval_fn, hard_cond, gate, scale))
+                    (est_id, desc, target, eval_fn, hard_cond, gate, scale,
+                     direction))
                 return
             space = "abs"                  # legacy: squared residual / hinge
         if space == "nll":
@@ -525,7 +526,8 @@ class DistributionBuilder:
                     self.constraints.append(
                         ("cond_prob_nll", f, cond, target, k))
                 self._report_rows.append(
-                    (est_id, desc, target, eval_fn, hard_cond, gate, scale))
+                    (est_id, desc, target, eval_fn, hard_cond, gate, scale,
+                     direction))
                 return
             space = "logit"                # fallback: same sd, logit units
         w = 1.0 / (2.0 * sd * sd)
@@ -549,7 +551,8 @@ class DistributionBuilder:
             else:
                 self.constraints.append((kind, f, cond, target, w))
         self._report_rows.append(
-            (est_id, desc, target, eval_fn, hard_cond, gate, scale))
+            (est_id, desc, target, eval_fn, hard_cond, gate, scale,
+             direction))
 
     def _prob_belief(self) -> tuple[float, str]:
         """(sd, space) for probability targets under the configured penalty."""
@@ -726,27 +729,44 @@ class DistributionBuilder:
     def constraint_report(self, n_samples: int = 50000, seed: int = 0):
         """Per-estimate fit check on fresh samples with **hard** indicators.
 
-        Returns rows ``{id, estimate, target, fitted, error, p_cond, credence}``
-        — ``p_cond`` is the conditioning-event probability (the Monte-Carlo
-        budget behind conditional estimates; treat fitted values with tiny
-        ``p_cond`` as noisy), ``credence`` the robust gate's posterior
-        ``P(active)`` when ``robust=True``.
+        Returns rows ``{id, estimate, relation, target, fitted, error,
+        error_rel, p_cond, credence}`` — ``p_cond`` is the conditioning-event
+        probability (the Monte-Carlo budget behind conditional estimates;
+        treat fitted values with tiny ``p_cond`` as noisy), ``credence`` the
+        robust gate's posterior ``P(active)`` when ``robust=True``.
+
+        ``error`` is always the raw signed ``fitted - target``. ``error_rel``
+        is the span-normalised **violation**: for one-sided constraints
+        (``relation`` 'le'/'ge') a satisfied hinge reports 0.0 — only
+        same-side deviations count — so sorting by ``|error_rel|`` surfaces
+        genuine misfits instead of large-slack satisfied bounds. (Before
+        this, a satisfied ``E[x] > 100`` with fitted 5000 topped every
+        "worst constraints" list.)
         """
         self._require_fit()
         x = self.sample(n_samples, seed=seed)
         creds = self.model.credences(self.params) if self.robust else None
         rows = []
-        for eid, desc, target, ev, hard_cond, gate, scale in self._report_rows:
+        for eid, desc, target, ev, hard_cond, gate, scale, direction \
+                in self._report_rows:
             fitted = ev(x)
+            signed = fitted - target
+            if direction == "le":
+                violation = max(0.0, signed)
+            elif direction == "ge":
+                violation = min(0.0, signed)
+            else:
+                violation = signed
             rows.append({
                 "id": eid,
                 "estimate": desc,
+                "relation": direction,
                 "target": target,
                 "fitted": fitted,
-                "error": fitted - target,
-                # residual in span-normalised units — comparable across
+                "error": signed,
+                # violation in span-normalised units — comparable across
                 # probabilities (scale 1) and raw-unit expectations
-                "error_rel": (fitted - target) / scale,
+                "error_rel": violation / scale,
                 "p_cond": (float(np.mean(hard_cond(x)))
                            if hard_cond is not None else None),
                 "credence": (float(creds[gate])

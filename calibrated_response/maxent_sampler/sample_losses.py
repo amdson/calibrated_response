@@ -170,7 +170,8 @@ def _correlation_loss(builder: "DistributionBuilder", est: CorrelationEstimate) 
         return float(np.corrcoef(a, b)[0, 1])
 
     builder._report_rows.append(
-        (est.id, est.to_query_estimate(), tg, ev, None, None, 1.0))
+        (est.id, est.to_query_estimate(), tg, ev, None, None, 1.0,
+         est.relation))
 
 
 def _equation_loss(builder: "DistributionBuilder", est: EquationEstimate) -> None:
@@ -233,8 +234,11 @@ def _equation_loss(builder: "DistributionBuilder", est: EquationEstimate) -> Non
             r = hr(x)
             return float(np.sqrt(np.mean(r * r)))
 
+    # direction "eq" on purpose: for inequality equations ``ev`` already
+    # returns the one-sided RMS violation (0 when satisfied), so the report's
+    # hinge handling must not fold it again (a "ge" fold would zero it)
     builder._report_rows.append(
-        (est.id, est.to_query_estimate(), target, ev, None, None, 1.0))
+        (est.id, est.to_query_estimate(), target, ev, None, None, 1.0, "eq"))
 
 
 # ----------------------------------------------------------------------------

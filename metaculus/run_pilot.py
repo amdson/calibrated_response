@@ -29,12 +29,15 @@ HERE = Path(__file__).parent
 RUN = "2026-08-12-v2-opus"
 
 # (out_name, extra run_flow_solver.py args). This run: the methodology-v2
-# protocol (protocol_v2.py) elicited with anthropic/claude-opus-5 over 10
-# resolved benchmark questions (--only-resolved --sample 10 --sample-seed 0).
-# The paired RAW baseline is each entry's own direct_llm column, so a
-# v2-only run still scores fused-vs-RAW-vs-market; the older protocol
-# caches cover a different question sample and would only add empty
-# intersections to --common scoring.
+# protocol (protocol_v2.py) elicited with anthropic/claude-opus-5. The cache
+# holds 16 resolved entries: 10 market-source questions with a valid freeze
+# probability (data/v2_market_ids.txt — the market-Brier subset, balanced
+# across metaculus/manifold/polymarket/infer, 7 NO / 3 YES) plus 6
+# non-market entries from the original seeded sample. The paired RAW
+# baseline is each entry's own direct_llm column, so a v2-only run still
+# scores fused-vs-RAW-vs-market; the older protocol caches cover a
+# different question sample and would only add empty intersections to
+# --common scoring.
 V2_CACHE = str(HERE / "caches" / "v2" / "llm_cache_v2.json")
 ARMS = [
     # collapse is the default but an identity on v2 caches (no duplicate

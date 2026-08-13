@@ -194,11 +194,13 @@ bins = {n: (s[n] > 0.5) for n in BINARY_NAMES}       # binaries only!
 
 Reading `constraint_report()` (sorted by |err_rel|):
 
-- **One-sided rows report raw `fitted - target`, not hinge violation**
-  (confirmed in the gas test): a satisfied `Corr(a,b) > 0` or
-  `P(x > t) < 0.08` can top the "worst" list with a large fake
-  residual. Check the relation direction before treating a row as a
-  misfit — only same-side deviations count.
+- One-sided rows are hinge-aware (fixed Aug 2026): `error_rel` is the
+  span-normalised **violation** — a satisfied `Corr(a,b) > 0` or
+  `P(x > t) < 0.08` reports 0.0, so sorting by `|err_rel|` surfaces real
+  misfits. `error` keeps the raw signed `fitted - target` (the slack, for
+  one-sided rows), and each row carries its `relation`. Reports produced
+  before this fix show raw residuals on one-sided rows — check the
+  relation direction when reading old tables.
 - **Systematic sign pattern** — every high-target driver conditional
   dragged down, every low leg dragged up — means the drivers overlap and
   their lifts were stated as if independent (double counting). Revise the
