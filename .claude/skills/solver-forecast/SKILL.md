@@ -208,6 +208,28 @@ Reading `constraint_report()` (sorted by |err_rel|):
 - Structural-equation rows (`EQ_*`) converge slowest; residual link RMS
   blurs conditionals that condition on the linked quantity.
 
+### Revision rounds: freeze every version, justify every edit
+
+Iterating on the constraint list after seeing a fit is both necessary
+(fits expose transcription bugs — entropy artifacts, forgotten
+marginals, floors that fail the "true in nearly all worlds" test) and
+dangerous (iterating until the output matches the gut turns the solver
+into a mirror). Discipline:
+
+- Edits must be defensible **ex ante, without reference to the output**
+  — "this states a belief I already held" or "this floor was false".
+  Never tune a stated number toward the fit.
+- **Freeze and record the headline marginals of every round**
+  (v0, v1, ...) alongside RAW, and score all of them at resolution.
+  This makes laundering-vs-correction an empirical question instead of
+  a judgment call.
+- Known hazard (n=1, measles test — a direction, not a law): a
+  methodologically clean edit can still re-impose a miscalibrated
+  belief. v0's entropy-drifted hub mean outscored the v1 anchor that
+  "corrected" it — the entropy default had accidentally fixed a
+  momentum-biased prior. The freeze-and-score rule exists precisely so
+  this shows up in the record rather than in an argument.
+
 ## 4. Anchor ablation (the key diagnostic)
 
 Refit with the topline anchors commented out and read the
@@ -224,7 +246,10 @@ mechanism-implied marginals:
 
 - **Boundary mass**: `np.mean(v > lo + 0.98*(hi-lo))` (and the low edge)
   per continuous variable; more than a few % piled at an edge = the box
-  is truncating a belief — widen bounds and refit.
+  is truncating a belief — widen bounds and refit. Caveat: on wide
+  log-scale boxes ([100, 30000]) the 2%-of-span window overlaps genuine
+  low-end mass and false-alarms — eyeball the histogram or use a
+  quantile check (`P(v < lo + tiny)`) before widening.
 - **Branch table**: P(outcome) within each shock branch, from samples.
 - Sensitivity of the headline number: starved-budget refits with one
   estimate perturbed, when it matters.
@@ -238,9 +263,14 @@ continuous outcomes as z-scores against the fitted mean/sd — and check
 whether truth was even inside the variable's domain; a support miss is
 the worst failure and scores no rows.
 
-## Known informant biases (priced in from the last test)
+## Known informant biases (priced in from resolved tests)
 
 - Cutoff-adjacent "discussions" resolve yes far above base rate.
+- **Cutoff-adjacent YTD counts are lower bounds with momentum, not
+  totals** (2 hits): the "2025 measles total" known in November
+  (~1,650) ended at ~2,289 with an outbreak still raging. Processes in
+  motion at cutoff keep moving; extrapolate the tail of the year, and
+  shade next-year priors up, not level.
 - Base-rate process latencies (filings, approvals) do not transfer to
   priority projects of agentic founders — condition on the actor.
 - "Structurally sensible" is not a forecast; it's a prior begging for a

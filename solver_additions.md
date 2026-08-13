@@ -941,3 +941,57 @@ upstream belief without branching on it explicitly; when stated tail
 probabilities contradict the stated mean, widen the mean's sd rather than
 trimming the tail; base-rate process latencies (S-1 to pricing 3-6
 months) don't transfer to priority projects of agentic founders.
+
+## 23. Gas-price + measles calibration tests (Aug 2026): resolutions
+
+Second and third live cutoff-vs-today tests (methodology per
+`.claude/skills/solver-forecast/SKILL.md`; SpaceX post-mortem is §22).
+
+**Gas (national average, Aug 12 2026).** RAW $3.05, 80% [2.70, 3.55];
+fused E=3.12, P(>3.5)=0.15. Truth: **$4.036** (AAA) after the Feb 28
+Hormuz closure — WTI peaked $112.84, gas peaked $4.48 in May. Outcome in
+the fused ~2-5% tail; both raw and fused miss. But the designated shock
+branch fired and its slice was nearly exact (E[wti|geopol]=85 stated,
+83.3 realized); the residual miss was crack margin left uncoupled from
+the shock (~$0.40). Also confirmed: `constraint_report` shows raw
+`fitted - target` for one-sided rows, so satisfied hinges masquerade as
+worst-fit rows (fix still open: store relation direction, report
+hinge violation).
+
+**Measles (CDC-confirmed US cases YTD, Aug 12 2026).** First test of
+the latent-hub design (`intensity`, unitless graded severity, linear
+lower-bound couplings + branch toplines). Truth: **~2,465** (Aug 6), a
+35-year record; major_cluster True (SC ~1,000, Utah 514);
+num_outbreaks 38 (stated 22~10); elim_lost False (PAHO review ~Nov).
+
+| row | truth | RAW | v1 fused | v0 fused (pre-revision) |
+|---|---|---|---|---|
+| cases_ytd | ~2,465 | 1,500 | 2,075 (z .30) | 2,420 (z .03) |
+| P(>1650) | T | .45 | .59 | .69 |
+| P(major_cluster) | T | .50 | .73 | .93 |
+| P(elim_lost) | F | .35 | .34 | — |
+| P(>4000) | F | .12 | .09 | — |
+
+Findings (n=2 and n=1 respectively — directions, not laws):
+
+- **Fused beat RAW across the board** for the second resolved test where
+  the mechanism disagreed with the gut anchor upward. The hub produced
+  the correct comoving tail (cases + largest_cluster + num_outbreaks
+  jointly high) without any pairwise corr being stated.
+- **The revision round cost accuracy (n=1)**: v0's entropy-drifted
+  E[intensity]=1.63 was closer to the realized ~record year than the
+  1.0 anchor I re-imposed in "transcription" edits. The edits were
+  methodologically defensible ex ante; the *belief* they restored was
+  miscalibrated. Lesson kept deliberately weak: freeze and score every
+  revision round (v0/v1/...) so laundering-vs-correction is decidable
+  at resolution — NOT "don't revise".
+- **Momentum bias (informant-side, now 2 hits)**: a knowledge-cutoff
+  snapshot of a year-to-date count is a *lower bound with momentum*,
+  not a total — the 2025 measles "total" known in Nov (~1,650) ended at
+  ~2,289 with an outbreak raging. Same shape as the SpaceX
+  "in-discussions" bias. Under-shot cases, outbreaks, and imports
+  simultaneously.
+- **Boundary-mass heuristic breaks on log-scale boxes**: 2% of a
+  [100, 30000] span is 698, which overlaps genuine low-end mass —
+  false-alarmed at 0.19/0.25 on a healthy fit. Needs a quantile- or
+  log-space variant (ties into §22 soft-tailed domains).
