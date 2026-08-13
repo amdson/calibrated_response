@@ -64,7 +64,19 @@
       "PowerShell(Set-Location c:\\\\Users\\\\amdic\\\\calibrated_response; & \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" metaculus\\\\run_flow_solver.py --cache metaculus/caches/v2/llm_cache_v2.json --out \"$env:TEMP\\\\v2_smoke\\\\pred_v2_smoke.json\" --steps 400 --n-samples 512)",
       "PowerShell(Set-Location c:\\\\Users\\\\amdic\\\\calibrated_response; & \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" -m pytest tests\\\\maxent_sampler\\\\test_constraint_report.py -q)",
       "PowerShell(Set-Location c:\\\\Users\\\\amdic\\\\calibrated_response; & \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" -m pytest tests\\\\maxent_sampler\\\\test_constraint_report.py -q 2>&1 | Select-Object -Last 3)",
-      "PowerShell(Set-Location c:\\\\Users\\\\amdic\\\\calibrated_response; & \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" -m pytest tests\\\\maxent_sampler -q 2>&1 | Select-Object -Last 4)"
+      "PowerShell(Set-Location c:\\\\Users\\\\amdic\\\\calibrated_response; & \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" -m pytest tests\\\\maxent_sampler -q 2>&1 | Select-Object -Last 4)",
+      "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" \"C:\\\\Users\\\\amdic\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-amdic-calibrated-response\\\\97d3a8b5-db70-47ec-833b-dd353373d48e\\\\scratchpad\\\\case_studies.py\")",
+      "WebFetch(domain:arxiv.org)",
+      "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" \"C:\\\\Users\\\\amdic\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-amdic-calibrated-response\\\\6777ab3c-b9d8-48c1-98e8-53620fb26c4c\\\\scratchpad\\\\y_hinge_repro.py\")",
+      "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" \"C:\\\\Users\\\\amdic\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-amdic-calibrated-response\\\\6777ab3c-b9d8-48c1-98e8-53620fb26c4c\\\\scratchpad\\\\nll_hinge_test.py\")",
+      "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" -m pytest \"c:\\\\Users\\\\amdic\\\\calibrated_response\\\\tests\\\\maxent_sampler\" -x -q 2>$null)",
+      "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" -m pytest \"c:\\\\Users\\\\amdic\\\\calibrated_response\\\\tests\\\\maxent_sampler\" -q --deselect \"tests/maxent_sampler/test_gaussian_kl_prior.py::test_degenerate_range_scenario\" 2>$null)",
+      "Bash(git commit -m 'censored-likelihood hinge kinds, opt-in via @ k in the DSL *)",
+      "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" \"C:\\\\Users\\\\amdic\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-amdic-calibrated-response\\\\6777ab3c-b9d8-48c1-98e8-53620fb26c4c\\\\scratchpad\\\\dsf_test.py\")",
+      "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" \"C:\\\\Users\\\\amdic\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-amdic-calibrated-response\\\\6777ab3c-b9d8-48c1-98e8-53620fb26c4c\\\\scratchpad\\\\dsf_expressiveness.py\")",
+      "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" \"C:\\\\Users\\\\amdic\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-amdic-calibrated-response\\\\6777ab3c-b9d8-48c1-98e8-53620fb26c4c\\\\scratchpad\\\\dsf_skew_long.py\")",
+      "PowerShell(& \"$env:USERPROFILE\\\\miniconda3\\\\envs\\\\calp\\\\python.exe\" -m pytest \"c:\\\\Users\\\\amdic\\\\calibrated_response\\\\tests\\\\maxent_sampler\" -x -q --deselect \"c:\\\\Users\\\\amdic\\\\calibrated_response\\\\tests\\\\maxent_sampler\\\\test_gaussian_kl_prior.py::test_degenerate_range_scenario\" 2>$null)",
+      "PowerShell(Get-Content \"c:\\\\Users\\\\amdic\\\\calibrated_response\\\\solver_additions.md\" -TotalCount 15; Write-Output \"---\"; Select-String -Path \"c:\\\\Users\\\\amdic\\\\calibrated_response\\\\solver_additions.md\" -Pattern \"^## \" | ForEach-Object { $_.Line })"
     ]
   }
 }
