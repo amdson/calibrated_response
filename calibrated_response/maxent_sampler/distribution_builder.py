@@ -471,9 +471,14 @@ class DistributionBuilder:
         pseudo-count kinds instead: ``k`` is Fisher-matched to the log-odds
         belief width (``var[logit p̂] ≈ 1/(k·t(1-t))`` ⇒
         ``k = 1/(sd²·t(1-t))``, capped at 1e4 so a 1e-4-tail target cannot
-        demand a million pseudo-counts).  Inequalities and robust gates fall
-        back to the logit machinery — same belief width, one-sided/gated
-        semantics preserved.
+        demand a million pseudo-counts).  Robust gates fall back to the
+        logit machinery — same belief width, one-sided/gated semantics
+        preserved.  Inequalities do too, UNLESS a pseudo-count was stated
+        explicitly (`@ n` in the DSL): those route to the censored-
+        likelihood hinge kinds (``*_ineq_nll`` — softplus tails with
+        bounded pull, kink smoothed at the statistic's noise scale)
+        instead of the quadratic hinge.  Never the default: no ``@ n``,
+        no nll hinge.
 
         ``space="value"`` (expectation targets) routes by ``value_penalty``:
         ``"nll"`` (default; equality, non-gated only) emits the synthetic-
@@ -511,9 +516,45 @@ class DistributionBuilder:
                     (est_id, desc, target, eval_fn, hard_cond, gate, scale,
                      direction))
                 return
+            if self.value_penalty == "nll" and direction != "eq" and n \
+                    and not (self.robust and gated):
+                # Censored-likelihood hinge — opt-in via a stated `@ n`
+                # only: the bound is one censored observation of the
+                # n-draw mean ("the mean of n draws came in <= target"),
+                # softplus tail with pull bounded at 1/s.  Without `@ n`
+                # the quadratic hinge below stays the default.
+                k = float(n)
+                tau = 0.0 if sd_is_default else sd
+                if cond is None:
+                    self.constraints.append(
+                        ("expect_ineq_nll", f, target, k, tau, direction))
+                else:
+                    self.constraints.append(
+                        ("cond_expect_ineq_nll", f, cond, target, k, tau,
+                         direction))
+                self._report_rows.append(
+                    (est_id, desc, target, eval_fn, hard_cond, gate, scale,
+                     direction))
+                return
             space = "abs"                  # legacy: squared residual / hinge
         if space == "nll":
             ineq = direction != "eq"
+            if ineq and n and not (self.robust and gated):
+                # Censored binomial hinge — opt-in via a stated `@ n` only
+                # ("the n-draw rate came in <= target"); the Fisher-matched
+                # sd fallback stays with the quadratic logit hinge below.
+                k = float(n)
+                if cond is None:
+                    self.constraints.append(
+                        ("prob_ineq_nll", f, target, k, direction))
+                else:
+                    self.constraints.append(
+                        ("cond_prob_ineq_nll", f, cond, target, k,
+                         direction))
+                self._report_rows.append(
+                    (est_id, desc, target, eval_fn, hard_cond, gate, scale,
+                     direction))
+                return
             if not (ineq or (self.robust and gated)):
                 tc = float(np.clip(target, 1e-4, 1.0 - 1e-4))
                 # a stated sample size IS the binomial pseudo-count; it

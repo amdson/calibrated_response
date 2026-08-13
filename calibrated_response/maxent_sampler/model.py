@@ -43,6 +43,14 @@ One-sided ("hinge") variants penalise only the violating side of the bound
     ("corr_ineq",              f, g, target, weight, direction)
     ("eqn_ineq",               r, weight, direction)  # residual r(x) >= 0 / <= 0
 
+Censored-likelihood ("nll") hinge variants — opt-in via a stated ``@ k``
+pseudo-count; softplus tails with bounded pull instead of quadratic hinges::
+
+    ("expect_ineq_nll",      f, target, k, tau, direction)
+    ("cond_expect_ineq_nll", f, cond, target, k, tau, direction)
+    ("prob_ineq_nll",        f, target, k, direction)
+    ("cond_prob_ineq_nll",   f, cond, target, k, direction)
+
 ``eqn_ineq`` is the per-sample member of that family: it hinges the residual
 *inside* the expectation (``E[relu(-r)**2]``), so it restricts the support to
 one side of a surface, where the others hinge an aggregate statistic.
@@ -317,6 +325,80 @@ class SamplerModel:
                 num = jnp.mean(f(x) * c)
                 den = jnp.maximum(jnp.mean(c), 1.0 / c.shape[0])
                 return w * _hinge_pen(_logit(num / den) - lt, direction)
+            return score
+        if kind == "expect_ineq_nll":
+            # Censored synthetic likelihood: the one-sided belief is *one
+            # censored observation* of the k-draw mean statistic ("the mean
+            # of k draws came in <= target"; "ge" mirrors), scored as
+            #   -log sigmoid(-z) = softplus(z),
+            #   z = (m - tg) / sqrt(sg(var)/k + tau²).
+            # ~0 while satisfied (the hinge's free-while-true property),
+            # smoothed around the kink at the statistic's own noise scale,
+            # and *linear* in deep violation — each bound's pull saturates
+            # at 1/s, so a jointly-infeasible belief set settles by relative
+            # confidence instead of the quadratic hinge's corner collapse.
+            # The scale is fully stop_gradiented (all-or-nothing rule):
+            # unlike expect_nll there is no ½log s² Occam term charging for
+            # width, so a live var here would be a free inflate-to-escape
+            # channel, not a priced belief.
+            f, tg, k = cst[1], cst[2], float(cst[3])
+            tau, direction = float(cst[4]), cst[5]
+            sgn = 1.0 if direction == "le" else -1.0
+            def score(x):
+                v = f(x)
+                m = jnp.mean(v)
+                var = jnp.mean((v - m) ** 2)
+                s = jnp.sqrt(jax.lax.stop_gradient(var) / k
+                             + tau * tau + _EPS)
+                return jax.nn.softplus(sgn * (m - tg) / s)
+            return score
+        if kind == "cond_expect_ineq_nll":
+            # Conditional censored synthetic likelihood: same statistic on
+            # the conditional slice ("worth k observations of the slice" —
+            # P(cond) never scales the strength, matching cond_expect_nll),
+            # with the floored-denominator slice moments and live pc.
+            f, cond, tg, k = cst[1], cst[2], cst[3], float(cst[4])
+            tau, direction = float(cst[5]), cst[6]
+            sgn = 1.0 if direction == "le" else -1.0
+            def score(x):
+                v, c = f(x), cond(x)
+                denom = jnp.maximum(jnp.mean(c), 1.0 / c.shape[0])
+                m = jnp.mean(v * c) / denom
+                var = jnp.mean((v - m) ** 2 * c) / denom
+                s = jnp.sqrt(jax.lax.stop_gradient(var) / k
+                             + tau * tau + _EPS)
+                return jax.nn.softplus(sgn * (m - tg) / s)
+            return score
+        if kind == "prob_ineq_nll":
+            # Censored binomial pseudo-counts: "the k-draw rate came in <=
+            # target" as one censored observation in log-odds, standardised
+            # by the Fisher scale sd[logit p̂] = 1/sqrt(k·t(1-t)) — so the
+            # ceiling stays uniform in odds (like logit_expect_ineq) but the
+            # violation tail is linear with bounded pull sqrt(k·t(1-t)),
+            # and the kink is smoothed at the pseudo-count's own noise.
+            f, tg, k = cst[1], cst[2], float(cst[3])
+            direction = cst[4]
+            t = float(np.clip(tg, 1e-4, 1.0 - 1e-4))
+            lt = float(np.log(t) - np.log1p(-t))
+            a = float(np.sqrt(k * t * (1.0 - t)))
+            sgn = 1.0 if direction == "le" else -1.0
+            return lambda x: jax.nn.softplus(
+                sgn * a * (_logit(jnp.mean(f(x))) - lt))
+        if kind == "cond_prob_ineq_nll":
+            # Conditional variant: "k Bernoulli draws *within the slice*"
+            # (P(cond) never scales the strength, matching cond_prob_nll),
+            # slice rate floored at one effective sample.
+            f, cond, tg, k = cst[1], cst[2], cst[3], float(cst[4])
+            direction = cst[5]
+            t = float(np.clip(tg, 1e-4, 1.0 - 1e-4))
+            lt = float(np.log(t) - np.log1p(-t))
+            a = float(np.sqrt(k * t * (1.0 - t)))
+            sgn = 1.0 if direction == "le" else -1.0
+            def score(x):
+                c = cond(x)
+                denom = jnp.maximum(jnp.mean(c), 1.0 / c.shape[0])
+                p = jnp.mean(f(x) * c) / denom
+                return jax.nn.softplus(sgn * a * (_logit(p) - lt))
             return score
         if kind == "expect_nll":
             # Synthetic-likelihood mean constraint (Wood 2010): the target is
@@ -630,6 +712,10 @@ class SamplerModel:
             ("logit_cond_expect_ineq", f, cond, target, weight, direction)
             ("corr_ineq",              f, g, target, weight, direction)
             ("eqn_ineq",               r, weight, direction)  # r >= 0 / r <= 0
+            ("expect_ineq_nll",        f, target, k, tau, direction)       # censored-likelihood
+            ("cond_expect_ineq_nll",   f, cond, target, k, tau, direction) # hinges (softplus
+            ("prob_ineq_nll",          f, target, k, direction)            # tails, bounded pull)
+            ("cond_prob_ineq_nll",     f, cond, target, k, direction)
 
         The ``onoff`` kind is the sample-native robust constraint: a belief that
         ``E[f | given] = target`` with width ``value_sd``, protected by a learnable
