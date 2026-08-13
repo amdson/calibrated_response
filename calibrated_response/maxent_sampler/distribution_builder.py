@@ -184,16 +184,19 @@ class DistributionBuilder:
         Flow architecture (see :class:`FlowSampler`).
     flow_type : str
         ``"affine"`` (default, RealNVP), ``"spline"`` (rational-quadratic
-        neural spline — more expressive per parameter, better tails), or
-        ``"dsf"`` (affine couplings interleaved with elementwise
-        deep-sigmoidal transforms — universal 1-D marginal shape per block;
+        neural spline — more expressive per parameter, better tails),
+        ``"dsf"`` (deep sigmoidal flow, Huang et al. 2018: autoregressive
+        conditioners emit per-dimension sigmoidal transformer stacks —
+        input-conditioned marginal shape; ``n_sigmoids`` applies), or
+        ``"sigmix"`` (cheaper unconditioned hybrid: affine couplings
+        interleaved with free-parameter elementwise sigmoidal transforms;
         ``n_sigmoids`` applies).  All keep exact entropy.
     num_bins, tail_bound :
         Spline knobs (``flow_type="spline"``): bins per transformed dim and the
         ``[-B, B]`` interval outside which the spline is the identity.
     n_sigmoids : int
-        Dsf knob (``flow_type="dsf"``): sigmoid components per dimension in
-        each sigmoidal block.
+        Dsf/sigmix knob: sigmoid components per dimension in each sigmoidal
+        layer.
     n_components : int
         Gaussian-mixture base size (see :class:`FlowSamplerModel`).  K > 1
         is the multimodality mechanism: base components can occupy separate

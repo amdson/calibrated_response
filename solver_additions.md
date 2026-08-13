@@ -1066,3 +1066,35 @@ Costs/caveats: ~2× fit wall-clock vs affine on CPU. No closed-form inverse —
 float32, offline only); `constraint_loss(with_logq=True)` is refused for dsf
 (no parameter gradient through the iterative solve; implicit-diff custom_vjp
 is the known fix if score-function features ever return to use).
+
+---
+
+## 26. Paper-faithful DSF (`flow_type="dsf"`); hybrid renamed `"sigmix"` -- *shipped (model layer)*
+
+Section 25's engine was a hybrid of our own assembly (couplings + free-param
+elementwise sigmoid mixtures), not the paper's DSF. It is now
+`flow_type="sigmix"` (`SigmixSampler`, `sigmix_sampler.py`), and
+`flow_type="dsf"` (`DSFSampler`, `dsf_sampler.py`) is the real Huang et
+al. 2018 deep sigmoidal flow (DDSF's dense inter-layer matrices skipped):
+
+- Each of `n_layers` blocks is IAF-ordered autoregressive: a MADE-masked
+  conditioner reads the block input and emits per-dimension pseudo-params
+  `(w, a, b)` for a stack of `n_ds_layers` (default 2) sigmoidal transformer
+  layers -- depth *inside* the transformer, the paper's "deep". Marginal
+  shape is input-conditioned, unlike sigmix's global per-dim shapes.
+- IAF ordering makes sampling (z -> x) the parallel direction, so training
+  cost per step is one masked pass per block; exact log-det via the same
+  logsumexp layer primitive (`_sigmix_forward`, reused from sigmix).
+- Ordering alternates (identity/reversed) between blocks; near-identity init
+  = zero conditioner output weights + bias-encoded dominant-component stack
+  (dominant logit 4.0 -- stronger than sigmix's 2.0 since S x n_layers
+  sigmoid layers compound deviation; init dev 0.117 vs sigmix 0.125).
+- Inverse: sequential -- d fixed-point passes per block, each a bracketed
+  bisection of the monotone stack. `log_prob` offline OK; `with_logq`
+  refused for both dsf and sigmix.
+
+Measured (bimodal, 600 steps, CPU, d=1): worst_err_rel dsf 0.014 / sigmix
+0.004 / affine 0.029; fit time 32s / 18s / 9s. Conditioner params
+~3KSdh/block dominate (the O(dKh) cost sigmix avoids); at d=1 the
+conditioning buys nothing over sigmix -- its regime is regime-dependent
+conditional marginal shape, to be judged on the benchmark sweep.

@@ -1,49 +1,41 @@
-"""Deep sigmoidal flow — affine couplings interleaved with elementwise
-K-component **sigmoidal transforms** (Huang et al. 2018, "Neural Autoregressive
-Flows").
+"""Deep sigmoidal flow (Huang et al. 2018, "Neural Autoregressive Flows") —
+the paper-faithful conditioned variant.
 
-Same interface as :class:`FlowSampler` / :class:`SplineFlowSampler`
-(``init_params`` / ``pack_params`` / ``unpack_params`` / ``forward_flat`` ->
-``(u, logdet)`` / ``inverse_flat`` / ``sample_fn_flat`` / ``n_params``) so
-:class:`~calibrated_response.maxent_sampler.flow_model.FlowSamplerModel` can
-swap it in and keep the exact-entropy machinery unchanged.
+Each flow step is an IAF-ordered autoregressive block: a MADE-masked
+conditioner reads the block input and emits, for every dimension ``i``, the
+pseudo-parameters ``(w, a, b)`` of a **stack** of sigmoidal transformer
+layers applied to that dimension::
 
-Why: an affine coupling stack pushed through a fixed sigmoid can only produce
-logistic-shaped marginals per layer — piling mass asymmetrically against a
-hinge, or splitting it bimodally, forces extreme scales and box-corner
-collapse.  The sigmoidal transform
+    t_0 = y_i
+    for s in 1..S:   t_s = logit( sum_k w_sk * sigmoid(a_sk * t_{s-1} + b_sk) )
 
-    u = sum_i w_i * sigmoid(a_i * y + b_i),   w on the simplex, a_i > 0
+with ``w`` on the simplex (softmax) and ``a > 0`` (softplus), so every layer
+is strictly monotone and the stack is a universal 1-D CDF approximator —
+"deep" in the paper's sense: depth *inside* the transformer, parameterized by
+the conditioner.  (The DDSF dense generalization — full matrices between
+sigmoid layers — is not implemented.)
 
-is strictly monotone by construction and a universal approximator of 1-D CDFs,
-so a single block can bend a marginal into (multimodal, skewed, plateaued)
-shape.  Blocks map R -> R by taking ``logit(u)`` so they stack; the **final**
-sigmoid squash onto (0,1) is kept identical to the other flows.
+The conditioner for dimension ``i`` sees only ``y_{<i}`` (MADE masks), so the
+Jacobian is triangular and the log-det is the sum of the per-dimension
+transformer log-derivatives, accumulated in log space exactly as in
+:mod:`sigmix_sampler` (whose ``_sigmix_forward`` is reused as the layer
+primitive).  Ordering alternates (identity / reversed) between blocks so no
+dimension is permanently first (the first dimension of a block gets
+bias-only, i.e. unconditioned, pseudo-parameters).
 
-Architecture::
-
-    y_0 = z
-    for each layer:  y <- affine_coupling(y);  y <- logit(sigmix(y))
-    u = sigmoid(y_L)  in (0, 1)^D
-
-Couplings carry cross-variable dependence (as before); the elementwise
-sigmoidal blocks carry marginal shape — the O(d*K)-parameter middle ground
-before a full neural-autoregressive conditioner.
-
-Log-det: everything accumulates in log space.  Per element,
-
-    d/dy sigmix(y) = sum_i w_i a_i sig(z_i) sig(-z_i),   z_i = a_i y + b_i
-    -> logsumexp(log w + log a + logsig(z) + logsig(-z))
-
-and the interior logit adds ``-log u - log(1-u)`` — with both ``log u`` and
-``log(1-u)`` computed directly as logsumexps (never via ``1 - u``), so
-saturated components cost no precision.
-
-Inverse: no closed form — each block is inverted per element by bracketed
-bisection (monotone, so this is exact to float tolerance).  Fine for the
-offline ``log_prob`` / held-out-NLL path; **not differentiable** in the flow
-parameters (the iterative solve carries no implicit-function gradient), so
+IAF ordering means the **sampling direction z -> x is the parallel one** —
+the conditioner reads the block *input* — so training (forward + log-det
+only) is a single masked pass per block, exactly what the exact-entropy
+maxent objective needs.  The price is the inverse: x -> z is sequential —
+``d`` fixed-point passes per block, each inverting the monotone transformer
+stack by bracketed bisection.  Offline density evaluation (``log_prob`` /
+held-out NLL) only; **not differentiable** in the parameters, so
 ``constraint_loss(with_logq=True)`` is refused for this flow type.
+
+Same interface as the other samplers (``init_params`` / ``pack_params`` /
+``unpack_params`` / ``forward_flat`` -> ``(u, logdet)`` / ``inverse_flat`` /
+``sample_fn_flat`` / ``n_params``); the final sigmoid squash onto (0,1) is
+kept identical to the other flows.
 """
 
 from __future__ import annotations
@@ -53,124 +45,95 @@ import jax.numpy as jnp
 import numpy as np
 from jax.flatten_util import ravel_pytree
 
-_A_MIN = 1e-3        # floor on component slopes (keeps every component alive)
-# inverse-softplus of (1 - _A_MIN): raw value at which the slope starts at 1.0
-_INIT_A_RAW = float(np.log(np.expm1(1.0 - _A_MIN)))
-
-
-def _sigmix_forward(y, w_logits, a_raw, b):
-    """Elementwise sigmoidal-mixture block ``y (d,) -> (y' (d,), ld (d,))``.
-
-    ``y'`` is the pre-logit-space output ``logit(sum w sig(a y + b))`` and
-    ``ld`` the elementwise log-derivative dy'/dy (both exact, log-space)."""
-    log_w = jax.nn.log_softmax(w_logits, axis=-1)            # (d, K)
-    a = _A_MIN + jax.nn.softplus(a_raw)                      # (d, K)
-    zc = a * y[:, None] + b                                  # (d, K)
-    log_u = jax.nn.logsumexp(log_w + jax.nn.log_sigmoid(zc), axis=-1)
-    log_1mu = jax.nn.logsumexp(log_w + jax.nn.log_sigmoid(-zc), axis=-1)
-    y_out = log_u - log_1mu                                  # logit(u), exact
-    ld = (jax.nn.logsumexp(log_w + jnp.log(a) + jax.nn.log_sigmoid(zc)
-                           + jax.nn.log_sigmoid(-zc), axis=-1)
-          - log_u - log_1mu)
-    return y_out, ld
-
-
-def _sigmix_invert(y_target, w_logits, a_raw, b, n_expand: int = 40,
-                   n_bisect: int = 60):
-    """Elementwise inverse of :func:`_sigmix_forward` by bracketed bisection.
-
-    Monotone in ``y``, so expand a bracket around the target then bisect.
-    Returns ``y`` such that ``sigmix(y) ~= y_target`` (float32 tolerance).
-    NOT differentiable in the block parameters — offline density use only."""
-    f = lambda y: _sigmix_forward(y, w_logits, a_raw, b)[0]
-    lo = y_target - 1.0
-    hi = y_target + 1.0
-    step = 1.0
-    for _ in range(n_expand):
-        lo = jnp.where(f(lo) > y_target, lo - step, lo)
-        hi = jnp.where(f(hi) < y_target, hi + step, hi)
-        step = step * 1.5
-    for _ in range(n_bisect):
-        mid = 0.5 * (lo + hi)
-        gt = f(mid) > y_target
-        hi = jnp.where(gt, mid, hi)
-        lo = jnp.where(gt, lo, mid)
-    return 0.5 * (lo + hi)
+from calibrated_response.maxent_sampler.sigmix_sampler import (
+    _INIT_A_RAW, _sigmix_forward)
 
 
 class DSFSampler:
-    """Coupling + deep-sigmoidal flow with exact log-det Jacobian.
+    """Neural-autoregressive deep sigmoidal flow with exact log-det Jacobian.
 
     Parameters
     ----------
     n_vars : int
         Latent = output dimensionality (invertible).
     n_layers : int
-        Number of (coupling, sigmoidal-block) layer pairs.
+        Number of autoregressive blocks (alternating variable order).
     hidden : int
-        Hidden width of each coupling layer's scale/shift MLP.
-    s_max : float
-        Coupling scale clamp (as in :class:`FlowSampler`).
+        Hidden width of each block's MADE conditioner.
+    n_ds_layers : int
+        ``S``: sigmoidal transformer layers stacked *within* each block
+        (the paper's "deep").
     n_sigmoids : int
-        ``K``: sigmoid components per dimension in each sigmoidal block.
+        ``K``: sigmoid components per transformer layer.
     """
 
     def __init__(self, n_vars: int, n_layers: int = 6, hidden: int = 64,
-                 s_max: float = 3.0, n_sigmoids: int = 8):
+                 n_ds_layers: int = 2, n_sigmoids: int = 8):
         self.n_vars = int(n_vars)
         self.latent_dim = self.n_vars          # invertible: same dim
         self.n_layers = int(n_layers)
         self.hidden = int(hidden)
-        self.s_max = float(s_max)
+        self.S = int(n_ds_layers)
         self.K = int(n_sigmoids)
 
-        d = self.n_vars
-        half = np.arange(d) < (d + 1) // 2
-        self.masks = [jnp.asarray(half if i % 2 == 0 else ~half, jnp.float32)
-                      for i in range(self.n_layers)]
+        d, h = self.n_vars, self.hidden
+        self.P = d * self.S * 3 * self.K       # conditioner output size
+
+        # MADE masks in natural order; blocks permute their input instead of
+        # carrying per-block masks.  deg_h cycles 1..d-1 (bias-only outputs
+        # for dimension 0; for d == 1 the whole conditioner is bias-only).
+        deg_in = np.arange(1, d + 1)
+        deg_h = 1 + (np.arange(h) % max(1, d - 1))
+        deg_out = np.repeat(deg_in, self.S * 3 * self.K)
+        self._m1 = jnp.asarray(deg_h[:, None] >= deg_in[None, :], jnp.float32)
+        self._m2 = jnp.asarray(deg_out[:, None] > deg_h[None, :], jnp.float32)
+
+        perms = [np.arange(d) if i % 2 == 0 else np.arange(d)[::-1]
+                 for i in range(self.n_layers)]
+        self._perms = [jnp.asarray(p) for p in perms]
+        self._invps = [jnp.asarray(np.argsort(p)) for p in perms]
 
         _flat, self._unravel_fn = ravel_pytree(self.zero_params())
         self.n_params = int(_flat.shape[0])
 
     # ---- parameters --------------------------------------------------
     def _layer_shapes(self):
-        d, h, K = self.n_vars, self.hidden, self.K
-        return [("W1", (h, d)), ("b1", (h,)), ("W2", (2 * d, h)),
-                ("b2", (2 * d,)), ("w_logits", (d, K)), ("a_raw", (d, K)),
-                ("b", (d, K))]
+        d, h = self.n_vars, self.hidden
+        return [("W1", (h, d)), ("b1", (h,)), ("W2", (self.P, h)),
+                ("b2", (self.P,))]
 
     def zero_params(self):
         return [{k: jnp.zeros(s) for k, s in self._layer_shapes()}
                 for _ in range(self.n_layers)]
 
     def init_params(self, key: jax.Array):
-        """Near-identity start: zero coupling outputs (as in the other flows)
-        and a sigmoidal block dominated by one ``sigmoid(y)`` component
-        (``a = 1, b = 0``, weight ~0.88), with the remaining ``K - 1``
-        components spread over ``b in [-1.5, 1.5]`` at low weight — this
-        breaks component symmetry (identical components would receive
-        identical gradients forever) while keeping the map ~= identity, so
-        the full-domain-spread warm start and day-one entropy gradient are
-        preserved."""
-        keys = jax.random.split(key, self.n_layers)
-        d, h, K = self.n_vars, self.hidden, self.K
-        w0 = np.zeros((d, K), np.float32)
-        w0[:, 0] = 2.0                                   # dominant identity comp
-        b0 = np.zeros((d, K), np.float32)
+        """Near-identity start: zero conditioner output weights, so the
+        pseudo-parameters come from the biases alone — set to a transformer
+        stack dominated by one ``sigmoid(t)`` component per layer (``a = 1,
+        b = 0``, weight ~0.88) with the remaining components spread over
+        ``b in [-1.5, 1.5]`` at low weight (+ jitter to break component
+        symmetry).  Each layer is then ~= identity through its logit, the
+        block ~= identity, and the full flow starts at ``u = sigmoid(z)`` —
+        same warm-start convention as the other engines."""
+        d, h, S, K = self.n_vars, self.hidden, self.S, self.K
+        b2 = np.zeros((d, S, 3, K), np.float32)
+        b2[:, :, 0, 0] = 4.0    # dominant identity comp (stronger than the
+        # sigmix init: S stacked layers per block compound the deviation)
+        b2[:, :, 1, :] = _INIT_A_RAW                  # a ~= 1
         if K > 1:
-            b0[:, 1:] = np.linspace(-1.5, 1.5, K - 1, dtype=np.float32)
+            b2[:, :, 2, 1:] = np.linspace(-1.5, 1.5, K - 1, dtype=np.float32)
+        keys = jax.random.split(key, self.n_layers)
         layers = []
         for i in range(self.n_layers):
-            k1, kb = jax.random.split(keys[i])
-            jitter = 0.05 * jax.random.normal(kb, (d, K))
+            k1, kj = jax.random.split(keys[i])
+            jitter = np.zeros((d, S, 3, K), np.float32)
+            jitter[:, :, 1:, :] = 0.05 * np.asarray(
+                jax.random.normal(kj, (d, S, 2, K)))
             layers.append({
                 "W1": jax.random.normal(k1, (h, d)) / jnp.sqrt(d),
                 "b1": jnp.zeros(h),
-                "W2": jnp.zeros((2 * d, h)),
-                "b2": jnp.zeros(2 * d),
-                "w_logits": jnp.asarray(w0),
-                "a_raw": jnp.full((d, K), _INIT_A_RAW) + jitter,
-                "b": jnp.asarray(b0) + jitter,
+                "W2": jnp.zeros((self.P, h)),
+                "b2": jnp.asarray((b2 + jitter).reshape(-1)),
             })
         return layers
 
@@ -181,50 +144,84 @@ class DSFSampler:
     def unpack_params(self, theta: jax.Array):
         return self._unravel_fn(theta)
 
-    # ---- coupling sublayer (identical maths to FlowSampler) -----------
-    def _coupling_st(self, layer, m, y):
-        hcond = jnp.maximum(jnp.dot(layer["W1"], m * y) + layer["b1"], 0.0)
-        st = jnp.dot(layer["W2"], hcond) + layer["b2"]
-        s = self.s_max * jnp.tanh(st[: self.n_vars])
-        t = st[self.n_vars:]
-        return s, t
+    # ---- MADE conditioner -> transformer pseudo-parameters -----------
+    def _conditioner(self, layer, yp):
+        """Block input ``yp`` (d, natural order) -> pseudo-params, each
+        ``(d, S, K)``.  Row ``i`` depends only on ``yp[:i]`` (masks)."""
+        h1 = jnp.maximum(jnp.dot(layer["W1"] * self._m1, yp) + layer["b1"],
+                         0.0)
+        raw = jnp.dot(layer["W2"] * self._m2, h1) + layer["b2"]
+        raw = raw.reshape(self.n_vars, self.S, 3, self.K)
+        return raw[:, :, 0], raw[:, :, 1], raw[:, :, 2]
+
+    def _stack(self, t, w_logits, a_raw, b):
+        """Sigmoidal transformer stack, elementwise: ``t (d,) -> (t', ld)``
+        with ``ld`` the per-dimension log-derivative of the whole stack."""
+        ld_tot = jnp.zeros_like(t)
+        for s in range(self.S):
+            t, ld = _sigmix_forward(t, w_logits[:, s], a_raw[:, s], b[:, s])
+            ld_tot = ld_tot + ld
+        return t, ld_tot
+
+    def _stack_invert(self, t_target, w_logits, a_raw, b,
+                      n_expand: int = 40, n_bisect: int = 60):
+        """Elementwise inverse of the monotone transformer stack by bracketed
+        bisection (offline density use only — not differentiable)."""
+        f = lambda t: self._stack(t, w_logits, a_raw, b)[0]
+        lo = t_target - 1.0
+        hi = t_target + 1.0
+        step = 1.0
+        for _ in range(n_expand):
+            lo = jnp.where(f(lo) > t_target, lo - step, lo)
+            hi = jnp.where(f(hi) < t_target, hi + step, hi)
+            step = step * 1.5
+        for _ in range(n_bisect):
+            mid = 0.5 * (lo + hi)
+            gt = f(mid) > t_target
+            hi = jnp.where(gt, mid, hi)
+            lo = jnp.where(gt, lo, mid)
+        return 0.5 * (lo + hi)
 
     # ---- forward pass with log-det -----------------------------------
     def forward_pytree(self, params, z: jax.Array):
         """One latent ``z`` (D,) -> ``(u in (0,1)^D, logdet scalar)``."""
         y = z
         logdet = 0.0
-        for layer, m in zip(params, self.masks):
-            s, t = self._coupling_st(layer, m, y)
-            y = m * y + (1.0 - m) * (y * jnp.exp(s) + t)
-            logdet = logdet + jnp.sum((1.0 - m) * s)
-            y, ld = _sigmix_forward(y, layer["w_logits"], layer["a_raw"],
-                                    layer["b"])
+        for layer, perm, invp in zip(params, self._perms, self._invps):
+            yp = y[perm]
+            wl, ar, bb = self._conditioner(layer, yp)
+            tp, ld = self._stack(yp, wl, ar, bb)
+            y = tp[invp]
             logdet = logdet + jnp.sum(ld)
-        logdet = logdet + jnp.sum(jax.nn.log_sigmoid(y) + jax.nn.log_sigmoid(-y))
+        logdet = logdet + jnp.sum(jax.nn.log_sigmoid(y)
+                                  + jax.nn.log_sigmoid(-y))
         return jax.nn.sigmoid(y), logdet
 
     def forward_flat(self, theta: jax.Array, z: jax.Array):
         return self.forward_pytree(self.unpack_params(theta), z)
 
-    # ---- inverse pass (offline density evaluation) ---------------------
+    # ---- inverse pass (offline density evaluation) --------------------
     def inverse_pytree(self, params, u: jax.Array):
         """One point ``u`` (D,) in (0,1)^D -> ``(z, logdet)`` with ``logdet``
-        the *forward* log|det J| at the recovered ``z``.  The sigmoidal blocks
-        invert by bisection (exact to float tolerance, ~100 evals/block);
-        offline use only — no parameter gradients through the solve."""
+        the *forward* log|det J| at the recovered ``z``.  Each block inverts
+        by ``d`` fixed-point passes (pass ``k`` fixes dimension ``k``: its
+        pseudo-params depend only on already-recovered dimensions), each pass
+        a bracketed bisection of the monotone transformer stack.  Offline use
+        only — no parameter gradients through the solve."""
         u = jnp.clip(u, 1e-6, 1.0 - 1e-6)
         y = jnp.log(u) - jnp.log1p(-u)                        # logit
-        logdet = jnp.sum(jnp.log(u) + jnp.log1p(-u))          # sum log sigmoid'(y)
-        for layer, m in zip(reversed(params), reversed(self.masks)):
-            y = _sigmix_invert(y, layer["w_logits"], layer["a_raw"],
-                               layer["b"])
-            _, ld = _sigmix_forward(y, layer["w_logits"], layer["a_raw"],
-                                    layer["b"])
+        logdet = jnp.sum(jnp.log(u) + jnp.log1p(-u))          # sum log sig'(y)
+        for layer, perm, invp in zip(reversed(params), reversed(self._perms),
+                                     reversed(self._invps)):
+            tp = y[perm]
+            yp = jnp.zeros_like(tp)
+            for _ in range(self.n_vars):
+                wl, ar, bb = self._conditioner(layer, yp)
+                yp = self._stack_invert(tp, wl, ar, bb)
+            wl, ar, bb = self._conditioner(layer, yp)
+            _, ld = self._stack(yp, wl, ar, bb)
             logdet = logdet + jnp.sum(ld)
-            s, t = self._coupling_st(layer, m, y)
-            y = m * y + (1.0 - m) * (y - t) * jnp.exp(-s)
-            logdet = logdet + jnp.sum((1.0 - m) * s)
+            y = yp[invp]
         return y, logdet
 
     def inverse_flat(self, theta: jax.Array, u: jax.Array):

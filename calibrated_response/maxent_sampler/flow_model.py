@@ -37,6 +37,7 @@ from calibrated_response.maxent_sampler.model import SamplerModel
 from calibrated_response.maxent_sampler.flow_sampler import FlowSampler
 from calibrated_response.maxent_sampler.spline_sampler import SplineFlowSampler
 from calibrated_response.maxent_sampler.dsf_sampler import DSFSampler
+from calibrated_response.maxent_sampler.sigmix_sampler import SigmixSampler
 
 _EPS = 1e-30
 
@@ -66,19 +67,24 @@ class FlowSamplerModel(SamplerModel):
         ``"affine"`` (default) uses the RealNVP affine-coupling
         :class:`FlowSampler`; ``"spline"`` uses the more expressive
         rational-quadratic :class:`SplineFlowSampler` (``num_bins`` /
-        ``tail_bound`` apply); ``"dsf"`` interleaves the affine couplings with
-        elementwise deep-sigmoidal transforms (:class:`DSFSampler`,
-        ``n_sigmoids`` applies) — universal 1-D marginal shape per block.  All
-        keep exact entropy, so the maxent machinery below is identical.  The
-        dsf inverse is a bisection solve: :meth:`log_prob` works (offline),
-        but ``constraint_loss(with_logq=True)`` is refused (no parameter
-        gradient through the iterative inverse).
+        ``tail_bound`` apply); ``"dsf"`` is the paper-faithful deep sigmoidal
+        flow (Huang et al. 2018): IAF-ordered MADE conditioners emit
+        per-dimension pseudo-parameters for a stack of sigmoidal transformer
+        layers (:class:`DSFSampler`, ``n_sigmoids`` applies) — input-
+        conditioned marginal shape; ``"sigmix"`` is the cheaper unconditioned
+        hybrid — affine couplings interleaved with free-parameter elementwise
+        sigmoidal transforms (:class:`SigmixSampler`, ``n_sigmoids``
+        applies).  All keep exact entropy, so the maxent machinery below is
+        identical.  The dsf/sigmix inverses are bisection solves:
+        :meth:`log_prob` works (offline), but
+        ``constraint_loss(with_logq=True)`` is refused (no parameter gradient
+        through the iterative inverse).
     num_bins, tail_bound :
         Spline knobs (``flow_type="spline"`` only): bins per transformed dim and
         the ``[-B, B]`` interval outside which the spline is the identity.
     n_sigmoids : int
-        Dsf knob (``flow_type="dsf"`` only): sigmoid components per dimension
-        in each sigmoidal block.
+        Dsf/sigmix knob: sigmoid components per dimension in each sigmoidal
+        layer.
     n_components : int
         Base-distribution mixture size.  ``1`` (default) keeps the standard
         ``z ~ N(0, I)`` base.  ``K > 1`` replaces it with a uniform-weight
@@ -119,11 +125,14 @@ class FlowSamplerModel(SamplerModel):
                                          tail_bound=tail_bound)
         elif flow_type == "dsf":
             self.net = DSFSampler(self.n_flow, n_layers=n_layers,
-                                  hidden=hidden, s_max=s_max,
-                                  n_sigmoids=n_sigmoids)
+                                  hidden=hidden, n_sigmoids=n_sigmoids)
+        elif flow_type == "sigmix":
+            self.net = SigmixSampler(self.n_flow, n_layers=n_layers,
+                                     hidden=hidden, s_max=s_max,
+                                     n_sigmoids=n_sigmoids)
         else:
-            raise ValueError(f"flow_type must be 'affine', 'spline' or "
-                             f"'dsf', got {flow_type!r}")
+            raise ValueError(f"flow_type must be 'affine', 'spline', 'dsf' "
+                             f"or 'sigmix', got {flow_type!r}")
         self.flow_type = flow_type
         lower = np.concatenate([self.disc.lower, np.zeros(self.n_dummy)])
         upper = np.concatenate([self.disc.upper, np.ones(self.n_dummy)])
@@ -318,10 +327,11 @@ class FlowSamplerModel(SamplerModel):
         if domain_prior not in ("uniform", "gaussian"):
             raise ValueError(f"domain_prior must be 'uniform' or 'gaussian', "
                              f"got {domain_prior!r}")
-        if with_logq and self.flow_type == "dsf":
+        if with_logq and self.flow_type in ("dsf", "sigmix"):
             raise NotImplementedError(
-                "with_logq requires a differentiable inverse; the dsf flow "
-                "inverts by bisection (no parameter gradient)")
+                f"with_logq requires a differentiable inverse; the "
+                f"{self.flow_type} flow inverts by bisection (no parameter "
+                f"gradient)")
         scorers = []
         gate_scorers = []
         gate_pbroken = []
