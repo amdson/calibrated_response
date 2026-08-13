@@ -26,34 +26,25 @@ HERE = Path(__file__).parent
 
 # bump on any change that invalidates old fits; never reuse a run dir
 # across code or cache changes
-RUN = "2026-07-14-echo-fix"
+RUN = "2026-08-12-v2-opus"
 
-# (out_name, extra run_flow_solver.py args) — one arm per elicitation
-# protocol, same logit solver config across all of them. The cache files
-# come from run_protocol_pilot.sh (committed + pushed before running this).
-PROTOCOLS = ["baseline", "v1", "v1x2", "v1_fermi", "v1_spread"]
+# (out_name, extra run_flow_solver.py args). This run: the methodology-v2
+# protocol (protocol_v2.py) elicited with anthropic/claude-opus-5 over 10
+# resolved benchmark questions (--only-resolved --sample 10 --sample-seed 0).
+# The paired RAW baseline is each entry's own direct_llm column, so a
+# v2-only run still scores fused-vs-RAW-vs-market; the older protocol
+# caches cover a different question sample and would only add empty
+# intersections to --common scoring.
+V2_CACHE = str(HERE / "caches" / "v2" / "llm_cache_v2.json")
 ARMS = [
-    (f"pred_{p}.json",
-     ["--cache", str(HERE / "caches" / p / f"llm_cache_{p}.json"),
-      "--prob-penalty", "logit"])
-    for p in PROTOCOLS
+    # collapse is the default but an identity on v2 caches (no duplicate
+    # quantities by construction) — harmless to leave on
+    ("pred_v2.json", ["--cache", V2_CACHE, "--prob-penalty", "logit"]),
+    # robust gates: v2's larger, more heterogeneous estimate sets are the
+    # case per-estimate credences were built for
+    ("pred_v2_robust.json",
+     ["--cache", V2_CACHE, "--prob-penalty", "logit", "--robust"]),
 ]
-# collapse_repeats is now the solver default (duplicates count once,
-# disagreement widens). Keep one ablation arm where v1x2's repeats are fed
-# through raw — k penalties per quantity, sqrt(k) sharpening — so the cost
-# of NOT collapsing stays measurable.
-ARMS.append(
-    ("pred_v1x2_nocollapse.json",
-     ["--cache", str(HERE / "caches" / "v1x2" / "llm_cache_v1x2.json"),
-      "--prob-penalty", "logit", "--no-collapse"]))
-# gaussian-KL domain prior (see gaussian_kl_objective.md): same elicitation
-# as baseline, entropy term replaced by KL to N(mid, span/4) per continuous
-# variable — isolates the solver-side half of the conservative-bounds change.
-# Once a protocol winner emerges, point this at the winner's cache instead.
-ARMS.append(
-    ("pred_baseline_gk.json",
-     ["--cache", str(HERE / "caches" / "baseline" / "llm_cache_baseline.json"),
-      "--prob-penalty", "logit", "--domain-prior", "gaussian"]))
 
 
 def run(cmd: list[str]) -> None:
@@ -83,6 +74,7 @@ def main() -> None:
         # --common: score every arm on the keys fit in ALL of them, so a
         # protocol that failed on different entries doesn't skew the compare
         run([sys.executable, str(HERE / "pilot_diagnostics.py"),
+             "--cache", V2_CACHE,
              "--common", "--predictions", *(str(o) for o in done)])
 
 

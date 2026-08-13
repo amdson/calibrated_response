@@ -70,10 +70,15 @@ def deserialize(entry: dict):
 
 
 def direct_llm_estimate(estimates) -> float | None:
-    """The LLM's own unconditional P(target = True) — the paired baseline."""
+    """The LLM's own unconditional P(target = True) — the paired baseline.
+
+    Point beliefs only: v2 caches also contain one-sided bounds on the
+    target (`P(target = True) < 0.9`), which are constraints, not the
+    direct answer."""
     for est in estimates:
         if isinstance(est, ProbabilityEstimate) and \
-                est.proposition.variable == TARGET_NAME:
+                est.proposition.variable == TARGET_NAME and \
+                est.relation == "eq":
             p = float(est.probability)
             return p if est.proposition.value else 1.0 - p
     return None

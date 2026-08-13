@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any, Optional, Type, TypeVar
 
 from pydantic import BaseModel
@@ -127,7 +128,25 @@ class OpenRouterClient(LLMClient):
         text = choice.message.content
         if not text:
             raise ValueError("Empty response from OpenRouter")
-        return response_model.model_validate_json(text)
+        return response_model.model_validate_json(
+            OpenRouterClient._extract_json(text))
+
+    @staticmethod
+    def _extract_json(text: str) -> str:
+        """Some routes (e.g. Anthropic models) ignore
+        ``response_format={"type": "json_object"}`` and wrap the JSON in
+        markdown fences, sometimes with prose around it. Peel to the
+        outermost object; pass bare JSON through untouched."""
+        t = text.strip()
+        if t.startswith("{") and t.endswith("}"):
+            return t
+        m = re.search(r"```(?:json)?\s*(\{.*\})\s*```", t, re.DOTALL)
+        if m:
+            return m.group(1)
+        start, end = t.find("{"), t.rfind("}")
+        if start != -1 and end > start:
+            return t[start:end + 1]
+        return t
 
     def query_structured(
         self,

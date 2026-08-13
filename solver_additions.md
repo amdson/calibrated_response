@@ -995,3 +995,41 @@ Findings (n=2 and n=1 respectively — directions, not laws):
   [100, 30000] span is 698, which overlaps genuine low-end mass —
   false-alarmed at 0.19/0.25 on a healthy fit. Needs a quantile- or
   log-space variant (ties into §22 soft-tailed domains).
+
+## 24. Elicitation protocol v2: the methodology, mechanized (Aug 2026)
+
+`generation/protocol_v2.py` + the `v2` entry in `metaculus/run_protocol.py`
+port the manual calibration-test workflow (SKILL.md, §22–23) into the
+LLM-elicitation pipeline. Fixed 6-node protocol, 4 LLM calls/question, no
+solver in the loop:
+
+1. **gen_structure** — mechanism variables + declared shock cases, outcome
+   terms, dependency edges, optional latent hub (mandated [-1, 4] integer
+   legend); catch-all `unlisted_shock` binary injected by code.
+2. **gen_tier1** — flood of cheap one-sided truths using the full DSL:
+   accounting inequalities, prerequisite ceilings, corr signs on edges,
+   linear floors (honest-floor caveat in-prompt), tail beliefs near bounds.
+3. **propose_matrix_requests** (pure code) — case-coverage-matrix cells:
+   both legs per shock × outcome, all-shocks-false baseline row, hub anchor
+   package (E + graded tails at fractional span positions) + hub regime rows.
+4. **fill_matrix** — answers every cell or marks it `UNCHANGED` (recorded
+   decision, never a silent default).
+5. **gen_battery** — marginals, p10/p50/p90 spreads, deliberate bound-tails,
+   and the direct target stated weakly (`~ 1.5`) so mechanism disagreement
+   survives.
+6. **validate** (pure code) — drops unknown-name estimates, hard-fails on
+   missing direct target / open target-row cells / missing hub E-anchor /
+   no coupling; warns on missing complements, spreads, degenerate medians.
+
+Payload additions: `cases/outcomes/edges/hub/unchanged/validation` plus a
+frozen `raw` record (direct target + first marginal per variable) for
+fused-vs-RAW scoring at resolution. Known informant biases (YTD momentum,
+"in discussions") are baked into the shared grammar prompt.
+
+**No repeat collapse**: passes have disjoint scopes and matrix cells are
+key-filtered, so duplicate quantities aren't generated; `quantity_key` now
+carries the relation (a point belief and a bound on the same quantity never
+merge or block each other) and handles equations. `collapse_repeats` remains
+for v1 caches and is an identity on v2 output. If replicates return, the
+plan is runner-stamped `@ n` budgets (total evidence per quantity capped
+regardless of draw count), not a collapse pass.

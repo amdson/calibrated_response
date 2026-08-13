@@ -69,20 +69,29 @@ def quantity_str(est: EstimateUnion) -> str:
 
 def quantity_key(est: EstimateUnion) -> tuple:
     """Structural identity: same quantity <=> same key (condition order and
-    corr argument order are normalised away)."""
+    corr argument order are normalised away). The relation is part of the
+    identity — a point belief `P(x > t) = 0.3` and a ceiling `P(x > t) < 0.3`
+    are different statements about the same quantity and must never collapse
+    or block each other. Every key ends with the relation, so callers that
+    care only about the quantity can compare `key[:-1]`."""
     t = est.estimate_type
+    rel = getattr(est, "relation", "eq")
     if t == "probability":
-        return ("P", est.proposition.to_query_proposition())
+        return ("P", est.proposition.to_query_proposition(), rel)
     if t == "conditional_probability":
         return ("P", est.proposition.to_query_proposition(),
-                tuple(sorted(c.to_query_proposition() for c in est.conditions)))
+                tuple(sorted(c.to_query_proposition() for c in est.conditions)),
+                rel)
     if t == "expectation":
-        return ("E", est.variable)
+        return ("E", est.variable, rel)
     if t == "conditional_expectation":
         return ("E", est.variable,
-                tuple(sorted(c.to_query_proposition() for c in est.conditions)))
+                tuple(sorted(c.to_query_proposition() for c in est.conditions)),
+                rel)
     if t == "correlation":
-        return ("Corr", tuple(sorted((est.variable_a, est.variable_b))))
+        return ("Corr", tuple(sorted((est.variable_a, est.variable_b))), rel)
+    if t == "equation":
+        return ("EQ", est.lhs, est.rhs, rel)
     raise ValueError(f"unknown estimate type {t!r}")
 
 

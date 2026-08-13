@@ -33,8 +33,11 @@ dotenv.load_dotenv(Path(__file__).parent.parent / ".env")
 
 from calibrated_response.llm.openrouter import OpenRouterClient
 from calibrated_response.models.variable import BinaryVariable
-from calibrated_response.generation.protocol import (ENRICHERS, State, merge,
-                                                     n_llm_calls)
+from calibrated_response.generation.protocol import ENRICHERS, State, merge
+from calibrated_response.generation.protocol_v2 import (ENRICHERS_V2, StateV2,
+                                                        raw_record)
+
+ALL_ENRICHERS = {**ENRICHERS, **ENRICHERS_V2}
 
 from run_elicitation import (DEFAULT_MODEL, TARGET_NAME, entry_context,
                              entry_key, entry_question, load_dataset,
@@ -99,18 +102,43 @@ PROTOCOLS = {
                                         "complements"]}),
         ("fill_requests", {}),
     ],
+    # methodology v2 (protocol_v2.py): mechanism structure (variables +
+    # shock cases + edges + optional latent hub) -> tier-1 flood of cheap
+    # one-sided truths (bounds, ceilings, corr signs, linear floors, tails)
+    # -> pure-code case-coverage-matrix cells, filled or explicitly
+    # UNCHANGED -> marginal/spread/weak-anchor battery -> pure-code
+    # validation + frozen RAW record. Uses the full DSL (hinges, equations,
+    # ~ w widths). No repeat collapse. 4 calls/question.
+    "v2": [
+        ("gen_structure", {}),
+        ("gen_tier1", {}),
+        ("propose_matrix_requests", {}),
+        ("fill_matrix", {}),
+        ("gen_battery", {}),
+        ("validate", {}),
+    ],
 }
+
+# protocols that run on the extended state (cases/edges/hub + RAW record)
+V2_PROTOCOLS = {"v2"}
 
 
 def serialize_state(state: State, extra: dict) -> dict:
     ests = _serialize_estimates(state.estimates)
     for d, prov in zip(ests, state.provenance):
         d["provenance"] = prov
-    return {"variables": _serialize_variables(state.variables),
-            "estimates": ests,
-            "requests": list(state.requests),
-            "node_log": state.node_log,
-            **extra}
+    out = {"variables": _serialize_variables(state.variables),
+           "estimates": ests,
+           "requests": list(state.requests),
+           "node_log": state.node_log,
+           **extra}
+    if isinstance(state, StateV2):
+        out.update({"cases": state.cases, "outcomes": state.outcomes,
+                    "edges": [list(e) for e in state.edges],
+                    "hub": state.hub, "unchanged": state.unchanged,
+                    "validation": state.validation,
+                    "raw": raw_record(state)})
+    return out
 
 
 def show_entry(key: str, payload: dict) -> None:
@@ -120,6 +148,16 @@ def show_entry(key: str, payload: dict) -> None:
           f"vars: {len(payload['variables'])}   "
           f"estimates: {len(payload['estimates'])}   "
           f"requests: {len(payload.get('requests', []))}")
+    if "cases" in payload:
+        print(f" cases: {payload['cases']}   hub: {payload.get('hub')}   "
+              f"outcomes: {payload.get('outcomes')}")
+        print(f" unchanged cells: {len(payload.get('unchanged', []))}   "
+              f"raw: {payload.get('raw')}")
+        val = payload.get("validation", {})
+        for w in val.get("warnings", []):
+            print(f" warn: {w}")
+        for d in val.get("dropped", []):
+            print(f" dropped: {d}")
     for row in payload.get("node_log", []):
         print(f"  [{row['node']}] +{row['added']['vars']}v "
               f"+{row['added']['estimates']}e +{row['added']['requests']}r "
@@ -198,7 +236,7 @@ def main(argv=None):
 
     todo = [e for e in entries
             if entry_key(e) not in cache and entry_key(e) not in failures]
-    calls = n_llm_calls(protocol)
+    calls = sum(1 for name, _ in protocol if ALL_ENRICHERS[name][1])
     print(f"protocol '{args.protocol}': {len(protocol)} nodes, "
           f"{calls} LLM calls/question "
           f"(worst case {calls * (args.retries + 1)} with retries)")
@@ -217,14 +255,15 @@ def main(argv=None):
         cache_path.write_text(json.dumps(cache, indent=1), encoding="utf-8")
 
     async def run_nodes(e):
-        state = State(
+        state_cls = StateV2 if args.protocol in V2_PROTOCOLS else State
+        state = state_cls(
             question=entry_context(e),
             variables=[BinaryVariable(
                 name=TARGET_NAME,
                 description=f"The literal answer to the main question: "
                             f"{entry_question(e)}")])
         for node_name, params in protocol:
-            fn, needs_llm = ENRICHERS[node_name]
+            fn, needs_llm = ALL_ENRICHERS[node_name]
             qualifier = params.get('mode') or params.get('scope') or \
                 ("fresh" if params.get('hide_estimates') else None)
             tag = f"{node_name}" + (f"[{qualifier}]" if qualifier else "")
