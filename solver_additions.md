@@ -1033,3 +1033,36 @@ merge or block each other) and handles equations. `collapse_repeats` remains
 for v1 caches and is an identity on v2 output. If replicates return, the
 plan is runner-stamped `@ n` budgets (total evidence per quantity capped
 regardless of draw count), not a collapse pass.
+
+---
+
+## 25. Deep sigmoidal flow (`flow_type="dsf"`) — *shipped (model layer)*
+
+Huang et al. 2018 sigmoidal transforms as a third flow engine:
+`DistributionBuilder(..., flow_type="dsf", n_sigmoids=8)`. Each of the
+`n_layers` layers is an affine coupling (dependence, as before) followed by an
+elementwise K-component sigmoidal block
+`u = sum_i w_i sigmoid(a_i y + b_i)` (`w` simplex, `a > 0` — monotone by
+construction, universal approximator of 1-D CDFs), re-logited so blocks stack;
+final sigmoid squash unchanged. Log-det stays exact (logsumexp forms
+throughout), so the exact-entropy maxent machinery is untouched. Init is
+near-identity: one dominant `sigmoid(y)` component, the rest spread over
+`b ∈ [-1.5, 1.5]` at low weight to break component symmetry.
+
+Motivation: affine couplings through the fixed sigmoid squash can only bend
+logistic-shaped marginals per layer — asymmetric mass against a hinge or a
+forbidden middle forces extreme scales. Measured (600 steps, CPU): bimodal
+`P(x<-40)=P(x>40)=0.45` + thin middle — dsf worst_err_rel 0.004 vs affine
+0.029 (affine splits lobes 0.48/0.41, dsf 0.449/0.448); skew+tail and
+wall scenarios ≈ tie. On the *infeasible* y/x/k hinge repro dsf ≈ affine, as
+expected — that pathology is infeasibility, not expressiveness. An apparent
+dsf regression on `E[y] = 30` (span 200) is actually the soft value-nll/
+entropy trade: default sd = 10 lets the mean drift for entropy, and dsf
+drifts further because it converts mean-slack into entropy more efficiently;
+`E[y] = 30 ~ 2 @ 50` snaps both engines to ~33.
+
+Costs/caveats: ~2× fit wall-clock vs affine on CPU. No closed-form inverse —
+`log_prob` (held-out NLL) works via per-element bracketed bisection (exact to
+float32, offline only); `constraint_loss(with_logq=True)` is refused for dsf
+(no parameter gradient through the iterative solve; implicit-diff custom_vjp
+is the known fix if score-function features ever return to use).

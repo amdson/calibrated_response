@@ -183,12 +183,17 @@ class DistributionBuilder:
     n_layers, hidden, s_max :
         Flow architecture (see :class:`FlowSampler`).
     flow_type : str
-        ``"affine"`` (default, RealNVP) or ``"spline"`` (rational-quadratic
-        neural spline — more expressive per parameter, better tails; keeps
-        exact entropy). ``num_bins`` / ``tail_bound`` apply to the spline.
+        ``"affine"`` (default, RealNVP), ``"spline"`` (rational-quadratic
+        neural spline — more expressive per parameter, better tails), or
+        ``"dsf"`` (affine couplings interleaved with elementwise
+        deep-sigmoidal transforms — universal 1-D marginal shape per block;
+        ``n_sigmoids`` applies).  All keep exact entropy.
     num_bins, tail_bound :
         Spline knobs (``flow_type="spline"``): bins per transformed dim and the
         ``[-B, B]`` interval outside which the spline is the identity.
+    n_sigmoids : int
+        Dsf knob (``flow_type="dsf"``): sigmoid components per dimension in
+        each sigmoidal block.
     n_components : int
         Gaussian-mixture base size (see :class:`FlowSamplerModel`).  K > 1
         is the multimodality mechanism: base components can occupy separate
@@ -235,6 +240,7 @@ class DistributionBuilder:
         flow_type: str = "affine",
         num_bins: int = 8,
         tail_bound: float = 4.0,
+        n_sigmoids: int = 8,
         n_bins: int = 32,
     ):
         self.variables = list(variables)
@@ -308,6 +314,7 @@ class DistributionBuilder:
                                       hidden=hidden, s_max=s_max,
                                       n_dummy=n_dummy, flow_type=flow_type,
                                       num_bins=num_bins, tail_bound=tail_bound,
+                                      n_sigmoids=n_sigmoids,
                                       n_components=n_components)
 
         # ---- estimates → constraints + evaluation rows -----------------------
